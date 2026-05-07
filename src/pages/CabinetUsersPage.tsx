@@ -20,6 +20,7 @@ import {
 } from '../features/cabinetUser/cabinetUserApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import { useListAssetsByLocationQuery } from '../features/asset/assetApi';
+import { useListTransactionsByUserQuery } from '../features/transaction/transactionApi';
 import { useListAssetGroupsByLocationQuery } from '../features/assetGroup/assetGroupApi';
 import { useListTimeConstraintsByLocationQuery } from '../features/timeConstraint/timeConstraintApi';
 import type { CabinetUserResponse, CabinetUserRequest } from '../types/api';
@@ -35,7 +36,7 @@ import PermissionGate from '../components/PermissionGate';
 
 // ─── User Detail Modal ────────────────────────────────────────────────────────
 
-type ManageTab = 'details' | 'locations' | 'assets' | 'groups' | 'constraints';
+type ManageTab = 'details' | 'locations' | 'assets' | 'groups' | 'constraints' | 'transactions';
 
 function UserDetailsForm({
   initial, onSave, onCancel, loading,
@@ -452,6 +453,70 @@ function TimeConstraintsTab({ userId }: { userId: string }) {
   );
 }
 
+function TransactionsTab({ userId }: { userId: string }) {
+  const { data: txs, isLoading } = useListTransactionsByUserQuery(userId);
+
+  return (
+    <div>
+      <p className="text-sm text-base-content/60 mb-3">
+        Asset transaction history ({txs?.length ?? 0} records)
+      </p>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <span className="loading loading-spinner loading-md text-primary" />
+        </div>
+      ) : !txs?.length ? (
+        <p className="text-sm text-base-content/40 text-center py-6 italic">No transactions found for this user.</p>
+      ) : (
+        <div className="overflow-x-auto max-h-80">
+          <table className="table table-xs">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Asset</th>
+                <th>Cabinet</th>
+                <th>Issued At</th>
+                <th>Returned At</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txs.map((tx) => {
+                const isOut = !tx.returnedAt;
+                const isOverdue = !!tx.overdueMinutes && tx.overdueMinutes > 0 && isOut;
+                return (
+                  <tr key={tx.autoNo} className={isOverdue ? 'bg-error/5' : ''}>
+                    <td className="font-mono text-xs text-base-content/50">{tx.autoNo}</td>
+                    <td className="text-xs">
+                      <p className="font-medium">{tx.assetName ?? `Asset #${tx.assetId}`}</p>
+                      {tx.assetNumber && <p className="text-base-content/50">#{tx.assetNumber}</p>}
+                    </td>
+                    <td className="text-xs text-base-content/60">
+                      {tx.issuedFromName ?? `Cabinet ${tx.issuedFrom}`}
+                    </td>
+                    <td className="text-xs">{new Date(tx.issuedAt).toLocaleString()}</td>
+                    <td className="text-xs">
+                      {tx.returnedAt ? new Date(tx.returnedAt).toLocaleString() : '—'}
+                    </td>
+                    <td>
+                      {tx.returnedAt
+                        ? <span className="badge badge-success badge-xs">Returned</span>
+                        : isOverdue
+                          ? <span className="badge badge-error badge-xs">Overdue</span>
+                          : <span className="badge badge-warning badge-xs">Out</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ManageUserModal({
   user, onClose,
 }: {
@@ -464,13 +529,15 @@ function ManageUserModal({
   const { data: assets } = useGetUserAssetsQuery(user.id);
   const { data: groups } = useGetUserAssetGroupsQuery(user.id);
   const { data: constraints } = useGetUserTimeConstraintsQuery(user.id);
+  const { data: txs } = useListTransactionsByUserQuery(user.id);
 
   const tabs = [
-    { id: 'details',     label: 'Details',          icon: '👤' },
-    { id: 'locations',   label: 'Locations',         icon: '📍', badge: locations?.length },
-    { id: 'assets',      label: 'Assets',            icon: '🔑', badge: assets?.length },
-    { id: 'groups',      label: 'Groups',            icon: '📦', badge: groups?.length },
-    { id: 'constraints', label: 'Time Constraints',  icon: '⏰', badge: constraints?.length },
+    { id: 'details',      label: 'Details',          icon: '👤' },
+    { id: 'locations',    label: 'Locations',         icon: '📍', badge: locations?.length },
+    { id: 'assets',       label: 'Assets',            icon: '🔑', badge: assets?.length },
+    { id: 'groups',       label: 'Groups',            icon: '📦', badge: groups?.length },
+    { id: 'constraints',  label: 'Time Constraints',  icon: '⏰', badge: constraints?.length },
+    { id: 'transactions', label: 'Transactions',      icon: '📋', badge: txs?.length },
   ];
 
   return (
@@ -500,6 +567,7 @@ function ManageUserModal({
         {activeTab === 'assets' && <AssetsTab userId={user.id} />}
         {activeTab === 'groups' && <GroupsTab userId={user.id} />}
         {activeTab === 'constraints' && <TimeConstraintsTab userId={user.id} />}
+        {activeTab === 'transactions' && <TransactionsTab userId={user.id} />}
       </div>
     </div>
   );

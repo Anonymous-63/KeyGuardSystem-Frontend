@@ -6,6 +6,18 @@ import type { CabinetMatrixResponse } from '../types/api';
 import LoadingRow from '../components/shared/LoadingRow';
 import StatusBadge from '../components/shared/StatusBadge';
 
+const REGISTERED_LABELS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'Unregistered', cls: 'badge-warning' },
+  1: { label: 'Registered',   cls: 'badge-success' },
+};
+
+const SYNC_STATUS_LABELS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'Pending',    cls: 'badge-neutral' },
+  1: { label: 'Synced',     cls: 'badge-success' },
+  2: { label: 'Out of Sync', cls: 'badge-warning' },
+  3: { label: 'Sync Error', cls: 'badge-error' },
+};
+
 const SLOT_STATUS_COLORS: Record<number, string> = {
   0: 'bg-base-200 border-base-300 text-base-content/40',      // empty
   1: 'bg-success/10 border-success/30 text-success-content',  // asset present
@@ -157,6 +169,18 @@ export default function CabinetDetailPage() {
                 <p className="text-xs truncate">{cabinet.serverURL}</p>
               </div>
             )}
+            <div>
+              <p className="text-base-content/50 text-xs uppercase tracking-wide mb-0.5">Registration</p>
+              <span className={`badge badge-sm ${(REGISTERED_LABELS[cabinet.registered] ?? REGISTERED_LABELS[0]).cls}`}>
+                {(REGISTERED_LABELS[cabinet.registered] ?? REGISTERED_LABELS[0]).label}
+              </span>
+            </div>
+            <div>
+              <p className="text-base-content/50 text-xs uppercase tracking-wide mb-0.5">Sync Status</p>
+              <span className={`badge badge-sm ${(SYNC_STATUS_LABELS[cabinet.syncStatus] ?? SYNC_STATUS_LABELS[0]).cls}`}>
+                {(SYNC_STATUS_LABELS[cabinet.syncStatus] ?? SYNC_STATUS_LABELS[0]).label}
+              </span>
+            </div>
           </div>
         </div>
       </div>

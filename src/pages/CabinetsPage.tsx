@@ -1,5 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+const SYNC_STATUS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'Pending',     cls: 'badge-neutral' },
+  1: { label: 'Synced',      cls: 'badge-success' },
+  2: { label: 'Out of Sync', cls: 'badge-warning' },
+  3: { label: 'Error',       cls: 'badge-error' },
+};
 import {
   useListCabinetsQuery,
   useCreateCabinetMutation,
@@ -163,13 +170,14 @@ export default function CabinetsPage() {
                 <th>IP</th>
                 <th>MAC</th>
                 <th>Status</th>
+                <th>Sync</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <LoadingRow colSpan={7} />}
+              {isLoading && <LoadingRow colSpan={8} />}
               {!isLoading && data?.content.length === 0 && (
-                <EmptyState colSpan={7} icon="🗄️" title="No cabinets found" />
+                <EmptyState colSpan={8} icon="🗄️" title="No cabinets found" />
               )}
               {data?.content.map((cab) => (
                 <tr key={cab.id}>
@@ -179,6 +187,11 @@ export default function CabinetsPage() {
                   <td className="font-mono text-sm">{cab.ip}</td>
                   <td className="font-mono text-sm text-base-content/70">{cab.mac}</td>
                   <td><StatusBadge disabled={cab.disabled} /></td>
+                  <td>
+                    <span className={`badge badge-xs ${(SYNC_STATUS[cab.syncStatus] ?? SYNC_STATUS[0]).cls}`}>
+                      {(SYNC_STATUS[cab.syncStatus] ?? SYNC_STATUS[0]).label}
+                    </span>
+                  </td>
                   <td>
                     <div className="flex gap-1">
                       <button className="btn btn-ghost btn-xs text-primary"

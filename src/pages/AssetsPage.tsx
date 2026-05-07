@@ -1,18 +1,23 @@
 import { useState } from 'react';
 import {
   useListAssetsQuery,
+  useListAssetsByLocationQuery,
   useCreateAssetMutation,
   useUpdateAssetMutation,
   useDisableAssetMutation,
   useRestoreAssetMutation,
 } from '../features/asset/assetApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
-import type { AssetResponse, AssetRequest } from '../types/api';
+import { useListTransactionsByAssetQuery } from '../features/transaction/transactionApi';
+import type { AssetResponse, AssetRequest, AssetTransactionResponse } from '../types/api';
 import { ASSET_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
 import Pagination from '../components/shared/Pagination';
+import LoadingRow from '../components/shared/LoadingRow';
+import EmptyState from '../components/shared/EmptyState';
+import PermissionGate from '../components/PermissionGate';
 
 function AssetForm({
   initial, onSave, onCancel, loading,
@@ -112,14 +117,86 @@ function AssetForm({
   );
 }
 
+function AssetHistoryPanel({ asset }: { asset: AssetResponse }) {
+  const { data: txs, isLoading } = useListTransactionsByAssetQuery(asset.id);
+
+  const statusBadge = (tx: AssetTransactionResponse) => {
+    if (tx.returnedAt) return <span className="badge badge-success badge-xs">Returned</span>;
+    if (tx.overdueMinutes && tx.overdueMinutes > 0) return <span className="badge badge-error badge-xs">Overdue</span>;
+    return <span className="badge badge-warning badge-xs">Out</span>;
+  };
+
+  return (
+    <div>
+      <p className="text-sm text-base-content/60 mb-3">
+        Transaction history for <span className="font-semibold text-base-content">{asset.name}</span>
+        <span className="ml-1 font-mono text-xs">#{asset.number}</span>
+      </p>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <span className="loading loading-spinner loading-md text-primary" />
+        </div>
+      ) : !txs?.length ? (
+        <p className="text-sm text-base-content/40 text-center py-6 italic">No transaction history.</p>
+      ) : (
+        <div className="overflow-x-auto max-h-96">
+          <table className="table table-xs">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Issued To</th>
+                <th>Issued At</th>
+                <th>Returned At</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txs.map((tx) => (
+                <tr key={tx.autoNo} className={tx.overdueMinutes && tx.overdueMinutes > 0 && !tx.returnedAt ? 'bg-error/5' : ''}>
+                  <td className="font-mono text-xs text-base-content/50">{tx.autoNo}</td>
+                  <td className="text-xs">
+                    <p>{tx.issuedTo}</p>
+                    {tx.issuedToName && <p className="text-base-content/50">{tx.issuedToName}</p>}
+                  </td>
+                  <td className="text-xs">{new Date(tx.issuedAt).toLocaleString()}</td>
+                  <td className="text-xs">
+                    {tx.returnedAt ? new Date(tx.returnedAt).toLocaleString() : '—'}
+                  </td>
+                  <td>{statusBadge(tx)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AssetsPage() {
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<number>(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AssetResponse | null>(null);
+  const [historyAsset, setHistoryAsset] = useState<AssetResponse | null>(null);
   const [confirm, setConfirm] = useState<{ asset: AssetResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data, isLoading } = useListAssetsQuery({ page, size: 20, includeDisabled });
+  const { data: locations } = useListLocationsQuery({ size: 200 });
+  const { data: pagedData, isLoading: loadingPaged } = useListAssetsQuery(
+    { page, size: 20, includeDisabled },
+    { skip: !!locationFilter }
+  );
+  const { data: filteredData, isLoading: loadingFiltered } = useListAssetsByLocationQuery(
+    locationFilter,
+    { skip: !locationFilter }
+  );
+
+  const isLoading = loadingPaged || loadingFiltered;
+  const rows = locationFilter
+    ? (filteredData?.filter((a) => includeDisabled || !a.disabled) ?? [])
+    : (pagedData?.content ?? []);
+
   const [create, { isLoading: creating }] = useCreateAssetMutation();
   const [update, { isLoading: updating }] = useUpdateAssetMutation();
   const [disable, { isLoading: disabling }] = useDisableAssetMutation();
@@ -151,8 +228,29 @@ export default function AssetsPage() {
             <input type="checkbox" className="toggle toggle-sm"
               checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
           </label>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Asset</button>
+          <PermissionGate resource="ASSET" action="CREATE">
+            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Asset</button>
+          </PermissionGate>
         </div>
+      </div>
+
+      {/* Location filter */}
+      <div className="flex items-center gap-3 mb-4">
+        <select
+          className="select select-bordered select-sm w-56"
+          value={locationFilter}
+          onChange={(e) => { setLocationFilter(Number(e.target.value)); setPage(0); }}
+        >
+          <option value={0}>All Locations</option>
+          {locations?.content.filter((l) => !l.disabled).map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </select>
+        {locationFilter > 0 && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setLocationFilter(0)}>
+            Clear filter
+          </button>
+        )}
       </div>
 
       <div className="card bg-base-100 shadow">
@@ -170,15 +268,12 @@ export default function AssetsPage() {
               </tr>
             </thead>
             <tbody>
-              {isLoading && (
-                <tr><td colSpan={7} className="text-center py-8">
-                  <span className="loading loading-spinner" />
-                </td></tr>
+              {isLoading && <LoadingRow colSpan={7} />}
+              {!isLoading && rows.length === 0 && (
+                <EmptyState colSpan={7} icon="🔑" title="No assets found"
+                  message={locationFilter ? 'No assets in this location.' : undefined} />
               )}
-              {!isLoading && data?.content.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-8 text-base-content/50">No assets found</td></tr>
-              )}
-              {data?.content.map((asset) => (
+              {rows.map((asset) => (
                 <tr key={asset.id}>
                   <td className="font-mono text-sm">{asset.id}</td>
                   <td className="font-medium">{asset.number}</td>
@@ -188,19 +283,31 @@ export default function AssetsPage() {
                       {asset.shortKeyName && <p className="text-xs text-base-content/50">{asset.shortKeyName}</p>}
                     </div>
                   </td>
-                  <td><span className="badge badge-outline badge-sm">{ASSET_TYPES[asset.type] ?? `Type ${asset.type}`}</span></td>
+                  <td>
+                    <span className="badge badge-outline badge-sm">
+                      {ASSET_TYPES[asset.type] ?? `Type ${asset.type}`}
+                    </span>
+                  </td>
                   <td className="font-mono text-sm text-base-content/70">{asset.tagUid}</td>
                   <td><StatusBadge disabled={asset.disabled} /></td>
                   <td>
                     <div className="flex gap-1">
-                      <button className="btn btn-ghost btn-xs" onClick={() => openEdit(asset)}>Edit</button>
-                      {asset.disabled ? (
-                        <button className="btn btn-ghost btn-xs text-success"
-                          onClick={() => setConfirm({ asset, action: 'restore' })}>Restore</button>
-                      ) : (
-                        <button className="btn btn-ghost btn-xs text-error"
-                          onClick={() => setConfirm({ asset, action: 'disable' })}>Disable</button>
-                      )}
+                      <button className="btn btn-ghost btn-xs text-primary"
+                        onClick={() => setHistoryAsset(asset)}>
+                        History
+                      </button>
+                      <PermissionGate resource="ASSET" action="UPDATE">
+                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(asset)}>Edit</button>
+                      </PermissionGate>
+                      <PermissionGate resource="ASSET" action="DELETE">
+                        {asset.disabled ? (
+                          <button className="btn btn-ghost btn-xs text-success"
+                            onClick={() => setConfirm({ asset, action: 'restore' })}>Restore</button>
+                        ) : (
+                          <button className="btn btn-ghost btn-xs text-error"
+                            onClick={() => setConfirm({ asset, action: 'disable' })}>Disable</button>
+                        )}
+                      </PermissionGate>
                     </div>
                   </td>
                 </tr>
@@ -208,17 +315,23 @@ export default function AssetsPage() {
             </tbody>
           </table>
         </div>
-        {data && (
+        {!locationFilter && pagedData && (
           <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
+            <Pagination page={page} totalPages={pagedData.totalPages}
+              totalElements={pagedData.totalElements} size={20} onPageChange={setPage} />
           </div>
         )}
       </div>
 
-      <Modal open={modalOpen} title={editing ? 'Edit Asset' : 'New Asset'} onClose={() => setModalOpen(false)} size="lg">
+      <Modal open={modalOpen} title={editing ? 'Edit Asset' : 'New Asset'}
+        onClose={() => setModalOpen(false)} size="lg">
         <AssetForm initial={editing ?? undefined} onSave={handleSave}
           onCancel={() => setModalOpen(false)} loading={creating || updating} />
+      </Modal>
+
+      <Modal open={!!historyAsset} title="Asset Transaction History"
+        onClose={() => setHistoryAsset(null)} size="lg">
+        {historyAsset && <AssetHistoryPanel asset={historyAsset} />}
       </Modal>
 
       <ConfirmDialog

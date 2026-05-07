@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import { useListOperatorsQuery } from '../features/operator/operatorApi';
 import { useListCabinetsQuery } from '../features/cabinet/cabinetApi';
@@ -26,7 +27,7 @@ function StatCard({ label, value, icon, color, to }: {
       </div>
     </div>
   );
-  return to ? <a href={to}>{inner}</a> : inner;
+  return to ? <Link to={to}>{inner}</Link> : inner;
 }
 
 function AlertCard({ title, count, icon, color, to }: {
@@ -34,13 +35,13 @@ function AlertCard({ title, count, icon, color, to }: {
 }) {
   if (!count) return null;
   return (
-    <a href={to} className={`alert ${color} shadow flex items-center gap-3 py-3`}>
+    <Link to={to} className={`alert ${color} shadow flex items-center gap-3 py-3`}>
       <span className="text-xl">{icon}</span>
       <div>
         <p className="font-semibold text-sm">{count} {title}</p>
         <p className="text-xs opacity-70">Click to view →</p>
       </div>
-    </a>
+    </Link>
   );
 }
 
@@ -81,14 +82,14 @@ export default function DashboardPage() {
           count={assetsOut?.length}
           icon="🔓"
           color="alert-warning"
-          to="/transactions?view=out"
+          to="/transactions"
         />
         <AlertCard
           title="overdue assets — action required"
           count={overdueAssets?.length}
           icon="⚠️"
           color="alert-error"
-          to="/transactions?view=overdue"
+          to="/transactions"
         />
       </div>
 
@@ -117,16 +118,16 @@ export default function DashboardPage() {
           <h2 className="card-title text-base">Quick Actions</h2>
           <div className="flex flex-wrap gap-2 mt-1">
             {canRead('TRANSACTION') && (
-              <a href="/transactions" className="btn btn-outline btn-sm gap-1">📋 View Transactions</a>
+              <Link to="/transactions" className="btn btn-outline btn-sm gap-1">📋 View Transactions</Link>
             )}
             {canRead('CABINET_USER') && (
-              <a href="/cabinet-users" className="btn btn-outline btn-sm gap-1">🧑 Manage Users</a>
+              <Link to="/cabinet-users" className="btn btn-outline btn-sm gap-1">🧑 Manage Users</Link>
             )}
             {canRead('ASSET_GROUP') && (
-              <a href="/asset-groups" className="btn btn-outline btn-sm gap-1">📦 Asset Groups</a>
+              <Link to="/asset-groups" className="btn btn-outline btn-sm gap-1">📦 Asset Groups</Link>
             )}
             {canRead('TIME_CONSTRAINT') && (
-              <a href="/time-constraints" className="btn btn-outline btn-sm gap-1">⏰ Time Constraints</a>
+              <Link to="/time-constraints" className="btn btn-outline btn-sm gap-1">⏰ Time Constraints</Link>
             )}
           </div>
         </div>
