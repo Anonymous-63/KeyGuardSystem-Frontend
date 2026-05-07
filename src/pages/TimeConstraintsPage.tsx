@@ -19,7 +19,7 @@ import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
 
-const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', fromTime: '08:00', toTime: '17:00' };
+const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', startTime: '08:00', endTime: '17:00' };
 
 function ConstraintForm({
   initial, onSave, onCancel, loading,
@@ -36,7 +36,7 @@ function ConstraintForm({
   const [fromDate, setFromDate] = useState(initial?.fromDate?.slice(0, 10) ?? '');
   const [toDate, setToDate] = useState(initial?.toDate?.slice(0, 10) ?? '');
   const [details, setDetails] = useState<TimeConstraintDetailRequest[]>(
-    initial?.details?.map((d) => ({ day: d.day, name: d.name, fromTime: d.fromTime, toTime: d.toTime })) ??
+    initial?.details?.map((d) => ({ day: d.day, name: d.name, startTime: d.startTime, endTime: d.endTime })) ??
     [{ ...EMPTY_DETAIL }]
   );
 
@@ -75,7 +75,7 @@ function ConstraintForm({
             ))}
           </select>
         </div>
-        {type === 0 && (
+        {type === 4 && (
           <>
             <div className="form-control">
               <label className="label"><span className="label-text">From Date</span></label>
@@ -116,13 +116,13 @@ function ConstraintForm({
               </div>
               <div className="col-span-2">
                 <label className="label py-0"><span className="label-text text-xs">From</span></label>
-                <input type="time" className="input input-bordered input-xs w-full" value={d.fromTime}
-                  onChange={(e) => updateDetail(i, 'fromTime', e.target.value)} />
+                <input type="time" className="input input-bordered input-xs w-full" value={d.startTime}
+                  onChange={(e) => updateDetail(i, 'startTime', e.target.value)} />
               </div>
               <div className="col-span-2">
                 <label className="label py-0"><span className="label-text text-xs">To</span></label>
-                <input type="time" className="input input-bordered input-xs w-full" value={d.toTime}
-                  onChange={(e) => updateDetail(i, 'toTime', e.target.value)} />
+                <input type="time" className="input input-bordered input-xs w-full" value={d.endTime}
+                  onChange={(e) => updateDetail(i, 'endTime', e.target.value)} />
               </div>
               <div className="col-span-2 flex justify-end">
                 <button type="button" className="btn btn-xs btn-ghost text-error"

@@ -11,6 +11,7 @@ import {
 } from '../features/location/locationApi';
 import { useListOperatorsQuery } from '../features/operator/operatorApi';
 import type { LocationResponse, LocationRequest } from '../types/api';
+import { LOCATION_ASSET_TYPES, LOCATION_CABINET_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
@@ -27,19 +28,41 @@ function LocationForm({
   loading: boolean;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [address, setAddress] = useState(initial?.address ?? '');
+  const [assetType, setAssetType] = useState<number>(initial?.assetType ?? 1);
+  const [cabinetType, setCabinetType] = useState<number>(initial?.cabinetType ?? 0);
+  const [features, setFeatures] = useState(initial?.features ?? '');
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, address }); }} className="space-y-3">
+    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, assetType, cabinetType, features: features || undefined }); }} className="space-y-3">
       <div className="form-control">
         <label className="label"><span className="label-text">Name *</span></label>
         <input className="input input-bordered" value={name}
           onChange={(e) => setName(e.target.value)} required maxLength={50} />
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="form-control">
+          <label className="label"><span className="label-text">Asset Type *</span></label>
+          <select className="select select-bordered" value={assetType}
+            onChange={(e) => setAssetType(Number(e.target.value))}>
+            {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-control">
+          <label className="label"><span className="label-text">Cabinet Type *</span></label>
+          <select className="select select-bordered" value={cabinetType}
+            onChange={(e) => setCabinetType(Number(e.target.value))}>
+            {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className="form-control">
-        <label className="label"><span className="label-text">Address</span></label>
-        <input className="input input-bordered" value={address}
-          onChange={(e) => setAddress(e.target.value)} maxLength={200} />
+        <label className="label"><span className="label-text">Features</span></label>
+        <input className="input input-bordered" value={features}
+          onChange={(e) => setFeatures(e.target.value)} maxLength={200} />
       </div>
       <div className="modal-action">
         <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
@@ -210,25 +233,27 @@ export default function LocationsPage() {
               <tr>
                 <th>ID</th>
                 <th>Name</th>
-                <th>Address</th>
+                <th>Asset Type</th>
+                <th>Cabinet Type</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={5} className="text-center py-8">
+                <tr><td colSpan={6} className="text-center py-8">
                   <span className="loading loading-spinner" />
                 </td></tr>
               )}
               {!isLoading && data?.content.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-8 text-base-content/50">No locations found</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-base-content/50">No locations found</td></tr>
               )}
               {data?.content.map((loc) => (
                 <tr key={loc.id}>
                   <td className="font-mono text-sm">{loc.id}</td>
                   <td className="font-medium">{loc.name}</td>
-                  <td className="text-base-content/70">{loc.address ?? '—'}</td>
+                  <td className="text-base-content/70">{loc.assetTypeName ?? LOCATION_ASSET_TYPES[loc.assetType] ?? '—'}</td>
+                  <td className="text-base-content/70">{loc.cabinetTypeName ?? LOCATION_CABINET_TYPES[loc.cabinetType] ?? '—'}</td>
                   <td><StatusBadge disabled={loc.disabled} /></td>
                   <td>
                     <div className="flex gap-1">

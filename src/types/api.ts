@@ -37,17 +37,37 @@ export interface RefreshRequest {
 
 // ─── Location ─────────────────────────────────────────────────────────────────
 
+// Asset type stored in location (what kind of assets this location holds)
+export const LOCATION_ASSET_TYPES: Record<number, string> = {
+  1: 'Keys',
+  2: 'TLDs',
+  3: 'Lockers',
+};
+
+// Cabinet type (cabinet configuration mode)
+export const LOCATION_CABINET_TYPES: Record<number, string> = {
+  0: 'Single',
+  1: 'Multi Same',
+  2: 'Multi Different',
+};
+
 export interface LocationResponse {
   id: number;
   name: string;
-  address?: string;
+  assetType: number;
+  assetTypeName?: string;
+  cabinetType: number;
+  cabinetTypeName?: string;
+  features?: string;
   disabled: boolean;
   mDate: string;
 }
 
 export interface LocationRequest {
   name: string;
-  address?: string;
+  assetType: number;
+  cabinetType: number;
+  features?: string;
 }
 
 // ─── Location-Operator Mapping ────────────────────────────────────────────────
@@ -57,9 +77,11 @@ export interface LocationOperatorRequest {
 }
 
 export interface LocationOperatorResponse {
-  operatorId: string;
-  operatorName: string;
   locationId: number;
+  locationName?: string;
+  operatorId: string;
+  operatorName?: string;
+  disabled: boolean;
   mDate: string;
 }
 
@@ -76,17 +98,22 @@ export const OPERATOR_TYPES: Record<number, string> = {
 export interface OperatorResponse {
   id: string;
   name: string;
-  email?: string;
+  emailId?: string;
+  mobileNo?: string;
+  mobileCountryCode?: string;
   type: number;
+  typeName?: string;
   disabled: boolean;
+  passChangedAt?: string;
   mDate: string;
 }
 
 export interface OperatorRequest {
-  operatorId: string;
+  id: string;
   password: string;
   name: string;
-  email?: string;
+  emailId?: string;
+  mobileNo?: string;
   type: number;
 }
 
@@ -191,9 +218,12 @@ export interface AssetGroupRequest {
 
 // ─── Time Constraint ──────────────────────────────────────────────────────────
 
+// Backend enum: DAILY(1), WEEKLY(2), MONTHLY(3), INTERVAL(4)
 export const TIME_CONSTRAINT_TYPES: Record<number, string> = {
-  0: 'Fixed Range',
-  1: 'Weekly Schedule',
+  1: 'Daily',
+  2: 'Weekly',
+  3: 'Monthly',
+  4: 'Interval',
 };
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -202,16 +232,15 @@ export const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export interface TimeConstraintDetailRequest {
   day: number;
   name: string;
-  fromTime: string;
-  toTime: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface TimeConstraintDetailResponse {
-  id?: number;
   day: number;
   name: string;
-  fromTime: string;
-  toTime: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface TimeConstraintRequest {
@@ -237,6 +266,7 @@ export interface TimeConstraintResponse {
 
 // ─── Cabinet User ─────────────────────────────────────────────────────────────
 
+// User access type within a location assignment (stored in location_cabinet_users.type)
 export const CABINET_USER_TYPES: Record<number, string> = {
   0: 'User',
   1: 'Admin',
@@ -250,36 +280,53 @@ export interface CabinetUserResponse {
   shortId?: string;
   shortName?: string;
   cardUid?: number;
-  type: number;
-  email?: string;
+  emailId?: string;
   mobileNo?: string;
+  landlineNo?: string;
   division?: string;
   designation?: string;
-  validFrom?: string;
-  validUpto?: string;
+  address?: string;
+  fp1?: number;
+  fp2?: number;
+  fingerModuleId?: number;
   disabled: boolean;
+  passChangedAt?: string;
   mDate: string;
 }
 
 export interface CabinetUserRequest {
-  userId: string;
+  id: string;
   name: string;
   shortId?: string;
   shortName?: string;
   cardUid?: number;
   pin?: string;
-  type: number;
-  email?: string;
+  emailId?: string;
   mobileNo?: string;
+  landlineNo?: string;
   division?: string;
   designation?: string;
   address?: string;
-  validFrom?: string;
-  validUpto?: string;
 }
 
+// Location assignment for a cabinet user (from location_cabinet_users table)
+export interface LocationAssignmentResponse {
+  locationId: number;
+  userId: string;
+  validFrom: string;
+  validUpto?: string;
+  individualAccess?: number;
+  type?: number;
+  disabled: boolean;
+}
+
+// Request to assign a user to a location
 export interface AssignLocationRequest {
   locationId: number;
+  validFrom: string;
+  validUpto?: string;
+  type?: number;
+  individualAccess?: number;
 }
 
 // ─── User Assignments ─────────────────────────────────────────────────────────

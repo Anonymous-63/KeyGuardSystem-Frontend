@@ -52,44 +52,30 @@ function UserDetailsForm({
   const [shortName, setShortName] = useState(initial.shortName ?? '');
   const [cardUid, setCardUid] = useState<number | ''>(initial.cardUid ?? '');
   const [pin, setPin] = useState('');
-  const [type, setType] = useState<number>(initial.type);
-  const [email, setEmail] = useState(initial.email ?? '');
+  const [emailId, setEmailId] = useState(initial.emailId ?? '');
   const [mobileNo, setMobileNo] = useState(initial.mobileNo ?? '');
   const [division, setDivision] = useState(initial.division ?? '');
   const [designation, setDesignation] = useState(initial.designation ?? '');
-  const [validFrom, setValidFrom] = useState(initial.validFrom?.slice(0, 16) ?? '');
-  const [validUpto, setValidUpto] = useState(initial.validUpto?.slice(0, 16) ?? '');
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({
-        name, type,
+        name,
         shortId: shortId || undefined,
         shortName: shortName || undefined,
         cardUid: cardUid !== '' ? cardUid : undefined,
         pin: pin || undefined,
-        email: email || undefined,
+        emailId: emailId || undefined,
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
-        validFrom: validFrom || undefined,
-        validUpto: validUpto || undefined,
       });
     }}>
       <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
+        <div className="form-control col-span-2">
           <label className="label py-1"><span className="label-text text-xs">User ID</span></label>
           <input className="input input-bordered input-sm font-mono" value={initial.id} disabled />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Type *</span></label>
-          <select className="select select-bordered select-sm" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
-            {Object.entries(CABINET_USER_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
         </div>
         <div className="form-control col-span-2">
           <label className="label py-1"><span className="label-text text-xs">Full Name *</span></label>
@@ -118,8 +104,8 @@ function UserDetailsForm({
         </div>
         <div className="form-control">
           <label className="label py-1"><span className="label-text text-xs">Email</span></label>
-          <input type="email" className="input input-bordered input-sm" value={email}
-            onChange={(e) => setEmail(e.target.value)} maxLength={100} />
+          <input type="email" className="input input-bordered input-sm" value={emailId}
+            onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
         </div>
         <div className="form-control">
           <label className="label py-1"><span className="label-text text-xs">Mobile No</span></label>
@@ -135,16 +121,6 @@ function UserDetailsForm({
           <label className="label py-1"><span className="label-text text-xs">Designation</span></label>
           <input className="input input-bordered input-sm" value={designation}
             onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Valid From</span></label>
-          <input type="datetime-local" className="input input-bordered input-sm" value={validFrom}
-            onChange={(e) => setValidFrom(e.target.value)} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Valid Until</span></label>
-          <input type="datetime-local" className="input input-bordered input-sm" value={validUpto}
-            min={validFrom} onChange={(e) => setValidUpto(e.target.value)} />
         </div>
       </div>
       <div className="flex justify-end gap-2 mt-4">
@@ -165,9 +141,11 @@ function LocationsTab({ userId }: { userId: string }) {
   const [assign, { isLoading: assigning }] = useAssignLocationMutation();
   const [remove, { isLoading: removing }] = useRemoveLocationMutation();
   const [selectedId, setSelectedId] = useState<number>(0);
+  const [validFrom, setValidFrom] = useState('');
 
-  const assignedIds = new Set(assigned?.map((l) => l.id) ?? []);
-  const available = allLocations?.content.filter((l) => !assignedIds.has(l.id) && !l.disabled) ?? [];
+  const assignedLocationIds = new Set(assigned?.map((l) => l.locationId) ?? []);
+  const available = allLocations?.content.filter((l) => !assignedLocationIds.has(l.id) && !l.disabled) ?? [];
+  const getLocName = (id: number) => allLocations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
   return (
     <div className="space-y-4">
@@ -182,17 +160,25 @@ function LocationsTab({ userId }: { userId: string }) {
         ) : (
           <div className="space-y-1">
             {assigned?.map((loc) => (
-              <div key={loc.id}
+              <div key={loc.locationId}
                 className="flex items-center justify-between px-3 py-2 rounded-lg bg-base-200">
                 <div>
-                  <span className="text-sm font-medium">📍 {loc.name}</span>
-                  {loc.address && <span className="text-xs text-base-content/50 ml-2">{loc.address}</span>}
+                  <span className="text-sm font-medium">📍 {getLocName(loc.locationId)}</span>
+                  <div className="text-xs text-base-content/50 mt-0.5">
+                    From {new Date(loc.validFrom).toLocaleDateString()}
+                    {loc.validUpto && ` · Until ${new Date(loc.validUpto).toLocaleDateString()}`}
+                    {loc.type != null && (
+                      <span className="ml-2 badge badge-xs badge-outline">
+                        {CABINET_USER_TYPES[loc.type] ?? `Type ${loc.type}`}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
                     onClick={async () => {
                       try {
-                        await remove({ id: userId, locationId: loc.id }).unwrap();
+                        await remove({ id: userId, locationId: loc.locationId }).unwrap();
                         addToast({ type: 'success', message: 'Location removed' });
                       } catch { addToast({ type: 'error', message: 'Failed to remove location' }); }
                     }}>Remove</button>
@@ -209,24 +195,32 @@ function LocationsTab({ userId }: { userId: string }) {
           {available.length === 0 ? (
             <p className="text-sm text-base-content/40 italic">All active locations already assigned.</p>
           ) : (
-            <div className="flex gap-2">
-              <select className="select select-bordered select-sm flex-1" value={selectedId}
+            <div className="space-y-2">
+              <select className="select select-bordered select-sm w-full" value={selectedId}
                 onChange={(e) => setSelectedId(Number(e.target.value))}>
                 <option value={0} disabled>Select location…</option>
                 {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
-              <button className="btn btn-primary btn-sm"
-                disabled={!selectedId || assigning}
-                onClick={async () => {
-                  if (!selectedId) return;
-                  try {
-                    await assign({ id: userId, body: { locationId: selectedId } }).unwrap();
-                    addToast({ type: 'success', message: 'Location assigned' });
-                  } catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
-                  setSelectedId(0);
-                }}>
-                {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign'}
-              </button>
+              <div className="flex gap-2 items-end">
+                <div className="form-control flex-1">
+                  <label className="label py-0"><span className="label-text text-xs">Valid From *</span></label>
+                  <input type="date" className="input input-bordered input-sm" value={validFrom}
+                    onChange={(e) => setValidFrom(e.target.value)} />
+                </div>
+                <button className="btn btn-primary btn-sm"
+                  disabled={!selectedId || !validFrom || assigning}
+                  onClick={async () => {
+                    if (!selectedId || !validFrom) return;
+                    try {
+                      await assign({ id: userId, body: { locationId: selectedId, validFrom: `${validFrom}T00:00:00` } }).unwrap();
+                      addToast({ type: 'success', message: 'Location assigned' });
+                    } catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
+                    setSelectedId(0);
+                    setValidFrom('');
+                  }}>
+                  {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign'}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -625,10 +619,9 @@ function NewUserForm({
   onCancel: () => void;
   loading: boolean;
 }) {
-  const [userId, setUserId] = useState('');
+  const [id, setId] = useState('');
   const [name, setName] = useState('');
-  const [type, setType] = useState<number>(0);
-  const [email, setEmail] = useState('');
+  const [emailId, setEmailId] = useState('');
   const [mobileNo, setMobileNo] = useState('');
   const [division, setDivision] = useState('');
   const [designation, setDesignation] = useState('');
@@ -637,27 +630,18 @@ function NewUserForm({
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({
-        userId, name, type,
-        email: email || undefined,
+        id, name,
+        emailId: emailId || undefined,
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
       });
     }} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
+        <div className="form-control col-span-2">
           <label className="label"><span className="label-text">User ID *</span></label>
-          <input className="input input-bordered" value={userId}
-            onChange={(e) => setUserId(e.target.value)} required maxLength={20} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Type *</span></label>
-          <select className="select select-bordered" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
-            {Object.entries(CABINET_USER_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
+          <input className="input input-bordered" value={id}
+            onChange={(e) => setId(e.target.value)} required maxLength={20} />
         </div>
         <div className="form-control col-span-2">
           <label className="label"><span className="label-text">Full Name *</span></label>
@@ -676,8 +660,8 @@ function NewUserForm({
         </div>
         <div className="form-control">
           <label className="label"><span className="label-text">Email</span></label>
-          <input type="email" className="input input-bordered" value={email}
-            onChange={(e) => setEmail(e.target.value)} maxLength={100} />
+          <input type="email" className="input input-bordered" value={emailId}
+            onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
         </div>
         <div className="form-control">
           <label className="label"><span className="label-text">Mobile No</span></label>
@@ -696,19 +680,6 @@ function NewUserForm({
         </button>
       </div>
     </form>
-  );
-}
-
-// ─── Type Badge ───────────────────────────────────────────────────────────────
-
-function TypeBadge({ type }: { type: number }) {
-  const colors: Record<number, string> = {
-    0: 'badge-neutral', 1: 'badge-primary', 2: 'badge-secondary', 3: 'badge-accent',
-  };
-  return (
-    <span className={`badge badge-sm ${colors[type] ?? 'badge-neutral'}`}>
-      {CABINET_USER_TYPES[type] ?? `Type ${type}`}
-    </span>
   );
 }
 
@@ -785,18 +756,16 @@ export default function CabinetUsersPage() {
               <tr>
                 <th>ID</th>
                 <th>Name</th>
-                <th>Type</th>
                 <th>Division / Designation</th>
                 <th>Mobile</th>
-                <th>Valid Until</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <LoadingRow colSpan={8} />}
+              {isLoading && <LoadingRow colSpan={6} />}
               {!isLoading && rows.length === 0 && (
-                <EmptyState colSpan={8} icon="🧑" title="No cabinet users found"
+                <EmptyState colSpan={6} icon="🧑" title="No cabinet users found"
                   message={search ? 'No users match your search.' : 'Cabinet users are the people who physically access key cabinets.'}
                   action={!search ? { label: '+ Add User', onClick: () => setCreateOpen(true) } : undefined} />
               )}
@@ -809,14 +778,10 @@ export default function CabinetUsersPage() {
                       {user.shortName && <p className="text-xs text-base-content/50">{user.shortName}</p>}
                     </div>
                   </td>
-                  <td><TypeBadge type={user.type} /></td>
                   <td className="text-xs text-base-content/70">
                     {[user.division, user.designation].filter(Boolean).join(' · ') || '—'}
                   </td>
                   <td className="font-mono text-sm">{user.mobileNo ?? '—'}</td>
-                  <td className="text-sm text-base-content/70">
-                    {user.validUpto ? new Date(user.validUpto).toLocaleDateString() : '—'}
-                  </td>
                   <td><StatusBadge disabled={user.disabled} /></td>
                   <td>
                     <div className="flex gap-1">

@@ -27,19 +27,19 @@ function OperatorForm({
   onCancel: () => void;
   loading: boolean;
 }) {
-  const [operatorId, setOperatorId] = useState(initial?.id ?? '');
+  const [id, setId] = useState(initial?.id ?? '');
   const [name, setName] = useState(initial?.name ?? '');
-  const [email, setEmail] = useState(initial?.email ?? '');
+  const [emailId, setEmailId] = useState(initial?.emailId ?? '');
   const [type, setType] = useState<number>(initial?.type ?? 5);
   const [password, setPassword] = useState('');
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ operatorId, name, email: email || undefined, type, password }); }}
+    <form onSubmit={(e) => { e.preventDefault(); onSave({ id, name, emailId: emailId || undefined, type, password }); }}
       className="space-y-3">
       <div className="form-control">
         <label className="label"><span className="label-text">Operator ID *</span></label>
-        <input className="input input-bordered" value={operatorId}
-          onChange={(e) => setOperatorId(e.target.value)}
+        <input className="input input-bordered" value={id}
+          onChange={(e) => setId(e.target.value)}
           disabled={!!initial} required maxLength={30} />
       </div>
       <div className="form-control">
@@ -49,8 +49,8 @@ function OperatorForm({
       </div>
       <div className="form-control">
         <label className="label"><span className="label-text">Email</span></label>
-        <input type="email" className="input input-bordered" value={email}
-          onChange={(e) => setEmail(e.target.value)} maxLength={100} />
+        <input type="email" className="input input-bordered" value={emailId}
+          onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
       </div>
       <div className="form-control">
         <label className="label"><span className="label-text">Type *</span></label>
@@ -101,10 +101,7 @@ function OperatorLocationsPanel({ operatorId, operatorName }: { operatorId: stri
           {locations.map((loc) => (
             <div key={loc.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-base-200">
               <span className="text-base">📍</span>
-              <div>
-                <p className="text-sm font-medium">{loc.name}</p>
-                {loc.address && <p className="text-xs text-base-content/50">{loc.address}</p>}
-              </div>
+              <p className="text-sm font-medium">{loc.name}</p>
             </div>
           ))}
         </div>
@@ -238,7 +235,7 @@ export default function OperatorsPage() {
                 <tr key={op.id}>
                   <td className="font-mono text-sm">{op.id}</td>
                   <td className="font-medium">{op.name}</td>
-                  <td className="text-base-content/70">{op.email ?? '—'}</td>
+                  <td className="text-base-content/70">{op.emailId ?? '—'}</td>
                   <td>
                     <span className="badge badge-outline badge-sm">
                       {OPERATOR_TYPES[op.type] ?? `Type ${op.type}`}
