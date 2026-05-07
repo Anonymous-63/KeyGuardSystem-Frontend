@@ -37,6 +37,11 @@ export const cabinetApi = createApi({
       query: (id) => ({ url: `/cabinets/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Cabinet'],
     }),
+    restoreCabinet: b.mutation<CabinetResponse, number>({
+      query: (id) => ({ url: `/cabinets/${id}/restore`, method: 'POST' }),
+      transformResponse: (r: ApiResponse<CabinetResponse>) => r.data,
+      invalidatesTags: ['Cabinet'],
+    }),
   }),
 });
 
@@ -47,4 +52,5 @@ export const {
   useCreateCabinetMutation,
   useUpdateCabinetMutation,
   useDisableCabinetMutation,
+  useRestoreCabinetMutation,
 } = cabinetApi;

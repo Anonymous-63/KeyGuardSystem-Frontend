@@ -37,6 +37,11 @@ export const assetApi = createApi({
       query: (id) => ({ url: `/assets/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Asset'],
     }),
+    restoreAsset: b.mutation<AssetResponse, number>({
+      query: (id) => ({ url: `/assets/${id}/restore`, method: 'POST' }),
+      transformResponse: (r: ApiResponse<AssetResponse>) => r.data,
+      invalidatesTags: ['Asset'],
+    }),
   }),
 });
 
@@ -47,4 +52,5 @@ export const {
   useCreateAssetMutation,
   useUpdateAssetMutation,
   useDisableAssetMutation,
+  useRestoreAssetMutation,
 } = assetApi;

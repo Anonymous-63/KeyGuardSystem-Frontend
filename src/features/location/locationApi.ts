@@ -1,11 +1,15 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '../../api/baseQuery';
-import type { ApiResponse, PagedResponse, LocationResponse, LocationRequest } from '../../types/api';
+import type {
+  ApiResponse, PagedResponse,
+  LocationResponse, LocationRequest,
+  LocationOperatorRequest, LocationOperatorResponse,
+} from '../../types/api';
 
 export const locationApi = createApi({
   reducerPath: 'locationApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Location'],
+  tagTypes: ['Location', 'LocationOperator'],
   endpoints: (b) => ({
     listLocations: b.query<PagedResponse<LocationResponse>, { page?: number; size?: number; includeDisabled?: boolean }>({
       query: ({ page = 0, size = 20, includeDisabled = false } = {}) =>
@@ -37,6 +41,21 @@ export const locationApi = createApi({
       transformResponse: (r: ApiResponse<LocationResponse>) => r.data,
       invalidatesTags: ['Location'],
     }),
+    listLocationOperators: b.query<LocationOperatorResponse[], number>({
+      query: (locationId) => `/locations/${locationId}/operators`,
+      transformResponse: (r: ApiResponse<LocationOperatorResponse[]>) => r.data,
+      providesTags: (_r, _e, locationId) => [{ type: 'LocationOperator', id: locationId }],
+    }),
+    assignOperatorToLocation: b.mutation<void, { locationId: number; body: LocationOperatorRequest }>({
+      query: ({ locationId, body }) =>
+        ({ url: `/locations/${locationId}/operators`, method: 'POST', body }),
+      invalidatesTags: (_r, _e, { locationId }) => [{ type: 'LocationOperator', id: locationId }],
+    }),
+    removeOperatorFromLocation: b.mutation<void, { locationId: number; operatorId: string }>({
+      query: ({ locationId, operatorId }) =>
+        ({ url: `/locations/${locationId}/operators/${operatorId}`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, { locationId }) => [{ type: 'LocationOperator', id: locationId }],
+    }),
   }),
 });
 
@@ -47,4 +66,7 @@ export const {
   useUpdateLocationMutation,
   useDisableLocationMutation,
   useRestoreLocationMutation,
+  useListLocationOperatorsQuery,
+  useAssignOperatorToLocationMutation,
+  useRemoveOperatorFromLocationMutation,
 } = locationApi;

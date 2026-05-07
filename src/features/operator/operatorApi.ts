@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '../../api/baseQuery';
-import type { ApiResponse, PagedResponse, OperatorResponse, OperatorRequest } from '../../types/api';
+import type { ApiResponse, PagedResponse, OperatorResponse, OperatorRequest, ChangePasswordRequest, LocationResponse } from '../../types/api';
 
 export const operatorApi = createApi({
   reducerPath: 'operatorApi',
@@ -32,6 +32,18 @@ export const operatorApi = createApi({
       query: (id) => ({ url: `/operators/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Operator'],
     }),
+    restoreOperator: b.mutation<OperatorResponse, string>({
+      query: (id) => ({ url: `/operators/${id}/restore`, method: 'POST' }),
+      transformResponse: (r: ApiResponse<OperatorResponse>) => r.data,
+      invalidatesTags: ['Operator'],
+    }),
+    changePassword: b.mutation<void, { id: string; body: ChangePasswordRequest }>({
+      query: ({ id, body }) => ({ url: `/operators/${id}/change-password`, method: 'POST', body }),
+    }),
+    listLocationsForOperator: b.query<LocationResponse[], string>({
+      query: (id) => `/operators/${id}/locations`,
+      transformResponse: (r: ApiResponse<LocationResponse[]>) => r.data,
+    }),
   }),
 });
 
@@ -41,4 +53,7 @@ export const {
   useCreateOperatorMutation,
   useUpdateOperatorMutation,
   useDisableOperatorMutation,
+  useRestoreOperatorMutation,
+  useChangePasswordMutation,
+  useListLocationsForOperatorQuery,
 } = operatorApi;

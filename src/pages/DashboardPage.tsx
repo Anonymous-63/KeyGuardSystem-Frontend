@@ -2,58 +2,132 @@ import { useListLocationsQuery } from '../features/location/locationApi';
 import { useListOperatorsQuery } from '../features/operator/operatorApi';
 import { useListCabinetsQuery } from '../features/cabinet/cabinetApi';
 import { useListAssetsQuery } from '../features/asset/assetApi';
+import { useListCabinetUsersQuery } from '../features/cabinetUser/cabinetUserApi';
+import { useListAssetsOutQuery, useListOverdueAssetsQuery } from '../features/transaction/transactionApi';
+import { useAppSelector } from '../app/hooks';
+import { hasPermission } from '../features/auth/permissions';
+import { OPERATOR_TYPES } from '../types/api';
 
-function StatCard({ label, value, icon, color }: {
-  label: string; value?: number; icon: string; color: string;
+function StatCard({ label, value, icon, color, to }: {
+  label: string; value?: number; icon: string; color: string; to?: string;
 }) {
-  return (
-    <div className={`card bg-base-100 shadow border-l-4 ${color}`}>
+  const inner = (
+    <div className={`card bg-base-100 shadow border-l-4 ${color} hover:shadow-md transition-shadow`}>
       <div className="card-body py-4 px-5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-base-content/50 text-sm">{label}</p>
             <p className="text-3xl font-bold mt-1">
-              {value === undefined ? <span className="loading loading-dots loading-sm" /> : value}
+              {value === undefined ? <span className="loading loading-dots loading-sm" /> : value.toLocaleString()}
             </p>
           </div>
-          <span className="text-3xl opacity-60">{icon}</span>
+          <span className="text-3xl opacity-50">{icon}</span>
         </div>
       </div>
     </div>
   );
+  return to ? <a href={to}>{inner}</a> : inner;
+}
+
+function AlertCard({ title, count, icon, color, to }: {
+  title: string; count?: number; icon: string; color: string; to: string;
+}) {
+  if (!count) return null;
+  return (
+    <a href={to} className={`alert ${color} shadow flex items-center gap-3 py-3`}>
+      <span className="text-xl">{icon}</span>
+      <div>
+        <p className="font-semibold text-sm">{count} {title}</p>
+        <p className="text-xs opacity-70">Click to view →</p>
+      </div>
+    </a>
+  );
 }
 
 export default function DashboardPage() {
+  const operator = useAppSelector((s) => s.auth.operator);
   const { data: locations } = useListLocationsQuery({});
   const { data: operators } = useListOperatorsQuery({});
   const { data: cabinets } = useListCabinetsQuery({});
   const { data: assets } = useListAssetsQuery({});
+  const { data: cabinetUsers } = useListCabinetUsersQuery({});
+  const { data: assetsOut } = useListAssetsOutQuery();
+  const { data: overdueAssets } = useListOverdueAssetsQuery();
+
+  const canRead = (resource: Parameters<typeof hasPermission>[1]) =>
+    operator ? hasPermission(operator.type, resource, 'READ') : false;
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Locations" value={locations?.totalElements} icon="📍" color="border-primary" />
-        <StatCard label="Operators" value={operators?.totalElements} icon="👤" color="border-secondary" />
-        <StatCard label="Cabinets" value={cabinets?.totalElements} icon="🗄️" color="border-accent" />
-        <StatCard label="Assets" value={assets?.totalElements} icon="🔑" color="border-success" />
+    <div className="space-y-6">
+      {/* Welcome header */}
+      <div>
+        <h1 className="text-2xl font-bold">{greeting()}, {operator?.name?.split(' ')[0] ?? 'there'}</h1>
+        <p className="text-base-content/50 text-sm mt-0.5">
+          {OPERATOR_TYPES[operator?.type ?? 5]} · KeyGuard Management Console
+        </p>
       </div>
 
-      <div className="mt-8 card bg-base-100 shadow">
+      {/* Alerts */}
+      <div className="space-y-2">
+        <AlertCard
+          title="assets currently out"
+          count={assetsOut?.length}
+          icon="🔓"
+          color="alert-warning"
+          to="/transactions?view=out"
+        />
+        <AlertCard
+          title="overdue assets — action required"
+          count={overdueAssets?.length}
+          icon="⚠️"
+          color="alert-error"
+          to="/transactions?view=overdue"
+        />
+      </div>
+
+      {/* Stat grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
+        {canRead('LOCATION') && (
+          <StatCard label="Locations"      value={locations?.totalElements}    icon="📍" color="border-primary"   to="/locations" />
+        )}
+        {canRead('OPERATOR') && (
+          <StatCard label="Web Operators"  value={operators?.totalElements}    icon="👤" color="border-secondary" to="/operators" />
+        )}
+        {canRead('CABINET_USER') && (
+          <StatCard label="Cabinet Users"  value={cabinetUsers?.totalElements} icon="🧑" color="border-accent"    to="/cabinet-users" />
+        )}
+        {canRead('CABINET') && (
+          <StatCard label="Cabinets"       value={cabinets?.totalElements}     icon="🗄️" color="border-neutral"   to="/cabinets" />
+        )}
+        {canRead('ASSET') && (
+          <StatCard label="Assets"         value={assets?.totalElements}       icon="🔑" color="border-success"   to="/assets" />
+        )}
+      </div>
+
+      {/* Quick navigation */}
+      <div className="card bg-base-100 shadow">
         <div className="card-body">
-          <h2 className="card-title text-base">Quick Navigation</h2>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {[
-              { to: '/locations', label: 'Manage Locations', icon: '📍' },
-              { to: '/operators', label: 'Manage Operators', icon: '👤' },
-              { to: '/cabinets',  label: 'Manage Cabinets',  icon: '🗄️' },
-              { to: '/assets',    label: 'Manage Assets',    icon: '🔑' },
-            ].map(({ to, label, icon }) => (
-              <a key={to} href={to} className="btn btn-outline btn-sm gap-1">
-                {icon} {label}
-              </a>
-            ))}
+          <h2 className="card-title text-base">Quick Actions</h2>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {canRead('TRANSACTION') && (
+              <a href="/transactions" className="btn btn-outline btn-sm gap-1">📋 View Transactions</a>
+            )}
+            {canRead('CABINET_USER') && (
+              <a href="/cabinet-users" className="btn btn-outline btn-sm gap-1">🧑 Manage Users</a>
+            )}
+            {canRead('ASSET_GROUP') && (
+              <a href="/asset-groups" className="btn btn-outline btn-sm gap-1">📦 Asset Groups</a>
+            )}
+            {canRead('TIME_CONSTRAINT') && (
+              <a href="/time-constraints" className="btn btn-outline btn-sm gap-1">⏰ Time Constraints</a>
+            )}
           </div>
         </div>
       </div>
