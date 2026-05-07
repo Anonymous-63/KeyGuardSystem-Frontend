@@ -14,6 +14,7 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 type ViewMode = 'all' | 'out' | 'overdue';
 
@@ -174,6 +175,7 @@ export default function TransactionsPage() {
     undefined, { skip: viewMode !== 'overdue' }
   );
 
+  const { addToast } = useToast();
   const [recordReturn, { isLoading: recording }] = useRecordReturnMutation();
   const [recordIssuance, { isLoading: issuing }] = useRecordIssuanceMutation();
 
@@ -191,15 +193,25 @@ export default function TransactionsPage() {
 
   const handleReturnConfirm = async () => {
     if (!returning || !returnData) return;
-    await recordReturn({ autoNo: returning.autoNo, body: returnData });
+    try {
+      await recordReturn({ autoNo: returning.autoNo, body: returnData }).unwrap();
+      addToast({ type: 'success', message: 'Return recorded' });
+    } catch {
+      addToast({ type: 'error', message: 'Failed to record return' });
+    }
     setReturning(null);
     setConfirmReturn(false);
     setReturnData(null);
   };
 
   const handleIssuance = async (data: AssetTransactionWriteRequest) => {
-    await recordIssuance(data);
-    setIssuanceOpen(false);
+    try {
+      await recordIssuance(data).unwrap();
+      addToast({ type: 'success', message: 'Issuance recorded' });
+      setIssuanceOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to record issuance' });
+    }
   };
 
   const tabs: { mode: ViewMode; label: string; icon: string }[] = [

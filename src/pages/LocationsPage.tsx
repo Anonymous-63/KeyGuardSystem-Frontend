@@ -16,6 +16,7 @@ import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
 import Pagination from '../components/shared/Pagination';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 function LocationForm({
   initial, onSave, onCancel, loading,
@@ -52,6 +53,7 @@ function LocationForm({
 }
 
 function LocationOperatorsPanel({ locationId, locationName }: { locationId: number; locationName: string }) {
+  const { addToast } = useToast();
   const [selectedOpId, setSelectedOpId] = useState('');
   const { data: assigned, isLoading } = useListLocationOperatorsQuery(locationId);
   const { data: allOps } = useListOperatorsQuery({ size: 200 });
@@ -63,8 +65,22 @@ function LocationOperatorsPanel({ locationId, locationName }: { locationId: numb
 
   const handleAssign = async () => {
     if (!selectedOpId) return;
-    await assign({ locationId, body: { operatorId: selectedOpId } });
-    setSelectedOpId('');
+    try {
+      await assign({ locationId, body: { operatorId: selectedOpId } }).unwrap();
+      addToast({ type: 'success', message: 'Operator assigned' });
+      setSelectedOpId('');
+    } catch {
+      addToast({ type: 'error', message: 'Failed to assign operator' });
+    }
+  };
+
+  const handleRemove = async (operatorId: string) => {
+    try {
+      await remove({ locationId, operatorId }).unwrap();
+      addToast({ type: 'success', message: 'Operator removed' });
+    } catch {
+      addToast({ type: 'error', message: 'Failed to remove operator' });
+    }
   };
 
   return (
@@ -91,7 +107,7 @@ function LocationOperatorsPanel({ locationId, locationName }: { locationId: numb
                 <button
                   className="btn btn-ghost btn-xs text-error"
                   disabled={removing}
-                  onClick={() => remove({ locationId, operatorId: op.operatorId })}
+                  onClick={() => handleRemove(op.operatorId)}
                 >
                   Remove
                 </button>
@@ -131,6 +147,7 @@ function LocationOperatorsPanel({ locationId, locationName }: { locationId: numb
 }
 
 export default function LocationsPage() {
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -148,15 +165,25 @@ export default function LocationsPage() {
   const openEdit = (loc: LocationResponse) => { setEditing(loc); setModalOpen(true); };
 
   const handleSave = async (body: LocationRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Location updated' : 'Location created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save location' });
+    }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    if (confirm.action === 'disable') await disable(confirm.loc.id);
-    else await restore(confirm.loc.id);
+    try {
+      if (confirm.action === 'disable') await disable(confirm.loc.id).unwrap();
+      else await restore(confirm.loc.id).unwrap();
+      addToast({ type: 'success', message: confirm.action === 'disable' ? 'Location disabled' : 'Location restored' });
+    } catch {
+      addToast({ type: 'error', message: 'Action failed' });
+    }
     setConfirm(null);
   };
 
@@ -206,9 +233,7 @@ export default function LocationsPage() {
                   <td>
                     <div className="flex gap-1">
                       <button className="btn btn-ghost btn-xs text-primary"
-                        onClick={() => setOperatorsLoc(loc)}>
-                        Operators
-                      </button>
+                        onClick={() => setOperatorsLoc(loc)}>Operators</button>
                       <PermissionGate resource="LOCATION" action="UPDATE">
                         <button className="btn btn-ghost btn-xs" onClick={() => openEdit(loc)}>Edit</button>
                       </PermissionGate>

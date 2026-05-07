@@ -17,6 +17,7 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', fromTime: '08:00', toTime: '17:00' };
 
@@ -144,6 +145,7 @@ function ConstraintForm({
 }
 
 export default function TimeConstraintsPage() {
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -162,9 +164,14 @@ export default function TimeConstraintsPage() {
   const openEdit = (tc: TimeConstraintResponse) => { setEditing(tc); setModalOpen(true); };
 
   const handleSave = async (body: TimeConstraintRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Constraint updated' : 'Constraint created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save constraint' });
+    }
   };
 
   return (
@@ -260,7 +267,17 @@ export default function TimeConstraintsPage() {
         confirmLabel="Disable"
         danger
         loading={disabling}
-        onConfirm={async () => { if (confirm) { await disable(confirm.id); setConfirm(null); } }}
+        onConfirm={async () => {
+          if (confirm) {
+            try {
+              await disable(confirm.id).unwrap();
+              addToast({ type: 'success', message: 'Constraint disabled' });
+            } catch {
+              addToast({ type: 'error', message: 'Failed to disable constraint' });
+            }
+            setConfirm(null);
+          }
+        }}
         onCancel={() => setConfirm(null)}
       />
     </div>

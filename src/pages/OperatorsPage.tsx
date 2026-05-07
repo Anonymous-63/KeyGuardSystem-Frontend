@@ -17,6 +17,7 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 function OperatorForm({
   initial, onSave, onCancel, loading,
@@ -112,12 +113,8 @@ function OperatorLocationsPanel({ operatorId, operatorName }: { operatorId: stri
   );
 }
 
-function ChangePasswordPanel({
-  operatorId, onClose,
-}: {
-  operatorId: string;
-  onClose: () => void;
-}) {
+function ChangePasswordPanel({ operatorId, onClose }: { operatorId: string; onClose: () => void }) {
+  const { addToast } = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [changePassword, { isLoading }] = useChangePasswordMutation();
@@ -125,8 +122,13 @@ function ChangePasswordPanel({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirm) return;
-    await changePassword({ id: operatorId, body: { newPassword } });
-    onClose();
+    try {
+      await changePassword({ id: operatorId, body: { newPassword } }).unwrap();
+      addToast({ type: 'success', message: 'Password changed' });
+      onClose();
+    } catch {
+      addToast({ type: 'error', message: 'Failed to change password' });
+    }
   };
 
   return (
@@ -157,6 +159,7 @@ function ChangePasswordPanel({
 }
 
 export default function OperatorsPage() {
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -175,15 +178,25 @@ export default function OperatorsPage() {
   const openEdit = (op: OperatorResponse) => { setEditing(op); setModalOpen(true); };
 
   const handleSave = async (body: OperatorRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Operator updated' : 'Operator created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save operator' });
+    }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    if (confirm.action === 'disable') await disable(confirm.op.id);
-    else await restore(confirm.op.id);
+    try {
+      if (confirm.action === 'disable') await disable(confirm.op.id).unwrap();
+      else await restore(confirm.op.id).unwrap();
+      addToast({ type: 'success', message: confirm.action === 'disable' ? 'Operator disabled' : 'Operator restored' });
+    } catch {
+      addToast({ type: 'error', message: 'Action failed' });
+    }
     setConfirm(null);
   };
 
@@ -235,14 +248,10 @@ export default function OperatorsPage() {
                   <td>
                     <div className="flex gap-1">
                       <button className="btn btn-ghost btn-xs text-primary"
-                        onClick={() => setLocationsOp(op)}>
-                        Locations
-                      </button>
+                        onClick={() => setLocationsOp(op)}>Locations</button>
                       <PermissionGate resource="OPERATOR" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs"
-                          onClick={() => openEdit(op)}>Edit</button>
-                        <button className="btn btn-ghost btn-xs"
-                          onClick={() => setChangePwdOp(op)}>Change Pwd</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(op)}>Edit</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setChangePwdOp(op)}>Change Pwd</button>
                       </PermissionGate>
                       <PermissionGate resource="OPERATOR" action="DELETE">
                         {op.disabled ? (

@@ -17,6 +17,7 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 function GroupForm({
   initial, onSave, onCancel, loading,
@@ -59,6 +60,7 @@ function GroupForm({
 }
 
 function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; onClose: () => void }) {
+  const { addToast } = useToast();
   const { data: assets } = useListAssetsByLocationQuery(group.locationId);
   const [add, { isLoading: adding }] = useAddAssetToGroupMutation();
   const [remove, { isLoading: removing }] = useRemoveAssetFromGroupMutation();
@@ -85,7 +87,14 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
                     <button
                       className="text-xs opacity-70 hover:opacity-100"
                       disabled={removing}
-                      onClick={() => remove({ groupId: group.id, assetId })}
+                      onClick={async () => {
+                        try {
+                          await remove({ groupId: group.id, assetId }).unwrap();
+                          addToast({ type: 'success', message: 'Asset removed from group' });
+                        } catch {
+                          addToast({ type: 'error', message: 'Failed to remove asset' });
+                        }
+                      }}
                     >✕</button>
                   </PermissionGate>
                 </span>
@@ -110,7 +119,14 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
                   <button
                     className="btn btn-xs btn-primary"
                     disabled={adding}
-                    onClick={() => add({ groupId: group.id, assetId: asset.id })}
+                    onClick={async () => {
+                      try {
+                        await add({ groupId: group.id, assetId: asset.id }).unwrap();
+                        addToast({ type: 'success', message: 'Asset added to group' });
+                      } catch {
+                        addToast({ type: 'error', message: 'Failed to add asset' });
+                      }
+                    }}
                   >Add</button>
                 </div>
               ))
@@ -126,6 +142,7 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
 }
 
 export default function AssetGroupsPage() {
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -147,9 +164,14 @@ export default function AssetGroupsPage() {
   const openAssign = (g: AssetGroupResponse) => { setAssigning(g); setAssignOpen(true); };
 
   const handleSave = async (body: AssetGroupRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Group updated' : 'Group created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save group' });
+    }
   };
 
   return (
@@ -247,7 +269,17 @@ export default function AssetGroupsPage() {
         confirmLabel="Disable"
         danger
         loading={disabling}
-        onConfirm={async () => { if (confirm) { await disable(confirm.id); setConfirm(null); } }}
+        onConfirm={async () => {
+          if (confirm) {
+            try {
+              await disable(confirm.id).unwrap();
+              addToast({ type: 'success', message: 'Group disabled' });
+            } catch {
+              addToast({ type: 'error', message: 'Failed to disable group' });
+            }
+            setConfirm(null);
+          }
+        }}
         onCancel={() => setConfirm(null)}
       />
     </div>

@@ -1,12 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const SYNC_STATUS: Record<number, { label: string; cls: string }> = {
-  0: { label: 'Pending',     cls: 'badge-neutral' },
-  1: { label: 'Synced',      cls: 'badge-success' },
-  2: { label: 'Out of Sync', cls: 'badge-warning' },
-  3: { label: 'Error',       cls: 'badge-error' },
-};
 import {
   useListCabinetsQuery,
   useCreateCabinetMutation,
@@ -23,6 +16,14 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
+
+const SYNC_STATUS: Record<number, { label: string; cls: string }> = {
+  0: { label: 'Pending',     cls: 'badge-neutral' },
+  1: { label: 'Synced',      cls: 'badge-success' },
+  2: { label: 'Out of Sync', cls: 'badge-warning' },
+  3: { label: 'Error',       cls: 'badge-error' },
+};
 
 function CabinetForm({
   initial, onSave, onCancel, loading,
@@ -112,6 +113,7 @@ function CabinetForm({
 
 export default function CabinetsPage() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -131,15 +133,25 @@ export default function CabinetsPage() {
   const openEdit = (cab: CabinetResponse) => { setEditing(cab); setModalOpen(true); };
 
   const handleSave = async (body: CabinetRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Cabinet updated' : 'Cabinet created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save cabinet' });
+    }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    if (confirm.action === 'disable') await disable(confirm.cab.id);
-    else await restore(confirm.cab.id);
+    try {
+      if (confirm.action === 'disable') await disable(confirm.cab.id).unwrap();
+      else await restore(confirm.cab.id).unwrap();
+      addToast({ type: 'success', message: confirm.action === 'disable' ? 'Cabinet disabled' : 'Cabinet restored' });
+    } catch {
+      addToast({ type: 'error', message: 'Action failed' });
+    }
     setConfirm(null);
   };
 
@@ -225,7 +237,8 @@ export default function CabinetsPage() {
         )}
       </div>
 
-      <Modal open={modalOpen} title={editing ? 'Edit Cabinet' : 'New Cabinet'} onClose={() => setModalOpen(false)} size="lg">
+      <Modal open={modalOpen} title={editing ? 'Edit Cabinet' : 'New Cabinet'}
+        onClose={() => setModalOpen(false)} size="lg">
         <CabinetForm initial={editing ?? undefined} onSave={handleSave}
           onCancel={() => setModalOpen(false)} loading={creating || updating} />
       </Modal>

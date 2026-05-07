@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { hasPermission, type ResourceType } from '../features/auth/permissions';
+import { ToastProvider } from './shared/Toast';
 
 interface NavItem {
   to: string;
@@ -39,6 +40,7 @@ export default function Layout() {
   };
 
   return (
+    <ToastProvider>
     <div className="drawer lg:drawer-open h-screen">
       <input id="drawer-toggle" type="checkbox" className="drawer-toggle" />
 
@@ -133,5 +135,6 @@ export default function Layout() {
         </aside>
       </div>
     </div>
+    </ToastProvider>
   );
 }

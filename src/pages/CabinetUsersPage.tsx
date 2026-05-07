@@ -33,6 +33,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import Tabs from '../components/shared/Tabs';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 // ─── User Detail Modal ────────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ function UserDetailsForm({
 }
 
 function LocationsTab({ userId }: { userId: string }) {
+  const { addToast } = useToast();
   const { data: assigned, isLoading } = useGetCabinetUserLocationsQuery(userId);
   const { data: allLocations } = useListLocationsQuery({ size: 200 });
   const [assign, { isLoading: assigning }] = useAssignLocationMutation();
@@ -188,7 +190,12 @@ function LocationsTab({ userId }: { userId: string }) {
                 </div>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
-                    onClick={() => remove({ id: userId, locationId: loc.id })}>Remove</button>
+                    onClick={async () => {
+                      try {
+                        await remove({ id: userId, locationId: loc.id }).unwrap();
+                        addToast({ type: 'success', message: 'Location removed' });
+                      } catch { addToast({ type: 'error', message: 'Failed to remove location' }); }
+                    }}>Remove</button>
                 </PermissionGate>
               </div>
             ))}
@@ -212,7 +219,10 @@ function LocationsTab({ userId }: { userId: string }) {
                 disabled={!selectedId || assigning}
                 onClick={async () => {
                   if (!selectedId) return;
-                  await assign({ id: userId, body: { locationId: selectedId } });
+                  try {
+                    await assign({ id: userId, body: { locationId: selectedId } }).unwrap();
+                    addToast({ type: 'success', message: 'Location assigned' });
+                  } catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
                   setSelectedId(0);
                 }}>
                 {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign'}
@@ -226,6 +236,7 @@ function LocationsTab({ userId }: { userId: string }) {
 }
 
 function AssetsTab({ userId }: { userId: string }) {
+  const { addToast } = useToast();
   const { data: assigned, isLoading } = useGetUserAssetsQuery(userId);
   const { data: allLocations } = useListLocationsQuery({ size: 200 });
   const [assignAsset, { isLoading: assigning }] = useAssignUserAssetMutation();
@@ -258,7 +269,12 @@ function AssetsTab({ userId }: { userId: string }) {
                 </span>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
-                    onClick={() => removeAsset({ userId, assetId: ua.assetId, locationId: ua.locationId })}>
+                    onClick={async () => {
+                      try {
+                        await removeAsset({ userId, assetId: ua.assetId, locationId: ua.locationId }).unwrap();
+                        addToast({ type: 'success', message: 'Asset removed' });
+                      } catch { addToast({ type: 'error', message: 'Failed to remove asset' }); }
+                    }}>
                     Remove
                   </button>
                 </PermissionGate>
@@ -292,7 +308,10 @@ function AssetsTab({ userId }: { userId: string }) {
               disabled={!assetId || !locationId || assigning}
               onClick={async () => {
                 if (!assetId || !locationId) return;
-                await assignAsset({ userId, assetId, locationId });
+                try {
+                  await assignAsset({ userId, assetId, locationId }).unwrap();
+                  addToast({ type: 'success', message: 'Asset assigned' });
+                } catch { addToast({ type: 'error', message: 'Failed to assign asset' }); }
                 setAssetId(0);
               }}>
               {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign Asset'}
@@ -305,6 +324,7 @@ function AssetsTab({ userId }: { userId: string }) {
 }
 
 function GroupsTab({ userId }: { userId: string }) {
+  const { addToast } = useToast();
   const { data: assigned, isLoading } = useGetUserAssetGroupsQuery(userId);
   const { data: allLocations } = useListLocationsQuery({ size: 200 });
   const [assignGroup, { isLoading: assigning }] = useAssignUserAssetGroupMutation();
@@ -336,7 +356,12 @@ function GroupsTab({ userId }: { userId: string }) {
                 </span>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
-                    onClick={() => removeGroup({ userId, groupId: ug.groupId, locationId: ug.locationId })}>
+                    onClick={async () => {
+                      try {
+                        await removeGroup({ userId, groupId: ug.groupId, locationId: ug.locationId }).unwrap();
+                        addToast({ type: 'success', message: 'Group removed' });
+                      } catch { addToast({ type: 'error', message: 'Failed to remove group' }); }
+                    }}>
                     Remove
                   </button>
                 </PermissionGate>
@@ -368,7 +393,10 @@ function GroupsTab({ userId }: { userId: string }) {
               disabled={!groupId || !locationId || assigning}
               onClick={async () => {
                 if (!groupId || !locationId) return;
-                await assignGroup({ userId, groupId, locationId });
+                try {
+                  await assignGroup({ userId, groupId, locationId }).unwrap();
+                  addToast({ type: 'success', message: 'Group assigned' });
+                } catch { addToast({ type: 'error', message: 'Failed to assign group' }); }
                 setGroupId(0);
               }}>
               {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign Group'}
@@ -381,6 +409,7 @@ function GroupsTab({ userId }: { userId: string }) {
 }
 
 function TimeConstraintsTab({ userId }: { userId: string }) {
+  const { addToast } = useToast();
   const { data: assigned, isLoading } = useGetUserTimeConstraintsQuery(userId);
   const [assignTC, { isLoading: assigning }] = useAssignUserTimeConstraintMutation();
   const [removeTC, { isLoading: removing }] = useRemoveUserTimeConstraintMutation();
@@ -409,7 +438,12 @@ function TimeConstraintsTab({ userId }: { userId: string }) {
                 <span className="text-sm">⏰ {ut.constraintName ?? `Constraint #${ut.timeConstraintId}`}</span>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
-                    onClick={() => removeTC({ userId, timeConstraintId: ut.timeConstraintId })}>
+                    onClick={async () => {
+                      try {
+                        await removeTC({ userId, timeConstraintId: ut.timeConstraintId }).unwrap();
+                        addToast({ type: 'success', message: 'Constraint removed' });
+                      } catch { addToast({ type: 'error', message: 'Failed to remove constraint' }); }
+                    }}>
                     Remove
                   </button>
                 </PermissionGate>
@@ -441,7 +475,10 @@ function TimeConstraintsTab({ userId }: { userId: string }) {
               disabled={!tcId || assigning}
               onClick={async () => {
                 if (!tcId) return;
-                await assignTC({ userId, timeConstraintId: tcId });
+                try {
+                  await assignTC({ userId, timeConstraintId: tcId }).unwrap();
+                  addToast({ type: 'success', message: 'Constraint assigned' });
+                } catch { addToast({ type: 'error', message: 'Failed to assign constraint' }); }
                 setTcId(0);
               }}>
               {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign Constraint'}
@@ -523,6 +560,7 @@ function ManageUserModal({
   user: CabinetUserResponse;
   onClose: () => void;
 }) {
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<ManageTab>('details');
   const [update, { isLoading: updating }] = useUpdateCabinetUserMutation();
   const { data: locations } = useGetCabinetUserLocationsQuery(user.id);
@@ -560,7 +598,12 @@ function ManageUserModal({
       <div className="min-h-[280px]">
         {activeTab === 'details' && (
           <UserDetailsForm initial={user}
-            onSave={(body) => update({ id: user.id, body })}
+            onSave={async (body) => {
+              try {
+                await update({ id: user.id, body }).unwrap();
+                addToast({ type: 'success', message: 'User updated' });
+              } catch { addToast({ type: 'error', message: 'Failed to update user' }); }
+            }}
             onCancel={onClose} loading={updating} />
         )}
         {activeTab === 'locations' && <LocationsTab userId={user.id} />}
@@ -672,8 +715,10 @@ function TypeBadge({ type }: { type: number }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CabinetUsersPage() {
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
+  const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [managing, setManaging] = useState<CabinetUserResponse | null>(null);
   const [confirm, setConfirm] = useState<{ user: CabinetUserResponse; action: 'disable' | 'restore' } | null>(null);
@@ -683,15 +728,28 @@ export default function CabinetUsersPage() {
   const [disable, { isLoading: disabling }] = useDisableCabinetUserMutation();
   const [restore, { isLoading: restoring }] = useRestoreCabinetUserMutation();
 
+  const searchLower = search.trim().toLowerCase();
+  const rows = searchLower
+    ? (data?.content ?? []).filter(
+        (u) => u.name.toLowerCase().includes(searchLower) || u.id.toLowerCase().includes(searchLower)
+      )
+    : (data?.content ?? []);
+
   const handleCreate = async (body: CabinetUserRequest) => {
-    await create(body);
-    setCreateOpen(false);
+    try {
+      await create(body).unwrap();
+      addToast({ type: 'success', message: 'User created' });
+      setCreateOpen(false);
+    } catch { addToast({ type: 'error', message: 'Failed to create user' }); }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    if (confirm.action === 'disable') await disable(confirm.user.id);
-    else await restore(confirm.user.id);
+    try {
+      if (confirm.action === 'disable') await disable(confirm.user.id).unwrap();
+      else await restore(confirm.user.id).unwrap();
+      addToast({ type: 'success', message: confirm.action === 'disable' ? 'User disabled' : 'User restored' });
+    } catch { addToast({ type: 'error', message: 'Action failed' }); }
     setConfirm(null);
   };
 
@@ -699,7 +757,14 @@ export default function CabinetUsersPage() {
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Cabinet Users</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="search"
+            className="input input-bordered input-sm w-48"
+            placeholder="Search name or ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <label className="label cursor-pointer gap-2">
             <span className="label-text text-sm">Show disabled</span>
             <input type="checkbox" className="toggle toggle-sm"
@@ -730,12 +795,12 @@ export default function CabinetUsersPage() {
             </thead>
             <tbody>
               {isLoading && <LoadingRow colSpan={8} />}
-              {!isLoading && data?.content.length === 0 && (
+              {!isLoading && rows.length === 0 && (
                 <EmptyState colSpan={8} icon="🧑" title="No cabinet users found"
-                  message="Cabinet users are the people who physically access key cabinets."
-                  action={{ label: '+ Add User', onClick: () => setCreateOpen(true) }} />
+                  message={search ? 'No users match your search.' : 'Cabinet users are the people who physically access key cabinets.'}
+                  action={!search ? { label: '+ Add User', onClick: () => setCreateOpen(true) } : undefined} />
               )}
-              {data?.content.map((user) => (
+              {rows.map((user) => (
                 <tr key={user.id}>
                   <td className="font-mono text-sm">{user.id}</td>
                   <td>

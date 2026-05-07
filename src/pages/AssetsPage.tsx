@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useListAssetsQuery,
   useListAssetsByLocationQuery,
@@ -18,6 +19,7 @@ import Pagination from '../components/shared/Pagination';
 import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
+import { useToast } from '../components/shared/Toast';
 
 function AssetForm({
   initial, onSave, onCancel, loading,
@@ -174,6 +176,8 @@ function AssetHistoryPanel({ asset }: { asset: AssetResponse }) {
 }
 
 export default function AssetsPage() {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [locationFilter, setLocationFilter] = useState<number>(0);
@@ -206,15 +210,25 @@ export default function AssetsPage() {
   const openEdit = (asset: AssetResponse) => { setEditing(asset); setModalOpen(true); };
 
   const handleSave = async (body: AssetRequest) => {
-    if (editing) await update({ id: editing.id, body });
-    else await create(body);
-    setModalOpen(false);
+    try {
+      if (editing) await update({ id: editing.id, body }).unwrap();
+      else await create(body).unwrap();
+      addToast({ type: 'success', message: editing ? 'Asset updated' : 'Asset created' });
+      setModalOpen(false);
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save asset' });
+    }
   };
 
   const handleConfirm = async () => {
     if (!confirm) return;
-    if (confirm.action === 'disable') await disable(confirm.asset.id);
-    else await restore(confirm.asset.id);
+    try {
+      if (confirm.action === 'disable') await disable(confirm.asset.id).unwrap();
+      else await restore(confirm.asset.id).unwrap();
+      addToast({ type: 'success', message: confirm.action === 'disable' ? 'Asset disabled' : 'Asset restored' });
+    } catch {
+      addToast({ type: 'error', message: 'Action failed' });
+    }
     setConfirm(null);
   };
 
@@ -247,9 +261,7 @@ export default function AssetsPage() {
           ))}
         </select>
         {locationFilter > 0 && (
-          <button className="btn btn-ghost btn-sm" onClick={() => setLocationFilter(0)}>
-            Clear filter
-          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setLocationFilter(0)}>Clear</button>
         )}
       </div>
 
@@ -293,6 +305,10 @@ export default function AssetsPage() {
                   <td>
                     <div className="flex gap-1">
                       <button className="btn btn-ghost btn-xs text-primary"
+                        onClick={() => navigate(`/assets/${asset.id}`)}>
+                        Detail
+                      </button>
+                      <button className="btn btn-ghost btn-xs text-secondary"
                         onClick={() => setHistoryAsset(asset)}>
                         History
                       </button>
