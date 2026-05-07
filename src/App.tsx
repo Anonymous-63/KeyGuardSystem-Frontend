@@ -12,6 +12,7 @@ import TransactionsPage from './pages/TransactionsPage';
 import AssetGroupsPage from './pages/AssetGroupsPage';
 import TimeConstraintsPage from './pages/TimeConstraintsPage';
 import ProfilePage from './pages/ProfilePage';
+import CabinetDetailPage from './pages/CabinetDetailPage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/locations"        element={<LocationsPage />} />
           <Route path="/operators"        element={<OperatorsPage />} />
           <Route path="/cabinets"         element={<CabinetsPage />} />
+          <Route path="/cabinets/:id"     element={<CabinetDetailPage />} />
           <Route path="/assets"           element={<AssetsPage />} />
           <Route path="/cabinet-users"    element={<CabinetUsersPage />} />
           <Route path="/transactions"     element={<TransactionsPage />} />

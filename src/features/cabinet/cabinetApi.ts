@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '../../api/baseQuery';
-import type { ApiResponse, PagedResponse, CabinetResponse, CabinetRequest } from '../../types/api';
+import type { ApiResponse, PagedResponse, CabinetResponse, CabinetRequest, CabinetMatrixResponse } from '../../types/api';
 
 export const cabinetApi = createApi({
   reducerPath: 'cabinetApi',
@@ -42,6 +42,11 @@ export const cabinetApi = createApi({
       transformResponse: (r: ApiResponse<CabinetResponse>) => r.data,
       invalidatesTags: ['Cabinet'],
     }),
+    getCabinetMatrix: b.query<CabinetMatrixResponse[], number>({
+      query: (id) => `/cabinets/${id}/matrix`,
+      transformResponse: (r: ApiResponse<CabinetMatrixResponse[]>) => r.data,
+      providesTags: (_r, _e, id) => [{ type: 'Cabinet', id }],
+    }),
   }),
 });
 
@@ -49,6 +54,7 @@ export const {
   useListCabinetsQuery,
   useListCabinetsByLocationQuery,
   useGetCabinetQuery,
+  useGetCabinetMatrixQuery,
   useCreateCabinetMutation,
   useUpdateCabinetMutation,
   useDisableCabinetMutation,

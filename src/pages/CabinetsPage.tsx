@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useListCabinetsQuery,
   useCreateCabinetMutation,
@@ -12,6 +13,9 @@ import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
 import Pagination from '../components/shared/Pagination';
+import LoadingRow from '../components/shared/LoadingRow';
+import EmptyState from '../components/shared/EmptyState';
+import PermissionGate from '../components/PermissionGate';
 
 function CabinetForm({
   initial, onSave, onCancel, loading,
@@ -100,6 +104,7 @@ function CabinetForm({
 }
 
 export default function CabinetsPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -141,7 +146,9 @@ export default function CabinetsPage() {
             <input type="checkbox" className="toggle toggle-sm"
               checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
           </label>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Cabinet</button>
+          <PermissionGate resource="CABINET" action="CREATE">
+            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Cabinet</button>
+          </PermissionGate>
         </div>
       </div>
 
@@ -160,13 +167,9 @@ export default function CabinetsPage() {
               </tr>
             </thead>
             <tbody>
-              {isLoading && (
-                <tr><td colSpan={7} className="text-center py-8">
-                  <span className="loading loading-spinner" />
-                </td></tr>
-              )}
+              {isLoading && <LoadingRow colSpan={7} />}
               {!isLoading && data?.content.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-8 text-base-content/50">No cabinets found</td></tr>
+                <EmptyState colSpan={7} icon="🗄️" title="No cabinets found" />
               )}
               {data?.content.map((cab) => (
                 <tr key={cab.id}>
@@ -178,14 +181,22 @@ export default function CabinetsPage() {
                   <td><StatusBadge disabled={cab.disabled} /></td>
                   <td>
                     <div className="flex gap-1">
-                      <button className="btn btn-ghost btn-xs" onClick={() => openEdit(cab)}>Edit</button>
-                      {cab.disabled ? (
-                        <button className="btn btn-ghost btn-xs text-success"
-                          onClick={() => setConfirm({ cab, action: 'restore' })}>Restore</button>
-                      ) : (
-                        <button className="btn btn-ghost btn-xs text-error"
-                          onClick={() => setConfirm({ cab, action: 'disable' })}>Disable</button>
-                      )}
+                      <button className="btn btn-ghost btn-xs text-primary"
+                        onClick={() => navigate(`/cabinets/${cab.id}`)}>
+                        Matrix
+                      </button>
+                      <PermissionGate resource="CABINET" action="UPDATE">
+                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(cab)}>Edit</button>
+                      </PermissionGate>
+                      <PermissionGate resource="CABINET" action="DELETE">
+                        {cab.disabled ? (
+                          <button className="btn btn-ghost btn-xs text-success"
+                            onClick={() => setConfirm({ cab, action: 'restore' })}>Restore</button>
+                        ) : (
+                          <button className="btn btn-ghost btn-xs text-error"
+                            onClick={() => setConfirm({ cab, action: 'disable' })}>Disable</button>
+                        )}
+                      </PermissionGate>
                     </div>
                   </td>
                 </tr>

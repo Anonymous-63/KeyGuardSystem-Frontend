@@ -55,6 +55,11 @@ export const transactionApi = createApi({
     }),
 
     // ─── Cabinet Transactions ─────────────────────────────────────────────────
+    listTransactionsByDateRange: b.query<AssetTransactionResponse[], { from: string; to: string }>({
+      query: ({ from, to }) => `/transactions/assets/by-date?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      transformResponse: (r: ApiResponse<AssetTransactionResponse[]>) => r.data,
+      providesTags: ['AssetTransaction'],
+    }),
     listCabinetTransactions: b.query<PagedResponse<CabinetTransactionResponse>, { cabinetId: number; page?: number; size?: number; from?: string; to?: string }>({
       query: ({ cabinetId, page = 0, size = 20, from, to }) => {
         let url = `/transactions/cabinet/${cabinetId}?page=${page}&size=${size}`;
@@ -72,6 +77,7 @@ export const {
   useListAssetTransactionsQuery,
   useListTransactionsByAssetQuery,
   useListTransactionsByUserQuery,
+  useListTransactionsByDateRangeQuery,
   useListAssetsOutQuery,
   useListOverdueAssetsQuery,
   useGetTransactionQuery,

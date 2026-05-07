@@ -4,8 +4,10 @@ import {
   useListAssetsOutQuery,
   useListOverdueAssetsQuery,
   useRecordReturnMutation,
+  useRecordIssuanceMutation,
+  useListTransactionsByDateRangeQuery,
 } from '../features/transaction/transactionApi';
-import type { AssetTransactionResponse, AssetReturnRequest } from '../types/api';
+import type { AssetTransactionResponse, AssetReturnRequest, AssetTransactionWriteRequest } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import Pagination from '../components/shared/Pagination';
@@ -78,15 +80,92 @@ function ReturnForm({
   );
 }
 
+function IssuanceForm({
+  onSave, onCancel, loading,
+}: {
+  onSave: (data: AssetTransactionWriteRequest) => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [assetId, setAssetId] = useState<number | ''>('');
+  const [assetNumber, setAssetNumber] = useState<number | ''>('');
+  const [issuedFrom, setIssuedFrom] = useState<number | ''>('');
+  const [issuedTo, setIssuedTo] = useState('');
+  const [expectedBefore, setExpectedBefore] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (assetId === '' || assetNumber === '' || issuedFrom === '' || !issuedTo) return;
+    onSave({
+      assetId: assetId as number,
+      assetNumber: assetNumber as number,
+      issuedFrom: issuedFrom as number,
+      issuedTo,
+      expectedBefore: expectedBefore ? `${expectedBefore}:00` : undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="form-control">
+          <label className="label"><span className="label-text">Asset ID *</span></label>
+          <input type="number" className="input input-bordered" value={assetId}
+            onChange={(e) => setAssetId(e.target.value === '' ? '' : Number(e.target.value))}
+            required min={1} />
+        </div>
+        <div className="form-control">
+          <label className="label"><span className="label-text">Asset Number *</span></label>
+          <input type="number" className="input input-bordered" value={assetNumber}
+            onChange={(e) => setAssetNumber(e.target.value === '' ? '' : Number(e.target.value))}
+            required min={1} />
+        </div>
+        <div className="form-control">
+          <label className="label"><span className="label-text">Cabinet ID (From) *</span></label>
+          <input type="number" className="input input-bordered" value={issuedFrom}
+            onChange={(e) => setIssuedFrom(e.target.value === '' ? '' : Number(e.target.value))}
+            required min={1} />
+        </div>
+        <div className="form-control">
+          <label className="label"><span className="label-text">Issued To (User ID) *</span></label>
+          <input className="input input-bordered" value={issuedTo}
+            onChange={(e) => setIssuedTo(e.target.value)} required maxLength={30} />
+        </div>
+        <div className="form-control col-span-2">
+          <label className="label"><span className="label-text">Expected Return</span></label>
+          <input type="datetime-local" className="input input-bordered" value={expectedBefore}
+            onChange={(e) => setExpectedBefore(e.target.value)} />
+        </div>
+      </div>
+      <div className="modal-action">
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          {loading && <span className="loading loading-spinner loading-xs" />}
+          Record Issuance
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function TransactionsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [page, setPage] = useState(0);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [returning, setReturning] = useState<AssetTransactionResponse | null>(null);
   const [confirmReturn, setConfirmReturn] = useState(false);
   const [returnData, setReturnData] = useState<AssetReturnRequest | null>(null);
+  const [issuanceOpen, setIssuanceOpen] = useState(false);
+
+  const hasDateFilter = !!(fromDate && toDate);
 
   const { data: allData, isLoading: loadingAll } = useListAssetTransactionsQuery(
-    { page, size: 20 }, { skip: viewMode !== 'all' }
+    { page, size: 20 }, { skip: viewMode !== 'all' || hasDateFilter }
+  );
+  const { data: dateData, isLoading: loadingDate } = useListTransactionsByDateRangeQuery(
+    { from: fromDate, to: toDate },
+    { skip: viewMode !== 'all' || !hasDateFilter }
   );
   const { data: outData, isLoading: loadingOut } = useListAssetsOutQuery(
     undefined, { skip: viewMode !== 'out' }
@@ -96,12 +175,14 @@ export default function TransactionsPage() {
   );
 
   const [recordReturn, { isLoading: recording }] = useRecordReturnMutation();
+  const [recordIssuance, { isLoading: issuing }] = useRecordIssuanceMutation();
 
-  const isLoading = loadingAll || loadingOut || loadingOverdue;
+  const isLoading = loadingAll || loadingDate || loadingOut || loadingOverdue;
   const rows: AssetTransactionResponse[] =
-    viewMode === 'all' ? (allData?.content ?? []) :
-    viewMode === 'out' ? (outData ?? []) :
-    (overdueData ?? []);
+    viewMode === 'all'
+      ? hasDateFilter ? (dateData ?? []) : (allData?.content ?? [])
+      : viewMode === 'out' ? (outData ?? [])
+      : (overdueData ?? []);
 
   const handleReturnSubmit = (data: AssetReturnRequest) => {
     setReturnData(data);
@@ -116,6 +197,11 @@ export default function TransactionsPage() {
     setReturnData(null);
   };
 
+  const handleIssuance = async (data: AssetTransactionWriteRequest) => {
+    await recordIssuance(data);
+    setIssuanceOpen(false);
+  };
+
   const tabs: { mode: ViewMode; label: string; icon: string }[] = [
     { mode: 'all',     label: 'All',     icon: '📋' },
     { mode: 'out',     label: 'Out Now', icon: '🔓' },
@@ -126,6 +212,11 @@ export default function TransactionsPage() {
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Transactions</h1>
+        <PermissionGate resource="TRANSACTION" action="CREATE">
+          <button className="btn btn-primary btn-sm" onClick={() => setIssuanceOpen(true)}>
+            + Record Issuance
+          </button>
+        </PermissionGate>
       </div>
 
       {/* Tab bar */}
@@ -140,6 +231,27 @@ export default function TransactionsPage() {
           </button>
         ))}
       </div>
+
+      {/* Date filter — "All" tab only */}
+      {viewMode === 'all' && (
+        <div className="flex items-end gap-3 mb-4 flex-wrap">
+          <div className="form-control">
+            <label className="label py-0.5"><span className="label-text text-xs">From</span></label>
+            <input type="datetime-local" className="input input-bordered input-sm"
+              value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} />
+          </div>
+          <div className="form-control">
+            <label className="label py-0.5"><span className="label-text text-xs">To</span></label>
+            <input type="datetime-local" className="input input-bordered input-sm"
+              value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} />
+          </div>
+          {hasDateFilter && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFromDate(''); setToDate(''); }}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="card bg-base-100 shadow">
         <div className="overflow-x-auto">
@@ -205,7 +317,7 @@ export default function TransactionsPage() {
             </tbody>
           </table>
         </div>
-        {viewMode === 'all' && allData && (
+        {viewMode === 'all' && !hasDateFilter && allData && (
           <div className="px-4 pb-4">
             <Pagination page={page} totalPages={allData.totalPages}
               totalElements={allData.totalElements} size={20} onPageChange={setPage} />
@@ -220,6 +332,11 @@ export default function TransactionsPage() {
           <ReturnForm tx={returning} onSave={handleReturnSubmit}
             onCancel={() => setReturning(null)} loading={false} />
         )}
+      </Modal>
+
+      {/* Issuance modal */}
+      <Modal open={issuanceOpen} title="Record Issuance" onClose={() => setIssuanceOpen(false)} size="md">
+        <IssuanceForm onSave={handleIssuance} onCancel={() => setIssuanceOpen(false)} loading={issuing} />
       </Modal>
 
       <ConfirmDialog
