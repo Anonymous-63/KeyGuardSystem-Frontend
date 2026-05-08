@@ -4,6 +4,7 @@ import {
   useCreateAssetGroupMutation,
   useUpdateAssetGroupMutation,
   useDisableAssetGroupMutation,
+  useRestoreAssetGroupMutation,
   useAddAssetToGroupMutation,
   useRemoveAssetFromGroupMutation,
 } from '../features/assetGroup/assetGroupApi';
@@ -149,13 +150,14 @@ export default function AssetGroupsPage() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [editing, setEditing] = useState<AssetGroupResponse | null>(null);
   const [assigning, setAssigning] = useState<AssetGroupResponse | null>(null);
-  const [confirm, setConfirm] = useState<AssetGroupResponse | null>(null);
+  const [confirm, setConfirm] = useState<{ g: AssetGroupResponse; action: 'disable' | 'restore' } | null>(null);
 
   const { data: locations } = useListLocationsQuery({ size: 200 });
   const { data, isLoading } = useListAssetGroupsQuery({ page, size: 20, includeDisabled });
   const [create, { isLoading: creating }] = useCreateAssetGroupMutation();
   const [update, { isLoading: updating }] = useUpdateAssetGroupMutation();
   const [disable, { isLoading: disabling }] = useDisableAssetGroupMutation();
+  const [restore, { isLoading: restoring }] = useRestoreAssetGroupMutation();
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
@@ -228,9 +230,12 @@ export default function AssetGroupsPage() {
                         <button className="btn btn-ghost btn-xs" onClick={() => openEdit(g)}>Edit</button>
                       </PermissionGate>
                       <PermissionGate resource="ASSET_GROUP" action="DELETE">
-                        {!g.disabled && (
+                        {g.disabled ? (
+                          <button className="btn btn-ghost btn-xs text-success"
+                            onClick={() => setConfirm({ g, action: 'restore' })}>Restore</button>
+                        ) : (
                           <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm(g)}>Disable</button>
+                            onClick={() => setConfirm({ g, action: 'disable' })}>Disable</button>
                         )}
                       </PermissionGate>
                     </div>
@@ -264,18 +269,23 @@ export default function AssetGroupsPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title="Disable Asset Group"
-        message={`Disable group "${confirm?.name}"?`}
-        confirmLabel="Disable"
-        danger
-        loading={disabling}
+        title={confirm?.action === 'disable' ? 'Disable Asset Group' : 'Restore Asset Group'}
+        message={
+          confirm?.action === 'disable'
+            ? `Disable group "${confirm?.g.name}"?`
+            : `Restore group "${confirm?.g.name}"?`
+        }
+        confirmLabel={confirm?.action === 'disable' ? 'Disable' : 'Restore'}
+        danger={confirm?.action === 'disable'}
+        loading={disabling || restoring}
         onConfirm={async () => {
           if (confirm) {
             try {
-              await disable(confirm.id).unwrap();
-              addToast({ type: 'success', message: 'Group disabled' });
+              if (confirm.action === 'disable') await disable(confirm.g.id).unwrap();
+              else await restore(confirm.g.id).unwrap();
+              addToast({ type: 'success', message: confirm.action === 'disable' ? 'Group disabled' : 'Group restored' });
             } catch {
-              addToast({ type: 'error', message: 'Failed to disable group' });
+              addToast({ type: 'error', message: 'Action failed' });
             }
             setConfirm(null);
           }

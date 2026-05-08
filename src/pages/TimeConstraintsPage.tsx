@@ -4,6 +4,7 @@ import {
   useCreateTimeConstraintMutation,
   useUpdateTimeConstraintMutation,
   useDisableTimeConstraintMutation,
+  useRestoreTimeConstraintMutation,
 } from '../features/timeConstraint/timeConstraintApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import type {
@@ -150,13 +151,14 @@ export default function TimeConstraintsPage() {
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TimeConstraintResponse | null>(null);
-  const [confirm, setConfirm] = useState<TimeConstraintResponse | null>(null);
+  const [confirm, setConfirm] = useState<{ tc: TimeConstraintResponse; action: 'disable' | 'restore' } | null>(null);
 
   const { data: locations } = useListLocationsQuery({ size: 200 });
   const { data, isLoading } = useListTimeConstraintsQuery({ page, size: 20, includeDisabled });
   const [create, { isLoading: creating }] = useCreateTimeConstraintMutation();
   const [update, { isLoading: updating }] = useUpdateTimeConstraintMutation();
   const [disable, { isLoading: disabling }] = useDisableTimeConstraintMutation();
+  const [restore, { isLoading: restoring }] = useRestoreTimeConstraintMutation();
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
@@ -234,9 +236,12 @@ export default function TimeConstraintsPage() {
                         <button className="btn btn-ghost btn-xs" onClick={() => openEdit(tc)}>Edit</button>
                       </PermissionGate>
                       <PermissionGate resource="TIME_CONSTRAINT" action="DELETE">
-                        {!tc.disabled && (
+                        {tc.disabled ? (
+                          <button className="btn btn-ghost btn-xs text-success"
+                            onClick={() => setConfirm({ tc, action: 'restore' })}>Restore</button>
+                        ) : (
                           <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm(tc)}>Disable</button>
+                            onClick={() => setConfirm({ tc, action: 'disable' })}>Disable</button>
                         )}
                       </PermissionGate>
                     </div>
@@ -262,18 +267,23 @@ export default function TimeConstraintsPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title="Disable Time Constraint"
-        message={`Disable "${confirm?.name}"? Users assigned this constraint will lose time-based access control.`}
-        confirmLabel="Disable"
-        danger
-        loading={disabling}
+        title={confirm?.action === 'disable' ? 'Disable Time Constraint' : 'Restore Time Constraint'}
+        message={
+          confirm?.action === 'disable'
+            ? `Disable "${confirm?.tc.name}"? Users assigned this constraint will lose time-based access control.`
+            : `Restore "${confirm?.tc.name}"?`
+        }
+        confirmLabel={confirm?.action === 'disable' ? 'Disable' : 'Restore'}
+        danger={confirm?.action === 'disable'}
+        loading={disabling || restoring}
         onConfirm={async () => {
           if (confirm) {
             try {
-              await disable(confirm.id).unwrap();
-              addToast({ type: 'success', message: 'Constraint disabled' });
+              if (confirm.action === 'disable') await disable(confirm.tc.id).unwrap();
+              else await restore(confirm.tc.id).unwrap();
+              addToast({ type: 'success', message: confirm.action === 'disable' ? 'Constraint disabled' : 'Constraint restored' });
             } catch {
-              addToast({ type: 'error', message: 'Failed to disable constraint' });
+              addToast({ type: 'error', message: 'Action failed' });
             }
             setConfirm(null);
           }

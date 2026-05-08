@@ -45,6 +45,10 @@ export const assetGroupApi = createApi({
       query: (id) => ({ url: `/asset-groups/${id}`, method: 'DELETE' }),
       invalidatesTags: ['AssetGroup'],
     }),
+    restoreAssetGroup: b.mutation<void, number>({
+      query: (id) => ({ url: `/asset-groups/${id}/restore`, method: 'POST' }),
+      invalidatesTags: ['AssetGroup'],
+    }),
   }),
 });
 
@@ -57,4 +61,5 @@ export const {
   useAddAssetToGroupMutation,
   useRemoveAssetFromGroupMutation,
   useDisableAssetGroupMutation,
+  useRestoreAssetGroupMutation,
 } = assetGroupApi;

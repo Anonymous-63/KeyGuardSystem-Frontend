@@ -37,6 +37,10 @@ export const timeConstraintApi = createApi({
       query: (id) => ({ url: `/time-constraints/${id}`, method: 'DELETE' }),
       invalidatesTags: ['TimeConstraint'],
     }),
+    restoreTimeConstraint: b.mutation<void, number>({
+      query: (id) => ({ url: `/time-constraints/${id}/restore`, method: 'POST' }),
+      invalidatesTags: ['TimeConstraint'],
+    }),
   }),
 });
 
@@ -47,4 +51,5 @@ export const {
   useCreateTimeConstraintMutation,
   useUpdateTimeConstraintMutation,
   useDisableTimeConstraintMutation,
+  useRestoreTimeConstraintMutation,
 } = timeConstraintApi;
