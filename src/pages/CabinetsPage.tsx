@@ -17,6 +17,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormGrid, FormSection, FormActions } from '../components/shared/Form';
 
 const SYNC_STATUS: Record<number, { label: string; cls: string }> = {
   0: { label: 'Pending',     cls: 'badge-neutral' },
@@ -41,72 +42,40 @@ function CabinetForm({
   const [subnetMask, setSubnetMask] = useState(initial?.subnetMask ?? '');
   const [gateway, setGateway] = useState(initial?.gateway ?? '');
   const [serverIp, setServerIp] = useState(initial?.serverIp ?? '');
-  const [serverURL, setServerURL] = useState(initial?.serverURL ?? '');
+  const [serverUrl, setServerUrl] = useState(initial?.serverUrl ?? '');
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({ locationId, name, mac, ip, subnetMask, gateway,
-        serverIp: serverIp || undefined, serverURL: serverURL || undefined });
-    }} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Location *</span></label>
-          <select className="select select-bordered" value={locationId}
-            onChange={(e) => setLocationId(Number(e.target.value))} required>
-            <option value={0} disabled>Select location…</option>
-            {locations?.content.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">MAC *</span></label>
-          <input className="input input-bordered font-mono" value={mac}
-            onChange={(e) => setMac(e.target.value)} required maxLength={17}
-            placeholder="AA:BB:CC:DD:EE:FF" />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">IP *</span></label>
-          <input className="input input-bordered font-mono" value={ip}
-            onChange={(e) => setIp(e.target.value)} required maxLength={15}
-            placeholder="192.168.1.100" />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Subnet Mask *</span></label>
-          <input className="input input-bordered font-mono" value={subnetMask}
-            onChange={(e) => setSubnetMask(e.target.value)} required maxLength={15}
-            placeholder="255.255.255.0" />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Gateway *</span></label>
-          <input className="input input-bordered font-mono" value={gateway}
-            onChange={(e) => setGateway(e.target.value)} required maxLength={15}
-            placeholder="192.168.1.1" />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Server IP</span></label>
-          <input className="input input-bordered font-mono" value={serverIp}
-            onChange={(e) => setServerIp(e.target.value)} maxLength={15} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Server URL</span></label>
-          <input className="input input-bordered" value={serverURL}
-            onChange={(e) => setServerURL(e.target.value)} maxLength={200} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+        serverIp: serverIp || undefined, serverUrl: serverUrl || undefined });
+    }} className="space-y-4">
+      <FormSection title="Basic Info">
+        <FormSelect label="Location" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required>
+          <option value={0} disabled>Select location…</option>
+          {locations?.content.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </FormSelect>
+        <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} />
+      </FormSection>
+      <FormSection title="Network">
+        <FormGrid>
+          <FormField label="MAC" value={mac} onChange={(e) => setMac(e.target.value)}
+            required maxLength={17} placeholder="AA:BB:CC:DD:EE:FF" mono />
+          <FormField label="IP" value={ip} onChange={(e) => setIp(e.target.value)}
+            required maxLength={15} placeholder="192.168.1.100" mono />
+          <FormField label="Subnet Mask" value={subnetMask} onChange={(e) => setSubnetMask(e.target.value)}
+            required maxLength={15} placeholder="255.255.255.0" mono />
+          <FormField label="Gateway" value={gateway} onChange={(e) => setGateway(e.target.value)}
+            required maxLength={15} placeholder="192.168.1.1" mono />
+          <FormField label="Server IP" value={serverIp} onChange={(e) => setServerIp(e.target.value)}
+            maxLength={15} mono />
+          <FormField label="Server URL" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)}
+            maxLength={50} />
+        </FormGrid>
+      </FormSection>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }

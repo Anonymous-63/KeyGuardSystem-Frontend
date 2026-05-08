@@ -34,6 +34,7 @@ import EmptyState from '../components/shared/EmptyState';
 import Tabs from '../components/shared/Tabs';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormGrid, FormActions } from '../components/shared/Form';
 
 // ─── User Detail Modal ────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ function UserDetailsForm({
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({
+        id: initial.id,
         name,
         shortId: shortId || undefined,
         shortName: shortName || undefined,
@@ -71,65 +73,20 @@ function UserDetailsForm({
         division: division || undefined,
         designation: designation || undefined,
       });
-    }}>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label py-1"><span className="label-text text-xs">User ID</span></label>
-          <input className="input input-bordered input-sm font-mono" value={initial.id} disabled />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label py-1"><span className="label-text text-xs">Full Name *</span></label>
-          <input className="input input-bordered input-sm" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Short ID</span></label>
-          <input className="input input-bordered input-sm" value={shortId}
-            onChange={(e) => setShortId(e.target.value)} maxLength={10} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Short Name</span></label>
-          <input className="input input-bordered input-sm" value={shortName}
-            onChange={(e) => setShortName(e.target.value)} maxLength={20} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Card UID</span></label>
-          <input type="number" className="input input-bordered input-sm font-mono" value={cardUid}
-            onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">PIN (leave blank to keep)</span></label>
-          <input type="password" className="input input-bordered input-sm" value={pin}
-            onChange={(e) => setPin(e.target.value)} maxLength={8} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Email</span></label>
-          <input type="email" className="input input-bordered input-sm" value={emailId}
-            onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Mobile No</span></label>
-          <input className="input input-bordered input-sm" value={mobileNo}
-            onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Division</span></label>
-          <input className="input input-bordered input-sm" value={division}
-            onChange={(e) => setDivision(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Designation</span></label>
-          <input className="input input-bordered input-sm" value={designation}
-            onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 mt-4">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Save Changes
-        </button>
-      </div>
+    }} className="space-y-4">
+      <FormGrid>
+        <FormField label="User ID" value={initial.id} disabled mono wrapperClassName="col-span-full" />
+        <FormField label="Full Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} wrapperClassName="col-span-full" />
+        <FormField label="Short ID" value={shortId} onChange={(e) => setShortId(e.target.value)} maxLength={10} />
+        <FormField label="Short Name" value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={20} />
+        <FormField type="number" label="Card UID" value={cardUid} onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} mono />
+        <FormField type="password" label="PIN (leave blank to keep)" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={8} />
+        <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+        <FormField label="Mobile No" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+        <FormField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
+        <FormField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
+      </FormGrid>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Save Changes" />
     </form>
   );
 }
@@ -636,49 +593,19 @@ function NewUserForm({
         division: division || undefined,
         designation: designation || undefined,
       });
-    }} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">User ID *</span></label>
-          <input className="input input-bordered" value={id}
-            onChange={(e) => setId(e.target.value)} required maxLength={20} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Full Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Division</span></label>
-          <input className="input input-bordered" value={division}
-            onChange={(e) => setDivision(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Designation</span></label>
-          <input className="input input-bordered" value={designation}
-            onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Email</span></label>
-          <input type="email" className="input input-bordered" value={emailId}
-            onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Mobile No</span></label>
-          <input className="input input-bordered" value={mobileNo}
-            onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
-        </div>
-      </div>
+    }} className="space-y-4">
+      <FormGrid>
+        <FormField label="User ID" value={id} onChange={(e) => setId(e.target.value)} required maxLength={20} wrapperClassName="col-span-full" />
+        <FormField label="Full Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} wrapperClassName="col-span-full" />
+        <FormField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
+        <FormField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
+        <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+        <FormField label="Mobile No" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+      </FormGrid>
       <p className="text-xs text-base-content/50">
         After creating, use "Manage" to assign locations, assets, and time constraints.
       </p>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Create User
-        </button>
-      </div>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Create User" />
     </form>
   );
 }

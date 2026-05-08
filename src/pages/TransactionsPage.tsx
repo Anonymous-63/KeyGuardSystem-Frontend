@@ -15,6 +15,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormGrid, FormActions } from '../components/shared/Form';
 
 type ViewMode = 'all' | 'out' | 'overdue';
 
@@ -40,44 +41,28 @@ function ReturnForm({
   const [returnedTo, setReturnedTo] = useState<number | ''>(tx.issuedFrom);
   const [returnedAt, setReturnedAt] = useState(new Date().toISOString().slice(0, 16));
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      returnedAt: returnedAt ? `${returnedAt}:00` : undefined,
+      returnedBy: returnedBy || undefined,
+      returnedTo: returnedTo !== '' ? returnedTo : undefined,
+    });
+  };
+
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-base-200 rounded-lg p-3 text-sm space-y-1">
         <div className="flex justify-between"><span className="text-base-content/60">Asset</span><span className="font-medium">{tx.assetName ?? `#${tx.assetId}`}</span></div>
         <div className="flex justify-between"><span className="text-base-content/60">Issued to</span><span className="font-medium">{tx.issuedTo}</span></div>
         <div className="flex justify-between"><span className="text-base-content/60">Issued at</span><span>{new Date(tx.issuedAt).toLocaleString()}</span></div>
         {tx.expectedBefore && <div className="flex justify-between"><span className="text-base-content/60">Expected before</span><span className={tx.overdueMinutes && tx.overdueMinutes > 0 ? 'text-error font-medium' : ''}>{new Date(tx.expectedBefore).toLocaleString()}</span></div>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Return Time *</span></label>
-          <input type="datetime-local" className="input input-bordered" value={returnedAt}
-            onChange={(e) => setReturnedAt(e.target.value)} required />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Returned By (User ID)</span></label>
-          <input className="input input-bordered" value={returnedBy}
-            onChange={(e) => setReturnedBy(e.target.value)} maxLength={30} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Returned to Cabinet ID</span></label>
-          <input type="number" className="input input-bordered" value={returnedTo}
-            onChange={(e) => setReturnedTo(e.target.value === '' ? '' : Number(e.target.value))} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="button" className="btn btn-primary" disabled={loading}
-          onClick={() => onSave({
-            returnedAt: returnedAt ? `${returnedAt}:00` : undefined,
-            returnedBy: returnedBy || undefined,
-            returnedTo: returnedTo !== '' ? returnedTo : undefined,
-          })}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Record Return
-        </button>
-      </div>
-    </div>
+      <FormField type="datetime-local" label="Return Time" value={returnedAt} onChange={(e) => setReturnedAt(e.target.value)} required />
+      <FormField label="Returned By (User ID)" value={returnedBy} onChange={(e) => setReturnedBy(e.target.value)} maxLength={30} />
+      <FormField type="number" label="Returned to Cabinet ID" value={returnedTo} onChange={(e) => setReturnedTo(e.target.value === '' ? '' : Number(e.target.value))} />
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Record Return" />
+    </form>
   );
 }
 
@@ -107,44 +92,15 @@ function IssuanceForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">Asset ID *</span></label>
-          <input type="number" className="input input-bordered" value={assetId}
-            onChange={(e) => setAssetId(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Asset Number *</span></label>
-          <input type="number" className="input input-bordered" value={assetNumber}
-            onChange={(e) => setAssetNumber(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Cabinet ID (From) *</span></label>
-          <input type="number" className="input input-bordered" value={issuedFrom}
-            onChange={(e) => setIssuedFrom(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Issued To (User ID) *</span></label>
-          <input className="input input-bordered" value={issuedTo}
-            onChange={(e) => setIssuedTo(e.target.value)} required maxLength={30} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Expected Return</span></label>
-          <input type="datetime-local" className="input input-bordered" value={expectedBefore}
-            onChange={(e) => setExpectedBefore(e.target.value)} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Record Issuance
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <FormGrid>
+        <FormField type="number" label="Asset ID" value={assetId} onChange={(e) => setAssetId(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField type="number" label="Asset Number" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField type="number" label="Cabinet ID (From)" value={issuedFrom} onChange={(e) => setIssuedFrom(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField label="Issued To (User ID)" value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} required maxLength={30} />
+        <FormField type="datetime-local" label="Expected Return" value={expectedBefore} onChange={(e) => setExpectedBefore(e.target.value)} wrapperClassName="col-span-full" />
+      </FormGrid>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Record Issuance" />
     </form>
   );
 }

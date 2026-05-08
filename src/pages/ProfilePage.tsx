@@ -3,6 +3,7 @@ import { useAppSelector } from '../app/hooks';
 import { useChangePasswordMutation, useListLocationsForOperatorQuery } from '../features/operator/operatorApi';
 import { OPERATOR_TYPES } from '../types/api';
 import { clearanceFromType } from '../features/auth/permissions';
+import { FormField } from '../components/shared/Form';
 
 function ChangePasswordForm({ operatorId }: { operatorId: string }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -20,26 +21,14 @@ function ChangePasswordForm({ operatorId }: { operatorId: string }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 max-w-sm">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Current Password</span></label>
-        <input type="password" className="input input-bordered" value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)} required />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">New Password *</span></label>
-        <input type="password" className="input input-bordered" value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)} required minLength={6} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Confirm New Password *</span></label>
-        <input type="password"
-          className={`input input-bordered ${confirm && confirm !== newPassword ? 'input-error' : ''}`}
-          value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-        {confirm && confirm !== newPassword && (
-          <label className="label"><span className="label-text-alt text-error">Passwords do not match</span></label>
-        )}
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-sm">
+      <FormField type="password" label="Current Password" value={currentPassword}
+        onChange={(e) => setCurrentPassword(e.target.value)} required />
+      <FormField type="password" label="New Password" value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)} required minLength={6} />
+      <FormField type="password" label="Confirm New Password" value={confirm}
+        onChange={(e) => setConfirm(e.target.value)} required
+        error={confirm && confirm !== newPassword ? 'Passwords do not match' : undefined} />
       {isSuccess && (
         <div className="alert alert-success text-sm py-2">
           <span>Password changed successfully.</span>
@@ -132,8 +121,8 @@ export default function ProfilePage() {
             <h3 className="card-title text-base">Assigned Locations</h3>
             <div className="flex flex-wrap gap-2 mt-1">
               {locations.map((loc) => (
-                <span key={loc.id} className="badge badge-outline gap-1">
-                  📍 {loc.name}
+                <span key={loc.locationId} className="badge badge-outline gap-1">
+                  📍 {loc.locationName ?? `Location #${loc.locationId}`}
                 </span>
               ))}
             </div>

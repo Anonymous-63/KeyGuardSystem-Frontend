@@ -130,14 +130,13 @@ export interface CabinetResponse {
   name: string;
   mac: string;
   ip: string;
-  subnetMask: string;
-  gateway: string;
+  subnetMask?: string;
+  gateway?: string;
   serverIp?: string;
-  serverURL?: string;
+  serverUrl?: string;
   disabled: boolean;
-  registered: number;
+  registered: boolean;
   syncStatus: number;
-  mDate: string;
 }
 
 export interface CabinetRequest {
@@ -148,7 +147,7 @@ export interface CabinetRequest {
   subnetMask: string;
   gateway: string;
   serverIp?: string;
-  serverURL?: string;
+  serverUrl?: string;
 }
 
 export interface CabinetMatrixResponse {

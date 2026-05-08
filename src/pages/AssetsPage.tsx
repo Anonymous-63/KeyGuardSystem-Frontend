@@ -20,6 +20,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormTextarea, FormGrid, FormActions } from '../components/shared/Form';
 
 function AssetForm({
   initial, onSave, onCancel, loading,
@@ -51,70 +52,28 @@ function AssetForm({
         withdrawPolicy: withdrawPolicy || undefined,
         fixedSlot: fixedSlot !== '' ? fixedSlot : undefined,
       });
-    }} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">Tag UID *</span></label>
-          <input type="number" className="input input-bordered" value={tagUid || ''}
-            onChange={(e) => setTagUid(Number(e.target.value))} required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Number *</span></label>
-          <input type="number" className="input input-bordered" value={number || ''}
-            onChange={(e) => setNumber(Number(e.target.value))} required min={1} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Short Name</span></label>
-          <input className="input input-bordered" value={shortKeyName}
-            onChange={(e) => setShortKeyName(e.target.value)} maxLength={20} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Type *</span></label>
-          <select className="select select-bordered" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
-            {Object.entries(ASSET_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Location *</span></label>
-          <select className="select select-bordered" value={locationId}
-            onChange={(e) => setLocationId(Number(e.target.value))} required>
-            <option value={0} disabled>Select location…</option>
-            {locations?.content.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Withdraw Policy</span></label>
-          <input type="number" className="input input-bordered" value={withdrawPolicy || ''}
-            onChange={(e) => setWithdrawPolicy(Number(e.target.value))} min={0} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Fixed Slot</span></label>
-          <input type="number" className="input input-bordered" value={fixedSlot}
-            onChange={(e) => setFixedSlot(e.target.value === '' ? '' : Number(e.target.value))} min={1} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Details</span></label>
-          <textarea className="textarea textarea-bordered" value={details}
-            onChange={(e) => setDetails(e.target.value)} rows={2} maxLength={500} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+    }} className="space-y-4">
+      <FormGrid>
+        <FormField type="number" label="Tag UID" value={tagUid || ''} onChange={(e) => setTagUid(Number(e.target.value))} required min={1} />
+        <FormField type="number" label="Number" value={number || ''} onChange={(e) => setNumber(Number(e.target.value))} required min={1} />
+        <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} wrapperClassName="col-span-full" />
+        <FormField label="Short Name" value={shortKeyName} onChange={(e) => setShortKeyName(e.target.value)} maxLength={20} />
+        <FormSelect label="Type" value={type} onChange={(e) => setType(Number(e.target.value))} required>
+          {Object.entries(ASSET_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </FormSelect>
+        <FormSelect label="Location" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required wrapperClassName="col-span-full">
+          <option value={0} disabled>Select location…</option>
+          {locations?.content.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </FormSelect>
+        <FormField type="number" label="Withdraw Policy" value={withdrawPolicy || ''} onChange={(e) => setWithdrawPolicy(Number(e.target.value))} min={0} />
+        <FormField type="number" label="Fixed Slot" value={fixedSlot} onChange={(e) => setFixedSlot(e.target.value === '' ? '' : Number(e.target.value))} min={1} />
+        <FormTextarea label="Details" value={details} onChange={(e) => setDetails(e.target.value)} rows={2} maxLength={100} wrapperClassName="col-span-full" />
+      </FormGrid>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }

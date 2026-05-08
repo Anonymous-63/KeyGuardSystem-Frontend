@@ -18,6 +18,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormActions } from '../components/shared/Form';
 
 function OperatorForm({
   initial, onSave, onCancel, loading,
@@ -35,47 +36,20 @@ function OperatorForm({
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave({ id, name, emailId: emailId || undefined, type, password }); }}
-      className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Operator ID *</span></label>
-        <input className="input input-bordered" value={id}
-          onChange={(e) => setId(e.target.value)}
-          disabled={!!initial} required maxLength={30} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Name *</span></label>
-        <input className="input input-bordered" value={name}
-          onChange={(e) => setName(e.target.value)} required maxLength={100} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Email</span></label>
-        <input type="email" className="input input-bordered" value={emailId}
-          onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Type *</span></label>
-        <select className="select select-bordered" value={type}
-          onChange={(e) => setType(Number(e.target.value))}>
-          {Object.entries(OPERATOR_TYPES).map(([k, v]) => (
-            <option key={k} value={k}>{v} (Type {k})</option>
-          ))}
-        </select>
-      </div>
-      <div className="form-control">
-        <label className="label">
-          <span className="label-text">{initial ? 'New Password (leave blank to keep)' : 'Password *'}</span>
-        </label>
-        <input type="password" className="input input-bordered" value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required={!initial} minLength={6} maxLength={100} />
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+      className="space-y-4">
+      <FormField label="Operator ID" value={id} onChange={(e) => setId(e.target.value)}
+        disabled={!!initial} required maxLength={30} mono />
+      <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} />
+      <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+      <FormSelect label="Type" value={type} onChange={(e) => setType(Number(e.target.value))} required>
+        {Object.entries(OPERATOR_TYPES).map(([k, v]) => (
+          <option key={k} value={k}>{v} (Type {k})</option>
+        ))}
+      </FormSelect>
+      <FormField type="password" label={initial ? 'New Password (leave blank to keep)' : 'Password'}
+        value={password} onChange={(e) => setPassword(e.target.value)}
+        required={!initial} minLength={6} maxLength={100} />
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }
@@ -99,9 +73,9 @@ function OperatorLocationsPanel({ operatorId, operatorName }: { operatorId: stri
       ) : (
         <div className="space-y-1">
           {locations.map((loc) => (
-            <div key={loc.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-base-200">
+            <div key={loc.locationId} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-base-200">
               <span className="text-base">📍</span>
-              <p className="text-sm font-medium">{loc.name}</p>
+              <p className="text-sm font-medium">{loc.locationName ?? `Location #${loc.locationId}`}</p>
             </div>
           ))}
         </div>
@@ -129,28 +103,14 @@ function ChangePasswordPanel({ operatorId, onClose }: { operatorId: string; onCl
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">New Password *</span></label>
-        <input type="password" className="input input-bordered" value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)} required minLength={6} maxLength={100} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Confirm Password *</span></label>
-        <input type="password" className="input input-bordered" value={confirm}
-          onChange={(e) => setConfirm(e.target.value)} required minLength={6} />
-        {confirm && newPassword !== confirm && (
-          <label className="label"><span className="label-text-alt text-error">Passwords do not match</span></label>
-        )}
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button type="submit" className="btn btn-primary"
-          disabled={isLoading || !newPassword || newPassword !== confirm}>
-          {isLoading && <span className="loading loading-spinner loading-xs" />}
-          Set Password
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <FormField type="password" label="New Password" value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)} required minLength={6} maxLength={100} />
+      <FormField type="password" label="Confirm Password" value={confirm}
+        onChange={(e) => setConfirm(e.target.value)} required minLength={6}
+        error={confirm && newPassword !== confirm ? 'Passwords do not match' : undefined} />
+      <FormActions onCancel={onClose} loading={isLoading} submitLabel="Set Password"
+        disabled={!newPassword || newPassword !== confirm} />
     </form>
   );
 }

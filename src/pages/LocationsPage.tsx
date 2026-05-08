@@ -18,6 +18,7 @@ import StatusBadge from '../components/shared/StatusBadge';
 import Pagination from '../components/shared/Pagination';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormGrid, FormActions } from '../components/shared/Form';
 
 function LocationForm({
   initial, onSave, onCancel, loading,
@@ -33,44 +34,22 @@ function LocationForm({
   const [features, setFeatures] = useState(initial?.features ?? '');
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, assetType, cabinetType, features: features || undefined }); }} className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Name *</span></label>
-        <input className="input input-bordered" value={name}
-          onChange={(e) => setName(e.target.value)} required maxLength={50} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">Asset Type *</span></label>
-          <select className="select select-bordered" value={assetType}
-            onChange={(e) => setAssetType(Number(e.target.value))}>
-            {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Cabinet Type *</span></label>
-          <select className="select select-bordered" value={cabinetType}
-            onChange={(e) => setCabinetType(Number(e.target.value))}>
-            {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Features</span></label>
-        <input className="input input-bordered" value={features}
-          onChange={(e) => setFeatures(e.target.value)} maxLength={200} />
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, assetType, cabinetType, features: features || undefined }); }} className="space-y-4">
+      <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} />
+      <FormGrid>
+        <FormSelect label="Asset Type" value={assetType} onChange={(e) => setAssetType(Number(e.target.value))} required>
+          {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </FormSelect>
+        <FormSelect label="Cabinet Type" value={cabinetType} onChange={(e) => setCabinetType(Number(e.target.value))} required>
+          {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </FormSelect>
+      </FormGrid>
+      <FormField label="Features" value={features} onChange={(e) => setFeatures(e.target.value)} maxLength={200} />
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }

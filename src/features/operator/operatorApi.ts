@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '../../api/baseQuery';
-import type { ApiResponse, PagedResponse, OperatorResponse, OperatorRequest, ChangePasswordRequest, LocationResponse } from '../../types/api';
+import type { ApiResponse, PagedResponse, OperatorResponse, OperatorRequest, ChangePasswordRequest, LocationOperatorResponse } from '../../types/api';
 
 export const operatorApi = createApi({
   reducerPath: 'operatorApi',
@@ -40,9 +40,9 @@ export const operatorApi = createApi({
     changePassword: b.mutation<void, { id: string; body: ChangePasswordRequest }>({
       query: ({ id, body }) => ({ url: `/operators/${id}/change-password`, method: 'POST', body }),
     }),
-    listLocationsForOperator: b.query<LocationResponse[], string>({
+    listLocationsForOperator: b.query<LocationOperatorResponse[], string>({
       query: (id) => `/operators/${id}/locations`,
-      transformResponse: (r: ApiResponse<LocationResponse[]>) => r.data,
+      transformResponse: (r: ApiResponse<LocationOperatorResponse[]>) => r.data,
     }),
   }),
 });

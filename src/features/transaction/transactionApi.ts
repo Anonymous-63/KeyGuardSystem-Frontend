@@ -56,7 +56,7 @@ export const transactionApi = createApi({
 
     // ─── Cabinet Transactions ─────────────────────────────────────────────────
     listTransactionsByDateRange: b.query<AssetTransactionResponse[], { from: string; to: string }>({
-      query: ({ from, to }) => `/transactions/assets/by-date?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      query: ({ from, to }) => `/transactions/assets/by-date?from=${encodeURIComponent(from + ':00')}&to=${encodeURIComponent(to + ':00')}`,
       transformResponse: (r: ApiResponse<PagedResponse<AssetTransactionResponse>>) => r.data.content,
       providesTags: ['AssetTransaction'],
     }),

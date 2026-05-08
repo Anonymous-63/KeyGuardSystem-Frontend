@@ -1,10 +1,66 @@
 @import "tailwindcss";
 @plugin "daisyui/index.js";
 
+:root {
+  font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 body {
   margin: 0;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Teal brand primary — matches KeyGuard identity */
+[data-theme="light"],
+[data-theme="dark"] {
+  --color-primary: oklch(72% 0.14 168);
+  --color-primary-content: oklch(99% 0.005 168);
+}
+
+/* Smooth theme transitions — exclude animated elements */
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.loading,
+.loading * {
+  transition: none !important;
+}
+
+/* ── Form improvements ───────────────────────────────────────────────────── */
+
+/* Labels: medium weight, slightly subdued */
+.label {
+  padding-top: 0;
+  padding-bottom: 0.3rem;
+}
+.label-text {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  opacity: 0.75;
+}
+
+/* Inputs/selects/textareas: consistent height and focus ring */
+.input,
+.select,
+.textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ── Modal action footer ─────────────────────────────────────────────────── */
+
+/* Separator between form content and action buttons */
+.modal-action {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-base-200, #e5e7eb);
+}
+
+/* ── Table improvements ──────────────────────────────────────────────────── */
+
+/* Slightly tighter zebra rows */
+.table-zebra tbody tr:nth-child(even) {
+  background-color: color-mix(in oklch, var(--color-base-200, #f3f4f6) 50%, transparent);
 }

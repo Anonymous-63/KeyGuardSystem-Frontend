@@ -6,10 +6,10 @@ import type { CabinetMatrixResponse } from '../types/api';
 import LoadingRow from '../components/shared/LoadingRow';
 import StatusBadge from '../components/shared/StatusBadge';
 
-const REGISTERED_LABELS: Record<number, { label: string; cls: string }> = {
-  0: { label: 'Unregistered', cls: 'badge-warning' },
-  1: { label: 'Registered',   cls: 'badge-success' },
-};
+const REGISTERED_LABEL = (registered: boolean) =>
+  registered
+    ? { label: 'Registered',   cls: 'badge-success' }
+    : { label: 'Unregistered', cls: 'badge-warning' };
 
 const SYNC_STATUS_LABELS: Record<number, { label: string; cls: string }> = {
   0: { label: 'Pending',    cls: 'badge-neutral' },
@@ -163,16 +163,16 @@ export default function CabinetDetailPage() {
                 <p className="font-mono">{cabinet.serverIp}</p>
               </div>
             )}
-            {cabinet.serverURL && (
+            {cabinet.serverUrl && (
               <div>
                 <p className="text-base-content/50 text-xs uppercase tracking-wide mb-0.5">Server URL</p>
-                <p className="text-xs truncate">{cabinet.serverURL}</p>
+                <p className="text-xs truncate">{cabinet.serverUrl}</p>
               </div>
             )}
             <div>
               <p className="text-base-content/50 text-xs uppercase tracking-wide mb-0.5">Registration</p>
-              <span className={`badge badge-sm ${(REGISTERED_LABELS[cabinet.registered] ?? REGISTERED_LABELS[0]).cls}`}>
-                {(REGISTERED_LABELS[cabinet.registered] ?? REGISTERED_LABELS[0]).label}
+              <span className={`badge badge-sm ${REGISTERED_LABEL(cabinet.registered).cls}`}>
+                {REGISTERED_LABEL(cabinet.registered).label}
               </span>
             </div>
             <div>

@@ -19,6 +19,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormGrid, FormSection, FormActions } from '../components/shared/Form';
 
 const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', startTime: '08:00', endTime: '17:00' };
 
@@ -37,8 +38,12 @@ function ConstraintForm({
   const [fromDate, setFromDate] = useState(initial?.fromDate?.slice(0, 10) ?? '');
   const [toDate, setToDate] = useState(initial?.toDate?.slice(0, 10) ?? '');
   const [details, setDetails] = useState<TimeConstraintDetailRequest[]>(
-    initial?.details?.map((d) => ({ day: d.day, name: d.name, startTime: d.startTime, endTime: d.endTime })) ??
-    [{ ...EMPTY_DETAIL }]
+    initial?.details?.map((d) => ({
+      day: d.day,
+      name: d.name,
+      startTime: d.startTime.slice(0, 5),
+      endTime: d.endTime.slice(0, 5),
+    })) ?? [{ ...EMPTY_DETAIL }]
   );
 
   const addDetail = () => setDetails((prev) => [...prev, { ...EMPTY_DETAIL }]);
@@ -51,48 +56,29 @@ function ConstraintForm({
       e.preventDefault();
       onSave({ name, locationId, type, fromDate: fromDate || undefined, toDate: toDate || undefined, details });
     }} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Location *</span></label>
-          <select className="select select-bordered" value={locationId}
-            onChange={(e) => setLocationId(Number(e.target.value))} required>
+      <FormSection title="General">
+        <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={20} />
+        <FormGrid>
+          <FormSelect label="Location" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required>
             <option value={0} disabled>Select location…</option>
             {locations?.content.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
-          </select>
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Type</span></label>
-          <select className="select select-bordered" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
+          </FormSelect>
+          <FormSelect label="Type" value={type} onChange={(e) => setType(Number(e.target.value))}>
             {Object.entries(TIME_CONSTRAINT_TYPES).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
-          </select>
-        </div>
-        {type === 4 && (
-          <>
-            <div className="form-control">
-              <label className="label"><span className="label-text">From Date</span></label>
-              <input type="date" className="input input-bordered" value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label className="label"><span className="label-text">To Date</span></label>
-              <input type="date" className="input input-bordered" value={toDate}
-                min={fromDate} onChange={(e) => setToDate(e.target.value)} />
-            </div>
-          </>
-        )}
-      </div>
+          </FormSelect>
+          {type === 4 && (
+            <>
+              <FormField type="date" label="From Date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <FormField type="date" label="To Date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)} />
+            </>
+          )}
+        </FormGrid>
+      </FormSection>
 
-      {/* Schedule details */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium">Time Windows</p>
@@ -113,7 +99,7 @@ function ConstraintForm({
               <div className="col-span-3">
                 <label className="label py-0"><span className="label-text text-xs">Name</span></label>
                 <input className="input input-bordered input-xs w-full" value={d.name}
-                  onChange={(e) => updateDetail(i, 'name', e.target.value)} />
+                  onChange={(e) => updateDetail(i, 'name', e.target.value)} maxLength={50} />
               </div>
               <div className="col-span-2">
                 <label className="label py-0"><span className="label-text text-xs">From</span></label>
@@ -134,13 +120,7 @@ function ConstraintForm({
         </div>
       </div>
 
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }

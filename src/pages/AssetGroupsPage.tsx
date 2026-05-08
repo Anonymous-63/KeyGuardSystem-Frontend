@@ -19,6 +19,7 @@ import LoadingRow from '../components/shared/LoadingRow';
 import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormSelect, FormActions } from '../components/shared/Form';
 
 function GroupForm({
   initial, onSave, onCancel, loading,
@@ -33,29 +34,15 @@ function GroupForm({
   const [locationId, setLocationId] = useState<number>(initial?.locationId ?? 0);
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, locationId }); }} className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Group Name *</span></label>
-        <input className="input input-bordered" value={name}
-          onChange={(e) => setName(e.target.value)} required maxLength={100} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Location *</span></label>
-        <select className="select select-bordered" value={locationId}
-          onChange={(e) => setLocationId(Number(e.target.value))} required>
-          <option value={0} disabled>Select location…</option>
-          {locations?.content.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, locationId }); }} className="space-y-4">
+      <FormField label="Group Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={20} />
+      <FormSelect label="Location" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required>
+        <option value={0} disabled>Select location…</option>
+        {locations?.content.map((l) => (
+          <option key={l.id} value={l.id}>{l.name}</option>
+        ))}
+      </FormSelect>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }
@@ -135,8 +122,8 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
           </div>
         </PermissionGate>
       </div>
-      <div className="modal-action">
-        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+      <div className="flex justify-end pt-4 mt-2 border-t border-base-200">
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
       </div>
     </div>
   );
