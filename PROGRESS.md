@@ -1,19 +1,31 @@
 # KeyGuard System — Full Project Progress
 
-**Last updated:** 2026-05-07 (end of session 2)
-**Frontend branch:** `feature/api-contract-fixes` (latest — API contract fixes done, 0 TS errors)
-**Backend branch:** `feature/seed-data` (V12 seed SQL committed, NOT YET APPLIED to DB)
+**Last updated:** 2026-05-08 (Sprint 2 confirmed complete; config organized; docs synced)
+**Frontend branch:** `feature/api-contract-fixes` (API contract fixes + DaisyUI/vite tweak committed)
+**Backend branch:** `feature/seed-data` (Sprint 2 + config/testdata committed; V12 NOT YET APPLIED to DB)
 
 ---
 
 ## Resume Command (Next Session)
 
-Tell Claude: **"Resume KeyGuard — start backend, apply seed data, then test M01 Auth"**
+Tell Claude: **"Resume KeyGuard — Phase B: start backend with dev profile, apply seed data, test M01 Auth"**
 
-### What to do before opening Claude tomorrow:
-1. Start backend: `cd "D:\Projects\AI KMS\KeyGuardSystem-Backend" && mvn spring-boot:run`
-2. Apply seed data in MySQL Workbench: open and run `V12__dev_seed_data.sql`
-3. Frontend dev server: `cd "D:\Projects\AI KMS\KeyGuardSystem-Frontend" && npm run dev`
+### Steps before testing:
+1. Start backend (dev profile — uses simple cache, no Redis):
+   ```
+   cd "D:\Projects\AI KMS\KeyGuardSystem-Backend"
+   mvn spring-boot:run -Dspring-boot.run.profiles=dev
+   ```
+2. Apply V12 seed data in MySQL Workbench:
+   Open and run: `D:\Projects\AI KMS\KeyGuardSystem-Backend\src\main\resources\schema\V12__dev_seed_data.sql`
+   against `keyguard_db`
+   Verify: `SELECT id FROM operator;` → 7 rows
+   Verify: `SELECT COUNT(*) FROM asset_transactions;` → 9 rows
+3. Start frontend:
+   ```
+   cd "D:\Projects\AI KMS\KeyGuardSystem-Frontend"
+   npm run dev
+   ```
 4. Open http://localhost:5173 and login with `superadmin / Admin@123`
 
 ---
@@ -31,11 +43,11 @@ Tell Claude: **"Resume KeyGuard — start backend, apply seed data, then test M0
 | Time Constraints | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
 | Cabinet Users | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
 | Transactions (read) | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Transactions (write) | ❌ Backend missing | ❌ | N/A | ❌ | ❌ |
+| Transactions (write) | ✅ BE done | ✅ | ✅ V12 | ❌ | ❌ |
 | Dashboard | ✅ | ✅ | depends | ❌ | ❌ |
 | ABAC Policies | ✅ (16 seed) | N/A | ✅ V4 | ⚠️ Unit tests | ❌ |
 | Cabinet Matrix | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Cabinet User Sync | ✅ BE only | N/A | N/A | ❌ (not built FE) | ❌ |
+| Cabinet Asset Sync | ✅ BE only | N/A | N/A | ❌ (FE not built) | ❌ |
 | Biometric UI | ❌ FE not built | N/A | N/A | ❌ | ❌ |
 | Policy Admin UI | ❌ FE not built | N/A | N/A | ❌ | ❌ |
 
@@ -50,30 +62,35 @@ Legend: ✅ Done | ⚠️ Partial | ❌ Not done/tested
 | Branch | Commits | State |
 |--------|---------|-------|
 | `master` | Sprints 1–6 | Built, untested, API mismatches (old) |
-| `feature/api-contract-fixes` | API fixes on top of Sprints 1–6 | **Current working branch** — 0 TS errors, ready to test |
+| `feature/api-contract-fixes` | API fixes + DaisyUI/vite tweaks | **Current working branch** — 0 TS errors, ready to test |
 
-Latest commit: `dfc11e5` — "fix API contract mismatches across all affected modules"
+Latest commit: `8eed7d2` — "chore: vite --host flag and DaisyUI v5 import fix"
 
 ### Backend (`D:\Projects\AI KMS\KeyGuardSystem-Backend`)
 
 | Branch | Commits | State |
 |--------|---------|-------|
-| `main` | Phases 1–11 + Sprint 1 fixes | Built, unit tested (ABAC engine only) |
-| `feature/seed-data` | V12__dev_seed_data.sql | **Needs to be applied to keyguard_db** |
+| `main` | Phases 1–11 + Sprint 1 fixes | Older; Sprint 2 not merged yet |
+| `feature/seed-data` | Sprint 2 + V12 seed + config | **Current working branch** — ready to start |
+
+Latest commit: `42aa542` — "chore: organize env config, add Redis serializer, comprehensive test data"
 
 ---
 
 ## Critical Prerequisites
 
-### P1 — Backend: Verify application starts ❌ NOT DONE
-- [ ] DB schema validates (Flyway V1–V10 auto-applied on start)
+### P1 — Backend: Start with dev profile ❌ NOT DONE
+- [ ] Start: `mvn spring-boot:run -Dspring-boot.run.profiles=dev`
+- [ ] Flyway V1–V12 auto-applied on start (creates all tables + V11 indexes + V12 seed)
+  - Wait: V12 is in `feature/seed-data` but not on `main` — must be on `feature/seed-data` branch
 - [ ] Application starts on localhost:8080 without errors
 - [ ] `POST /api/v1/auth/login` → 200 with `superadmin/Admin@123`
+- [ ] Swagger UI visible at http://localhost:8080/swagger-ui.html
 
-### P2 — Seed data: Apply V12 ⚠️ SQL READY, NOT APPLIED
+### P2 — Seed data: Apply V12 manually ⚠️ SQL READY, NOT APPLIED
 - [x] V12__dev_seed_data.sql created and committed (`feature/seed-data`)
-- [ ] Apply to keyguard_db via MySQL Workbench or CLI
-- [ ] Verify: `SELECT id FROM operators;` → 7 rows (superadmin + 6 seeded)
+- [ ] Apply to keyguard_db via MySQL Workbench
+- [ ] Verify: `SELECT COUNT(*) FROM operator;` → 7 rows (superadmin + 6 seeded)
 - [ ] Verify: `SELECT COUNT(*) FROM asset_transactions;` → 9 rows
 
 **V12 seeds:** 4 operators, 5 cabinets, 13 assets, 4 time constraints, 4 asset groups,
@@ -91,16 +108,15 @@ Latest commit: `dfc11e5` — "fix API contract mismatches across all affected mo
 | locop1 | Location Operator — Head Office (clearance 1) |
 | locop2 | Location Operator — Branch Office (clearance 1) |
 
-### P3 — Transaction write endpoints ❌ BACKEND MISSING
-- [ ] `POST /api/v1/transactions/assets` — manual issuance
-- [ ] `PUT /api/v1/transactions/assets/{autoNo}/return` — manual return
-- **Blocks:** M09 write operations only. All read-only tabs work without this.
+### P3 — Transaction write endpoints ✅ DONE (Sprint 2)
+- [x] `POST /api/v1/transactions/assets` — manual issuance (conflict guard: no duplicate open txn)
+- [x] `POST /api/v1/transactions/assets/{autoNo}/return` — manual return (conflict guard: already closed)
 
 ---
 
 ## API Contract Fixes (Done — `feature/api-contract-fixes`)
 
-All mismatches between frontend types and backend DTOs are now fixed:
+All mismatches between frontend types and backend DTOs are fixed:
 
 | File | What Changed |
 |------|-------------|
@@ -120,7 +136,7 @@ All mismatches between frontend types and backend DTOs are now fixed:
 **Frontend:** LoginPage, authSlice, baseQuery reauth, ProtectedRoute
 **Test Checklist:**
 - [ ] Login with valid credentials → redirect to dashboard
-- [ ] Login with invalid credentials → show error
+- [ ] Login with invalid credentials → show error toast
 - [ ] Token auto-refresh on 401
 - [ ] Logout clears tokens
 - [ ] Protected routes redirect to /login when unauthenticated
@@ -231,16 +247,16 @@ All mismatches between frontend types and backend DTOs are now fixed:
 
 ---
 
-### M09 — Transactions ❌ BLOCKED (write) / ❌ NOT TESTED (read)
-**Backend:** TransactionController (14 read endpoints) — write endpoints MISSING
+### M09 — Transactions ❌ NOT TESTED (read + write)
+**Backend:** TransactionController (14 read + 2 write endpoints) ✅ Complete
 **Frontend:** TransactionsPage (all/out/overdue tabs + date filter + issuance form)
 **Test Checklist:**
 - [ ] All tab: 9 seeded transactions paginated
 - [ ] Out Now tab: 3 assets currently out
 - [ ] Overdue tab: 2 overdue assets (highlighted red)
 - [ ] Date range filter on All tab
-- [ ] Record Issuance form → POST ❌ BLOCKED (backend P3)
-- [ ] Record Return form → PUT ❌ BLOCKED (check if endpoint exists)
+- [ ] Record Issuance form → POST /transactions/assets → new row appears
+- [ ] Record Return form → POST /transactions/assets/{autoNo}/return → row shows returnedAt
 
 ---
 
@@ -260,32 +276,12 @@ All mismatches between frontend types and backend DTOs are now fixed:
 
 | ID | Module | Blocker | Status |
 |----|--------|---------|--------|
-| B1 | Transactions (write) | No POST /transactions/assets endpoint in backend | ❌ Open |
-| B2 | Seed data application | V12 SQL created; needs to be applied to DB | ⚠️ SQL ready |
-| B3 | All modules testing | Backend not started | ❌ Open |
+| B1 | Transactions (write) | ~~No POST /transactions/assets~~ | ✅ Unblocked — Sprint 2 |
+| B2 | Seed data application | V12 SQL ready; needs DB apply | ⚠️ Manual step required |
+| B3 | All modules testing | Backend not yet started | ❌ Open |
 | B4 | Cabinet sync UI | Not built yet | ❌ Low priority |
 | B5 | Biometric UI | Not built yet | ❌ Low priority |
 | B6 | Policy Admin UI | Not built yet | ❌ Low priority |
-
----
-
-## Backend Pending (AUDIT.md summary)
-
-### Needed for M09 (transaction write)
-- `POST /api/v1/transactions/assets` — manual issuance
-- `PUT /api/v1/transactions/assets/{autoNo}/return` — manual return
-
-### Important but not blocking core testing
-- `cabinetassetsync` entity + service + controller (V5 table orphaned)
-- `assettimeconstraints` entity + service (V5 table orphaned)
-- `springdoc-openapi` → Swagger UI (SecurityConfig permits already in place)
-
-### Nice to have
-- Auth integration test
-- Rate limiting on `POST /api/v1/auth/login`
-- `@Cacheable` on list queries
-- Compound index on `asset_transactions(returnedAt, expectedBefore)`
-- Production config: JWT_SECRET fail-fast, seed guard
 
 ---
 
@@ -293,11 +289,15 @@ All mismatches between frontend types and backend DTOs are now fixed:
 
 | Date | What Changed | Branch |
 |------|--------------|--------|
+| 2026-05-08 | AUDIT.md + PROGRESS.md synced to reflect Sprint 2 done | — |
+| 2026-05-08 | Backend: env config organized (application.yml env vars, application-dev.yml) | feature/seed-data |
+| 2026-05-08 | Backend: RedisConfig.java + V13/V14 test data committed | feature/seed-data |
+| 2026-05-08 | Backend: BCrypt hash updated in V2 + V12 (same password, regenerated) | feature/seed-data |
+| 2026-05-08 | Frontend: vite --host + DaisyUI v5 import fix committed | feature/api-contract-fixes |
+| 2026-05-07 | Sprint 2: cabinetassetsync, assettimeconstraints, transaction writes, springdoc, hardening | feature/seed-data |
+| 2026-05-07 | V12__dev_seed_data.sql committed | feature/seed-data |
 | 2026-05-07 | Sprints 1–6: full frontend built (M01–M10 + dashboard) | master |
-| 2026-05-07 | PROGRESS.md + CLAUDE.md created | master |
-| 2026-05-07 | V12__dev_seed_data.sql + README_SEED.md created | feature/seed-data (backend) |
 | 2026-05-07 | API contract fixes: types/api.ts, cabinetUserApi, 4 pages | feature/api-contract-fixes |
-| 2026-05-07 | PROGRESS.md updated with accurate current state | feature/api-contract-fixes |
 
 ---
 
