@@ -1,32 +1,26 @@
 # KeyGuard System — Full Project Progress
 
-**Last updated:** 2026-05-08 (Sprint 2 confirmed complete; config organized; docs synced)
+**Last updated:** 2026-05-08 (M01–M09 backend fully tested; restore endpoints added to all modules)
 **Frontend branch:** `feature/api-contract-fixes` (API contract fixes + DaisyUI/vite tweak committed)
-**Backend branch:** `feature/seed-data` (Sprint 2 + config/testdata committed; V12 NOT YET APPLIED to DB)
+**Backend branch:** `feature/seed-data` (Sprint 2 + all restore endpoints; pending commit)
 
 ---
 
 ## Resume Command (Next Session)
 
-Tell Claude: **"Resume KeyGuard — Phase B: start backend with dev profile, apply seed data, test M01 Auth"**
+Tell Claude: **"Resume KeyGuard — Phase C: commit backend fixes, start frontend testing M01–M10"**
 
-### Steps before testing:
-1. Start backend (dev profile — uses simple cache, no Redis):
-   ```
-   cd "D:\Projects\AI KMS\KeyGuardSystem-Backend"
-   mvn spring-boot:run -Dspring-boot.run.profiles=dev
-   ```
-2. Apply V12 seed data in MySQL Workbench:
-   Open and run: `D:\Projects\AI KMS\KeyGuardSystem-Backend\src\main\resources\schema\V12__dev_seed_data.sql`
-   against `keyguard_db`
-   Verify: `SELECT id FROM operator;` → 7 rows
-   Verify: `SELECT COUNT(*) FROM asset_transactions;` → 9 rows
-3. Start frontend:
+### Steps:
+1. Commit pending backend changes (restore endpoints for asset-groups, time-constraints + prior session fixes)
+2. Start frontend:
    ```
    cd "D:\Projects\AI KMS\KeyGuardSystem-Frontend"
    npm run dev
    ```
-4. Open http://localhost:5173 and login with `superadmin / Admin@123`
+3. Open http://localhost:5173 and login with `superadmin / Admin@123`
+4. Test each UI module systematically (M01 → M10)
+
+Backend is already running on port 8080 with dev profile (PID 74868).
 
 ---
 
@@ -34,17 +28,17 @@ Tell Claude: **"Resume KeyGuard — Phase B: start backend with dev profile, app
 
 | Layer | Built | API Contract | Seed Data | Tested | Production Ready |
 |-------|-------|-------------|-----------|--------|-----------------|
-| Auth (Login/JWT) | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
-| Locations | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
-| Operators | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
-| Cabinets | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Assets | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Asset Groups | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Time Constraints | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
-| Cabinet Users | ✅ | ✅ Fixed | ✅ V12 | ❌ | ❌ |
-| Transactions (read) | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Transactions (write) | ✅ BE done | ✅ | ✅ V12 | ❌ | ❌ |
-| Dashboard | ✅ | ✅ | depends | ❌ | ❌ |
+| Auth (Login/JWT) | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
+| Locations | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
+| Operators | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
+| Cabinets | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
+| Assets | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
+| Asset Groups | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
+| Time Constraints | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
+| Cabinet Users | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
+| Transactions (read) | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
+| Transactions (write) | ✅ BE done | ✅ | ✅ V12 | ✅ BE | ❌ |
+| Dashboard | ✅ | ✅ | depends | ❌ FE only | ❌ |
 | ABAC Policies | ✅ (16 seed) | N/A | ✅ V4 | ⚠️ Unit tests | ❌ |
 | Cabinet Matrix | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
 | Cabinet Asset Sync | ✅ BE only | N/A | N/A | ❌ (FE not built) | ❌ |
@@ -131,65 +125,115 @@ All mismatches between frontend types and backend DTOs are fixed:
 
 ## Module-by-Module Status
 
-### M01 — Authentication ❌ NOT TESTED
+### M01 — Authentication ✅ BACKEND TESTED (2026-05-08)
 **Backend:** AuthController — login, refresh, logout, /me
 **Frontend:** LoginPage, authSlice, baseQuery reauth, ProtectedRoute
-**Test Checklist:**
-- [ ] Login with valid credentials → redirect to dashboard
-- [ ] Login with invalid credentials → show error toast
-- [ ] Token auto-refresh on 401
-- [ ] Logout clears tokens
-- [ ] Protected routes redirect to /login when unauthenticated
-- [ ] /me populates operator info in header
+**Backend Test Results:**
+- [x] Login with valid credentials → 200 + token
+- [x] Login with invalid credentials → 401 `Invalid credentials`
+- [x] No-token request → 401 `Authentication required` (fixed: was 403)
+- [x] Token refresh → 200 + new tokens
+- [x] Logout → 200 (client-side; tokens expire in 15min)
+- [x] /me → 200 operator info
+- [x] All 7 seed users login with Admin@123
+- [x] ABAC: locop1 GET /locations → 200 (allowed); POST → 403 (fixed: was 500)
+**Bugs fixed:**
+- PEP threw ResponseStatusException → 500; changed to KeyGuardException → 403
+- SecurityConfig missing AuthenticationEntryPoint → unauthenticated returned 403; now 401
+- Added ResponseStatusException handler in GlobalExceptionHandler
+**Frontend test:** ❌ NOT DONE (UI testing pending)
 
 ---
 
-### M02 — Locations ❌ NOT TESTED
+### M02 — Locations ✅ BACKEND TESTED (2026-05-08)
 **Backend:** LocationController, LocationOperatorController
 **Frontend:** LocationsPage (CRUD + operators panel)
-**Test Checklist:**
-- [ ] List locations (paginated) — 3 seeded: Head Office, Branch Office, Warehouse
-- [ ] Create location → assetType + cabinetType dropdowns work → success toast
-- [ ] Edit location → updates in list
-- [ ] Disable → status badge changes; Restore → re-enables
-- [ ] Assign operator to location → appears in operators panel
-- [ ] Remove operator from location
-- [ ] PermissionGate hides Add button for locop1 (clearance 1)
-- [ ] Empty state shown when no locations
-- [ ] Validation: name required, assetType required, cabinetType required
+**Backend Test Results:** All CRUD + assign/remove operator tested and passing
+**Frontend test:** ❌ NOT DONE
 
 ---
 
-### M03 — Operators ❌ NOT TESTED
-**Backend:** OperatorController
+### M03 — Operators ✅ BACKEND TESTED (2026-05-08)
+**Backend:** OperatorController (restore endpoint added; @NotBlank removed from password for update)
 **Frontend:** OperatorsPage (CRUD + locations panel + change password)
-**Test Checklist:**
-- [ ] List 7 seeded operators
-- [ ] Create operator of each type (1–5)
-- [ ] Edit operator (emailId, name, etc.)
-- [ ] Change password (self + admin overriding others)
-- [ ] Disable / Restore operator
-- [ ] View assigned locations panel (read-only)
-- [ ] PermissionGate: locop1 cannot see Add button
-- [ ] Duplicate operatorId → 409 error shown in toast
+**Backend Test Results:** All CRUD + disable/restore tested and passing
+**Bugs fixed:** password @NotBlank removed from OperatorRequest (update never sends password)
+**Frontend test:** ❌ NOT DONE
 
 ---
 
-### M04 — Cabinets ❌ NOT TESTED
-**Backend:** CabinetController, CabinetMatrixController
+### M04 — Cabinets ✅ BACKEND TESTED (2026-05-08)
+**Backend:** CabinetController (restore endpoint added), CabinetMatrixController
 **Frontend:** CabinetsPage (CRUD) + CabinetDetailPage (matrix)
-**Test Checklist:**
-- [ ] List 5 seeded cabinets (2 HQ, 2 Branch, 1 WH)
-- [ ] Create cabinet with MAC, IP, subnet, gateway fields
-- [ ] Edit cabinet; Disable / Restore
-- [ ] Sync status badge: 0=Pending, 1=Synced, 2=Out of Sync, 3=Error
-- [ ] Registered badge: 0=Unregistered, 1=Registered
-- [ ] Matrix page → slot grid loads
-- [ ] Empty vs occupied vs checked-out slots display correctly
+**Backend Test Results:**
+- [x] List → 200 ✅ (19 cabinets)
+- [x] By-location → 200 ✅
+- [x] Create → 201 ✅ (fix: use unique MAC not in `AA:BB:CC:DD:XX:XX` range)
+- [x] Update → 200 ✅
+- [x] Matrix → 200 ✅ (new cabinet: 0 slots)
+- [x] Disable → 200 ✅
+- [x] Restore → 200 ✅ (endpoint added in `feature/seed-data`)
+- [x] Get by ID → 200 ✅
+**Frontend test:** ❌ NOT DONE
 
 ---
 
-### M05 — Assets ❌ NOT TESTED
+### M05 — Assets ✅ BACKEND TESTED (2026-05-08)
+**Backend:** AssetController (restore endpoint added), LocationAssetRepository.findAllByAssetId added
+**Backend Test Results:**
+- [x] List → 200 ✅, By-location → 200 ✅, Create → 201 ✅, Update → 200 ✅
+- [x] Disable → 200 ✅, Restore → 200 ✅, Get by ID → 200 ✅
+**Frontend test:** ❌ NOT DONE
+
+---
+
+### M06 — Asset Groups ✅ BACKEND TESTED (2026-05-08)
+**Backend:** AssetGroupController (restore endpoint added), AssetGroupService.restore added
+**Backend Test Results:**
+- [x] List → 200 ✅ (9 groups), By-location → 200 ✅
+- [x] Create → 201 ✅, Update → 200 ✅, Get by ID → 200 ✅
+- [x] Add asset → 200 ✅, Remove asset → 200 ✅
+- [x] Disable → 200 ✅, Restore → 200 ✅
+**Frontend test:** ❌ NOT DONE
+
+---
+
+### M07 — Time Constraints ✅ BACKEND TESTED (2026-05-08)
+**Backend:** TimeConstraintController (restore endpoint added), TimeConstraintService.restore added
+**Backend Test Results:**
+- [x] List → 200 ✅ (11), By-location → 200 ✅
+- [x] Create → 201 ✅ (type=1 for DAILY, type is numeric), Update → 200 ✅
+- [x] Details (sub-slots) saved and updated correctly
+- [x] Disable → 200 ✅, Restore → 200 ✅
+**Note:** `type` field is numeric: 1=DAILY, 2=WEEKLY, 3=MONTHLY, 4=INTERVAL
+**Frontend test:** ❌ NOT DONE
+
+---
+
+### M08 — Cabinet Users ✅ BACKEND TESTED (2026-05-08)
+**Backend:** CabinetUserController (restore already existed), all sub-controllers
+**Backend Test Results (all 17 scenarios):**
+- [x] List → 200 ✅ (993), By-location → 200 ✅, Create → 201 ✅, Get by ID → 200 ✅, Update → 200 ✅
+- [x] Assign location → 200 ✅, Get locations → 200 ✅, Remove location → 200 ✅
+- [x] Assign asset → 201 ✅, Get user assets → 200 ✅, Remove asset → 200 ✅
+- [x] Assign asset-group → 201 ✅, Remove asset-group → 200 ✅
+- [x] Assign time-constraint → 201 ✅, Remove time-constraint → 200 ✅
+- [x] Disable → 200 ✅, Restore → 200 ✅
+**Frontend test:** ❌ NOT DONE
+
+---
+
+### M09 — Transactions ✅ BACKEND TESTED (2026-05-08)
+**Backend:** TransactionController (read + write)
+**Backend Test Results:**
+- [x] List all → 200 ✅ (5049), Out keys → 200 ✅ (723), Overdue → 200 ✅
+- [x] By asset → 200 ✅, By user, By cabinet, Cabinet txns → 200 ✅
+- [x] Record return → 200 ✅ (fix: `returnedBy` is FK to `cabinet_user.id`, pass null if no CU)
+- [x] Record issuance → 201 ✅ (conflict guard works: 409 if already out)
+**Note:** `returnedBy` field is a `cabinet_user.id` FK — do NOT pass operator IDs here
+**Frontend test:** ❌ NOT DONE
+
+---
 **Backend:** AssetController
 **Frontend:** AssetsPage (CRUD + location filter) + AssetDetailPage
 **Test Checklist:**
