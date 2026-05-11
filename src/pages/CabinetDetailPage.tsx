@@ -106,7 +106,6 @@ export default function CabinetDetailPage() {
   const totalSlots = matrix?.length ?? 0;
   const occupiedSlots = matrix?.filter((s) => s.status === 1).length ?? 0;
   const checkedOutSlots = matrix?.filter((s) => s.status === 2).length ?? 0;
-  const emptySlots = matrix?.filter((s) => s.status === 0 && s.assetId).length ?? 0;
 
   return (
     <div className="space-y-6 max-w-6xl">

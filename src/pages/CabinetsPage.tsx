@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useListCabinetsQuery,
@@ -11,13 +11,15 @@ import { useListLocationsQuery } from '../features/location/locationApi';
 import type { CabinetResponse, CabinetRequest } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
-import PermissionGate from '../components/PermissionGate';
+import PageHeader from '../components/shared/PageHeader';
 import { useToast } from '../components/shared/Toast';
-import { FormField, FormSelect, FormGrid, FormSection, FormActions } from '../components/shared/Form';
+import { FormRow, FormField, FormGrid, FormSection, FormActions } from '../components/shared/Form';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+
+const ICO_CABINET = [
+  'M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25',
+  'M21 15V5.25A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25V15m18 0A2.25 2.25 0 0118.75 17.25H5.25A2.25 2.25 0 013 15',
+];
 
 const SYNC_STATUS: Record<number, { label: string; cls: string }> = {
   0: { label: 'Pending',     cls: 'badge-neutral' },
@@ -51,13 +53,19 @@ function CabinetForm({
         serverIp: serverIp || undefined, serverUrl: serverUrl || undefined });
     }} className="space-y-4">
       <FormSection title="Basic Info">
-        <FormSelect label="Location" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required>
-          <option value={0} disabled>Select location…</option>
-          {locations?.content.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </FormSelect>
-        <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} />
+        <FormRow label="Location" required>
+          <select className="select select-bordered w-full" value={locationId}
+            onChange={(e) => setLocationId(Number(e.target.value))} required>
+            <option value={0} disabled>Select location…</option>
+            {locations?.content.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+        </FormRow>
+        <FormRow label="Name" required>
+          <input className="input input-bordered w-full" value={name}
+            onChange={(e) => setName(e.target.value)} required maxLength={30} />
+        </FormRow>
       </FormSection>
       <FormSection title="Network">
         <FormGrid>
@@ -83,20 +91,26 @@ function CabinetForm({
 export default function CabinetsPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
+  const [selected, setSelected] = useState<CabinetResponse | null>(null);
+  const [filterName, setFilterName] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CabinetResponse | null>(null);
   const [confirm, setConfirm] = useState<{ cab: CabinetResponse; action: 'disable' | 'restore' } | null>(null);
 
   const { data: locations } = useListLocationsQuery({ size: 200 });
-  const { data, isLoading } = useListCabinetsQuery({ page, size: 20, includeDisabled });
+  const { data, isLoading } = useListCabinetsQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateCabinetMutation();
   const [update, { isLoading: updating }] = useUpdateCabinetMutation();
   const [disable, { isLoading: disabling }] = useDisableCabinetMutation();
   const [restore, { isLoading: restoring }] = useRestoreCabinetMutation();
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
+
+  const rows = (data?.content ?? []).filter((cab) => {
+    if (filterName && !cab.name.toLowerCase().includes(filterName.toLowerCase())) return false;
+    return true;
+  });
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (cab: CabinetResponse) => { setEditing(cab); setModalOpen(true); };
@@ -107,6 +121,7 @@ export default function CabinetsPage() {
       else await create(body).unwrap();
       addToast({ type: 'success', message: editing ? 'Cabinet updated' : 'Cabinet created' });
       setModalOpen(false);
+      setSelected(null);
     } catch {
       addToast({ type: 'error', message: 'Failed to save cabinet' });
     }
@@ -118,93 +133,109 @@ export default function CabinetsPage() {
       if (confirm.action === 'disable') await disable(confirm.cab.id).unwrap();
       else await restore(confirm.cab.id).unwrap();
       addToast({ type: 'success', message: confirm.action === 'disable' ? 'Cabinet disabled' : 'Cabinet restored' });
+      setSelected(null);
     } catch {
       addToast({ type: 'error', message: 'Action failed' });
     }
     setConfirm(null);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Cabinets</h1>
-        <div className="flex items-center gap-3">
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="CABINET" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Cabinet</button>
-          </PermissionGate>
-        </div>
-      </div>
+  const cols = useMemo<ColDef<CabinetResponse>[]>(() => [
+    { field: 'id', headerName: 'ID', width: 70 },
+    { field: 'name', headerName: 'Name', flex: 1 },
+    {
+      headerName: 'Location',
+      width: 120,
+      valueGetter: ({ data: d }) => d ? locationName(d.locationId) : '',
+    },
+    { field: 'ip', headerName: 'IP', width: 120 },
+    { field: 'mac', headerName: 'MAC', width: 130 },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: CabinetResponse }) => (
+        d.disabled
+          ? <span className="badge badge-ghost badge-sm">Disabled</span>
+          : <span className="badge badge-success badge-sm">Active</span>
+      ),
+    },
+    {
+      headerName: 'Sync',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: CabinetResponse }) => {
+        const s = SYNC_STATUS[d.syncStatus] ?? SYNC_STATUS[0];
+        return <span className={`badge badge-xs ${s.cls}`}>{s.label}</span>;
+      },
+    },
+    {
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ({ data: d }: { data: CabinetResponse }) => (
+        <button
+          className="btn btn-ghost btn-xs text-primary"
+          onClick={(e) => { e.stopPropagation(); navigate(`/cabinets/${d.id}`); }}
+        >
+          Matrix
+        </button>
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [locations]);
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Location</th>
-                <th>IP</th>
-                <th>MAC</th>
-                <th>Status</th>
-                <th>Sync</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={8} />}
-              {!isLoading && data?.content.length === 0 && (
-                <EmptyState colSpan={8} icon="🗄️" title="No cabinets found" />
-              )}
-              {data?.content.map((cab) => (
-                <tr key={cab.id}>
-                  <td className="font-mono text-sm">{cab.id}</td>
-                  <td className="font-medium">{cab.name}</td>
-                  <td className="text-base-content/70">{locationName(cab.locationId)}</td>
-                  <td className="font-mono text-sm">{cab.ip}</td>
-                  <td className="font-mono text-sm text-base-content/70">{cab.mac}</td>
-                  <td><StatusBadge disabled={cab.disabled} /></td>
-                  <td>
-                    <span className={`badge badge-xs ${(SYNC_STATUS[cab.syncStatus] ?? SYNC_STATUS[0]).cls}`}>
-                      {(SYNC_STATUS[cab.syncStatus] ?? SYNC_STATUS[0]).label}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex gap-1">
-                      <button className="btn btn-ghost btn-xs text-primary"
-                        onClick={() => navigate(`/cabinets/${cab.id}`)}>
-                        Matrix
-                      </button>
-                      <PermissionGate resource="CABINET" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(cab)}>Edit</button>
-                      </PermissionGate>
-                      <PermissionGate resource="CABINET" action="DELETE">
-                        {cab.disabled ? (
-                          <button className="btn btn-ghost btn-xs text-success"
-                            onClick={() => setConfirm({ cab, action: 'restore' })}>Restore</button>
-                        ) : (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm({ cab, action: 'disable' })}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
-          </div>
-        )}
-      </div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_CABINET}
+        title="Cabinets"
+        resource="CABINET"
+        onAdd={openCreate}
+        onUpdate={() => selected && openEdit(selected)}
+        onRestore={() => selected && setConfirm({ cab: selected, action: 'restore' })}
+        onDisable={() => selected && setConfirm({ cab: selected, action: 'disable' })}
+        updateDisabled={!selected}
+        restoreDisabled={!selected || !selected.disabled}
+        disableDisabled={!selected || selected.disabled}
+        extra={
+          <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+            <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>
+              Show disabled
+            </span>
+            <input
+              type="checkbox"
+              className="toggle toggle-sm"
+              checked={includeDisabled}
+              onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }}
+            />
+          </label>
+        }
+      />
+
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowClicked={(r) => setSelected(r)}
+          onRowDoubleClicked={(r) => { setSelected(r); openEdit(r); }}
+          exportable
+          exportFilename="cabinets"
+          height="100%"
+          toolbar={
+            <input
+              className="input input-bordered input-xs"
+              style={{ width: '140px' }}
+              placeholder="Filter name…"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+            />
+          }
+        />
+      </div></div>
 
       <Modal open={modalOpen} title={editing ? 'Edit Cabinet' : 'New Cabinet'}
         onClose={() => setModalOpen(false)} size="lg">

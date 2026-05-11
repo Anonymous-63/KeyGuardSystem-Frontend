@@ -73,7 +73,7 @@ export default function ProfilePage() {
             <div className="flex-1">
               <h2 className="text-xl font-bold">{operator.name}</h2>
               <p className="text-base-content/60 font-mono text-sm">{operator.id}</p>
-              {operator.email && <p className="text-sm mt-1">{operator.email}</p>}
+              {operator.emailId && <p className="text-sm mt-1">{operator.emailId}</p>}
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="badge badge-primary">
                   {OPERATOR_TYPES[operator.type] ?? `Type ${operator.type}`}
@@ -98,7 +98,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex justify-between">
               <span className="text-base-content/60">Email</span>
-              <span>{operator.email ?? '—'}</span>
+              <span>{operator.emailId ?? '—'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-base-content/60">Clearance</span>

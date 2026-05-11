@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../features/auth/authSlice';
 import { hasPermission, type ResourceType } from '../features/auth/permissions';
 import { ToastProvider } from './shared/Toast';
+import { OPERATOR_TYPES } from '../types/api';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,9 @@ const P = {
   bars: ['M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5'],
   logout: ['M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75'],
   lock: ['M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z'],
+  audit: ['M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z'],
+  search: 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
+  bell:   'M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0',
 };
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
@@ -87,6 +91,7 @@ interface NavItem {
   ico: string[];
   label: string;
   resource?: ResourceType;
+  badge?: 'live';
 }
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -114,20 +119,17 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'Controls',
     items: [
       { to: '/time-constraints', ico: P.clock,  label: 'Time Constraints', resource: 'TIME_CONSTRAINT' },
-      { to: '/transactions',     ico: P.arrows, label: 'Transactions',     resource: 'TRANSACTION' },
+      { to: '/transactions',     ico: P.arrows, label: 'Transactions',     resource: 'TRANSACTION', badge: 'live' },
+      { to: '/audit',            ico: P.audit,  label: 'Audit Trail',      resource: 'AUDIT' },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { to: '/settings', ico: P.cog, label: 'Settings', resource: 'APP_CONFIG' },
     ],
   },
 ];
-
-// ─── Page title ───────────────────────────────────────────────────────────────
-
-function usePageTitle() {
-  const { pathname } = useLocation();
-  if (pathname === '/profile') return 'My Profile';
-  const all = NAV_GROUPS.flatMap((g) => g.items);
-  const match = all.find((i) => pathname === i.to || pathname.startsWith(i.to + '/'));
-  return match?.label ?? 'KeyGuard';
-}
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
@@ -144,94 +146,52 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   })).filter((g) => g.items.length > 0);
 
   return (
-    <aside className="w-64 h-full bg-base-100 border-r border-base-200 flex flex-col">
-      {/* Logo */}
-      <div className="h-14 flex items-center gap-3 px-4 border-b border-base-200 shrink-0">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: 'var(--color-primary)', color: 'var(--color-primary-content)' }}
-        >
-          <Ico d={P.lock} size="1rem" />
+    <aside style={{ background: 'var(--sb-bg)', borderRight: '1px solid var(--sb-border)', width: '210px', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
+
+      {/* Brand */}
+      <div style={{ padding: '0.875rem 1rem 0.75rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ width: '1.75rem', height: '1.75rem', borderRadius: '0.375rem', background: 'var(--ent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'white' }}>
+          <Ico d={P.lock} size="0.9rem" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm leading-tight text-base-content">KeyGuard</p>
-          <p className="text-[0.65rem] text-base-content/40 leading-tight">Management Console</p>
-        </div>
+        <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-base-content)', letterSpacing: '-0.01em' }}>
+          KeyGuard
+        </span>
         {onClose && (
-          <button onClick={onClose} className="btn btn-ghost btn-xs btn-square lg:hidden">
-            ✕
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sb-text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', marginLeft: 'auto' }}>
+            <Ico d="M6 18L18 6M6 6l12 12" size="1rem" />
           </button>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '0.375rem 0.5rem' }}>
         {visibleGroups.map((group) => (
-          <div key={group.title}>
-            <p className="px-3 mb-1.5 text-[0.65rem] font-semibold uppercase tracking-widest text-base-content/30">
+          <div key={group.title} style={{ marginBottom: '0.25rem' }}>
+            <p style={{ padding: '0.5rem 0.75rem 0.2rem', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08rem', color: 'var(--sb-text-muted)', margin: 0 }}>
               {group.title}
             </p>
-            <div className="space-y-0.5">
-              {group.items.map(({ to, ico, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-primary text-primary-content'
-                        : 'text-base-content/65 hover:bg-base-200 hover:text-base-content'
-                    }`
-                  }
-                >
-                  <Ico d={ico} />
-                  {label}
-                </NavLink>
-              ))}
-            </div>
+            {group.items.map(({ to, ico, label, badge }) => (
+              <NavLink key={to} to={to} className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
+                <Ico d={ico} size="0.95rem" />
+                <span style={{ flex: 1 }}>{label}</span>
+                {badge === 'live' && (
+                  <span style={{ background: 'var(--color-error)', color: 'var(--color-error-content)', fontSize: '0.5rem', padding: '0.1rem 0.28rem', borderRadius: '0.2rem', fontWeight: 700, letterSpacing: '0.03rem', lineHeight: 1.2 }}>
+                    LIVE
+                  </span>
+                )}
+              </NavLink>
+            ))}
           </div>
         ))}
-
-        {/* Account */}
-        <div>
-          <p className="px-3 mb-1.5 text-[0.65rem] font-semibold uppercase tracking-widest text-base-content/30">
-            Account
-          </p>
-          <div className="space-y-0.5">
-            <NavLink
-              to="/profile"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-primary text-primary-content'
-                    : 'text-base-content/65 hover:bg-base-200 hover:text-base-content'
-                }`
-              }
-            >
-              <Ico d={P.cog} />
-              My Profile
-            </NavLink>
-          </div>
+        <div style={{ marginBottom: '0.25rem' }}>
+          <p style={{ padding: '0.5rem 0.75rem 0.2rem', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08rem', color: 'var(--sb-text-muted)', margin: 0 }}>Account</p>
+          <NavLink to="/profile" className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
+            <Ico d={P.operator} size="0.95rem" />
+            My Profile
+          </NavLink>
         </div>
       </nav>
 
-      {/* User footer */}
-      <div className="px-3 py-3 border-t border-base-200 shrink-0">
-        <div className="flex items-center gap-2.5 px-2">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-            style={{ background: 'var(--color-primary)', color: 'var(--color-primary-content)' }}
-          >
-            {operator?.name?.charAt(0)?.toUpperCase() ?? '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-base-content truncate leading-tight">
-              {operator?.name ?? operator?.id ?? 'User'}
-            </p>
-            <p className="text-xs text-base-content/40 truncate leading-tight">{operator?.id}</p>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
@@ -239,86 +199,302 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
+  const dispatch  = useAppDispatch();
+  const navigate  = useNavigate();
   const { dark, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const pageTitle = usePageTitle();
+  const operator = useAppSelector((s) => s.auth.operator);
+  const initials  = (operator?.name ?? operator?.id ?? '?').slice(0, 2).toUpperCase();
 
   const handleLogout = () => {
     dispatch(logout());
     navigate('/login', { replace: true });
   };
 
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openMenu  = () => { if (menuTimerRef.current) clearTimeout(menuTimerRef.current); setAvatarMenuOpen(true); };
+  const closeMenu = () => { menuTimerRef.current = setTimeout(() => setAvatarMenuOpen(false), 150); };
+
+  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') { e.preventDefault(); setSearchOpen((v) => !v); setSearchQuery(''); }
+      if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const openSearch = () => { setSearchOpen(true); setSearchQuery(''); };
+  const closeSearch = () => { setSearchOpen(false); setSearchQuery(''); };
+
+  const allNavItems = NAV_GROUPS.flatMap((g) =>
+    g.items.filter((item) => {
+      if (!item.resource) return true;
+      if (!operator) return false;
+      return hasPermission(operator.type, item.resource, 'READ');
+    })
+  );
+  const searchResults = searchQuery.trim()
+    ? allNavItems.filter((i) => i.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    : allNavItems;
+
   return (
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-base-200">
-        {/* Desktop sidebar */}
-        <div className="hidden lg:flex shrink-0">
+      {/*
+       * Root: horizontal row — sidebar (full height) | content column
+       * Desktop: sidebar always visible, no top header bar
+       * Mobile: sidebar hidden, top header + slide-in drawer
+       */}
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+
+        {/* Desktop sidebar — full height, left column */}
+        <div className="hidden lg:flex">
           <Sidebar />
         </div>
 
-        {/* Mobile overlay */}
+        {/* Mobile: overlay backdrop */}
         {mobileOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            className="lg:hidden"
+            style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(0,0,0,0.45)' }}
             onClick={() => setMobileOpen(false)}
           />
         )}
 
-        {/* Mobile sidebar */}
+        {/* Mobile: slide-in sidebar */}
         <div
-          className="fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300 ease-in-out"
-          style={{ transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)' }}
+          className="lg:hidden"
+          style={{
+            position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 50,
+            transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.25s ease',
+          }}
         >
           <Sidebar onClose={() => setMobileOpen(false)} />
         </div>
 
-        {/* Main area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Top header — visible on all screen sizes */}
-          <header className="h-14 flex items-center gap-3 px-4 lg:px-6 bg-base-100 border-b border-base-200 shrink-0">
-            {/* Hamburger (mobile only) */}
+        {/* Right column: header + content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+          {/* Desktop header — search bar + bell + avatar */}
+          <header
+            className="hidden lg:flex"
+            style={{
+              background: 'var(--sb-bg)',
+              borderBottom: '1px solid var(--sb-border)',
+              height: '3.25rem',
+              flexShrink: 0,
+              alignItems: 'center',
+              padding: '0 1.25rem',
+              gap: '0.75rem',
+            }}
+          >
             <button
-              className="btn btn-ghost btn-sm btn-square lg:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
+              onClick={openSearch}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                background: 'var(--color-base-200)',
+                border: '1px solid var(--color-base-300)',
+                borderRadius: '0.4rem',
+                padding: '0.3rem 0.75rem',
+                fontSize: '0.8125rem',
+                color: 'var(--sb-text-muted)',
+                cursor: 'pointer',
+                width: '280px',
+                textAlign: 'left',
+              }}
             >
-              <Ico d={P.bars} />
+              <Ico d={P.search} size="0.9rem" />
+              <span style={{ flex: 1 }}>Search pages...</span>
+              <kbd style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem', borderRadius: '0.2rem', border: '1px solid var(--color-base-300)', opacity: 0.55, fontFamily: 'inherit' }}>Ctrl /</kbd>
             </button>
-
-            {/* Page title */}
-            <h2 className="flex-1 text-base font-semibold text-base-content truncate">
-              {pageTitle}
-            </h2>
-
-            {/* Theme toggle */}
-            <button
-              className="btn btn-ghost btn-sm btn-square"
-              onClick={toggle}
-              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-              aria-label="Toggle theme"
-            >
-              {dark ? <Ico d={P.sun} /> : <Ico d={P.moon} />}
+            <div style={{ flex: 1 }} />
+            <button className="ent-icon-btn" title="Notifications">
+              <Ico d={P.bell} size="1.15rem" />
             </button>
+            <button className="ent-icon-btn" onClick={toggle} title={dark ? 'Light mode' : 'Dark mode'}>
+              <Ico d={dark ? P.sun : P.moon} size="1.1rem" />
+            </button>
+            <div style={{ position: 'relative' }} onMouseEnter={openMenu} onMouseLeave={closeMenu}>
+              <button
+                title={operator?.name ?? operator?.id ?? 'Profile'}
+                style={{
+                  width: '2rem', height: '2rem', borderRadius: '50%',
+                  background: 'var(--ent-dark)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.7rem', fontWeight: 700,
+                  border: 'none', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                {initials}
+              </button>
+              {avatarMenuOpen && (
+                <div
+                  onMouseEnter={openMenu}
+                  onMouseLeave={closeMenu}
+                  style={{
+                    position: 'absolute', right: 0, top: 'calc(100% + 0.4rem)', zIndex: 100,
+                    background: 'var(--color-base-100)',
+                    border: '1px solid var(--color-base-300)',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    minWidth: '180px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--color-base-200)' }}>
+                    <p style={{ fontWeight: 600, fontSize: '0.8125rem', margin: 0, color: 'var(--color-base-content)' }}>
+                      {operator?.name ?? operator?.id}
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', margin: 0, marginTop: '0.1rem' }}>
+                      {operator ? (OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { navigate('/profile'); setAvatarMenuOpen(false); }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-base-content)', textAlign: 'left' }}
+                  >
+                    <Ico d={P.operator} size="0.9rem" /> My Profile
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-error)', textAlign: 'left' }}
+                  >
+                    <Ico d={P.logout} size="0.9rem" /> Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </header>
 
-            {/* Logout */}
+          {/* Mobile header — hamburger + search + bell + avatar */}
+          <header
+            className="flex lg:hidden"
+            style={{
+              background: 'var(--sb-bg)',
+              borderBottom: '1px solid var(--sb-border)',
+              height: '3rem',
+              flexShrink: 0,
+              alignItems: 'center',
+              padding: '0 0.75rem',
+              gap: '0.5rem',
+            }}
+          >
+            <button className="ent-icon-btn" onClick={() => setMobileOpen(true)} aria-label="Menu">
+              <Ico d={P.bars} size="1.2rem" />
+            </button>
             <button
-              className="btn btn-ghost btn-sm btn-square"
-              onClick={handleLogout}
-              title="Logout"
-              aria-label="Logout"
+              onClick={openSearch}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                background: 'var(--color-base-200)',
+                border: '1px solid var(--color-base-300)',
+                borderRadius: '0.4rem',
+                padding: '0.28rem 0.65rem',
+                fontSize: '0.8rem',
+                color: 'var(--sb-text-muted)',
+                cursor: 'pointer',
+                flex: 1,
+                textAlign: 'left',
+              }}
             >
-              <Ico d={P.logout} />
+              <Ico d={P.search} size="0.85rem" />
+              <span style={{ flex: 1 }}>Search pages...</span>
+            </button>
+            <button className="ent-icon-btn" title="Notifications">
+              <Ico d={P.bell} size="1.1rem" />
+            </button>
+            <button
+              onClick={() => navigate('/profile')}
+              title={operator?.name ?? operator?.id ?? 'Profile'}
+              style={{
+                width: '1.875rem', height: '1.875rem', borderRadius: '50%',
+                background: 'var(--ent-dark)', color: 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.65rem', fontWeight: 700,
+                border: 'none', cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              {initials}
             </button>
           </header>
 
-          {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {/* Content area */}
+          <main
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '1.25rem',
+              display: 'flex',
+              flexDirection: 'column',
+              background: 'var(--ent-azure)',
+            }}
+          >
             <Outlet />
           </main>
         </div>
       </div>
+      {/* Search palette */}
+      {searchOpen && (
+        <div
+          onClick={closeSearch}
+          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12vh' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 'min(540px, 92vw)', background: 'var(--color-base-100)', borderRadius: '0.75rem', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', border: '1px solid var(--color-base-300)', overflow: 'hidden' }}
+          >
+            {/* Input */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderBottom: '1px solid var(--color-base-200)' }}>
+              <Ico d={P.search} size="1.1rem" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') closeSearch(); }}
+                placeholder="Search pages..."
+                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '0.9375rem', color: 'var(--color-base-content)', fontFamily: 'inherit' }}
+              />
+              <kbd style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '0.25rem', border: '1px solid var(--color-base-300)', color: 'var(--sb-text-muted)', background: 'var(--color-base-200)', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>Esc</kbd>
+            </div>
+
+            {/* Results */}
+            <div style={{ maxHeight: '55vh', overflowY: 'auto', padding: '0.375rem' }}>
+              {searchResults.length === 0 ? (
+                <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--sb-text-muted)', fontSize: '0.8125rem', margin: 0 }}>
+                  No pages match &ldquo;{searchQuery}&rdquo;
+                </p>
+              ) : (
+                searchResults.map((item) => (
+                  <button
+                    key={item.to}
+                    onClick={() => { navigate(item.to); closeSearch(); }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', border: 'none', background: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--color-base-content)', textAlign: 'left' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-base-200)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                  >
+                    <span style={{ width: '1.75rem', height: '1.75rem', borderRadius: '0.375rem', background: 'var(--color-base-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Ico d={item.ico} size="0.875rem" />
+                    </span>
+                    {item.label}
+                  </button>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '0.45rem 1rem', borderTop: '1px solid var(--color-base-200)', display: 'flex', gap: '1.25rem', fontSize: '0.7rem', color: 'var(--sb-text-muted)' }}>
+              <span>↵ open page</span>
+              <span>Esc close</span>
+              <span>Ctrl+/ toggle</span>
+            </div>
+          </div>
+        </div>
+      )}
     </ToastProvider>
   );
 }

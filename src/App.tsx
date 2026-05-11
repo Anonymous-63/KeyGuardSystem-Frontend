@@ -17,6 +17,8 @@ import TimeConstraintsPage from './pages/TimeConstraintsPage';
 import ProfilePage from './pages/ProfilePage';
 import CabinetDetailPage from './pages/CabinetDetailPage';
 import AssetDetailPage from './pages/AssetDetailPage';
+import AuditTrailPage from './pages/AuditTrailPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -45,6 +47,8 @@ export default function App() {
           <Route path="/asset-groups"     element={<AssetGroupsPage />} />
           <Route path="/time-constraints" element={<TimeConstraintsPage />} />
           <Route path="/profile"          element={<ProfilePage />} />
+          <Route path="/audit"            element={<AuditTrailPage />} />
+          <Route path="/settings"         element={<SettingsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

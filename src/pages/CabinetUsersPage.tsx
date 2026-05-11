@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useListCabinetUsersQuery,
   useCreateCabinetUserMutation,
@@ -28,13 +28,14 @@ import { CABINET_USER_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
 import Tabs from '../components/shared/Tabs';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
-import { FormField, FormGrid, FormActions } from '../components/shared/Form';
+import { FormField, FormRow, FormGrid, FormActions } from '../components/shared/Form';
+import PageHeader from '../components/shared/PageHeader';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+
+const ICO_USERS = ['M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'];
 
 // ─── User Detail Modal ────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ function UserDetailsForm({
   const [mobileNo, setMobileNo] = useState(initial.mobileNo ?? '');
   const [division, setDivision] = useState(initial.division ?? '');
   const [designation, setDesignation] = useState(initial.designation ?? '');
+  const [address, setAddress] = useState(initial.address ?? '');
 
   return (
     <form onSubmit={(e) => {
@@ -72,20 +74,42 @@ function UserDetailsForm({
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
+        address: address || undefined,
       });
-    }} className="space-y-4">
-      <FormGrid>
-        <FormField label="User ID" value={initial.id} disabled mono wrapperClassName="col-span-full" />
-        <FormField label="Full Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} wrapperClassName="col-span-full" />
-        <FormField label="Short ID" value={shortId} onChange={(e) => setShortId(e.target.value)} maxLength={10} />
-        <FormField label="Short Name" value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={20} />
-        <FormField type="number" label="Card UID" value={cardUid} onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} mono />
-        <FormField type="password" label="PIN (leave blank to keep)" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={8} />
-        <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
-        <FormField label="Mobile No" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
-        <FormField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
-        <FormField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-      </FormGrid>
+    }} className="space-y-3">
+      <FormRow label="User ID">
+        <input className="input input-bordered w-full font-mono" value={initial.id} disabled />
+      </FormRow>
+      <FormRow label="Full Name" required>
+        <input className="input input-bordered w-full" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} />
+      </FormRow>
+      <FormRow label="Short ID">
+        <input className="input input-bordered w-full" value={shortId} onChange={(e) => setShortId(e.target.value)} maxLength={10} />
+      </FormRow>
+      <FormRow label="Short Name">
+        <input className="input input-bordered w-full" value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={20} />
+      </FormRow>
+      <FormRow label="Card UID">
+        <input type="number" className="input input-bordered w-full font-mono" value={cardUid} onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} />
+      </FormRow>
+      <FormRow label="PIN">
+        <input type="password" className="input input-bordered w-full" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={8} placeholder="Leave blank to keep" />
+      </FormRow>
+      <FormRow label="Email">
+        <input type="email" className="input input-bordered w-full" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+      </FormRow>
+      <FormRow label="Mobile No">
+        <input className="input input-bordered w-full" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+      </FormRow>
+      <FormRow label="Division">
+        <input className="input input-bordered w-full" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
+      </FormRow>
+      <FormRow label="Designation">
+        <input className="input input-bordered w-full" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
+      </FormRow>
+      <FormRow label="Address">
+        <input className="input input-bordered w-full" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} />
+      </FormRow>
       <FormActions onCancel={onCancel} loading={loading} submitLabel="Save Changes" />
     </form>
   );
@@ -582,6 +606,7 @@ function NewUserForm({
   const [mobileNo, setMobileNo] = useState('');
   const [division, setDivision] = useState('');
   const [designation, setDesignation] = useState('');
+  const [address, setAddress] = useState('');
 
   return (
     <form onSubmit={(e) => {
@@ -592,6 +617,7 @@ function NewUserForm({
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
+        address: address || undefined,
       });
     }} className="space-y-4">
       <FormGrid>
@@ -601,6 +627,7 @@ function NewUserForm({
         <FormField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
         <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
         <FormField label="Mobile No" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+        <FormField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} wrapperClassName="col-span-full" />
       </FormGrid>
       <p className="text-xs text-base-content/50">
         After creating, use "Manage" to assign locations, assets, and time constraints.
@@ -614,14 +641,14 @@ function NewUserForm({
 
 export default function CabinetUsersPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<CabinetUserResponse | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [managing, setManaging] = useState<CabinetUserResponse | null>(null);
   const [confirm, setConfirm] = useState<{ user: CabinetUserResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data, isLoading } = useListCabinetUsersQuery({ page, size: 20, includeDisabled });
+  const { data, isLoading } = useListCabinetUsersQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateCabinetUserMutation();
   const [disable, { isLoading: disabling }] = useDisableCabinetUserMutation();
   const [restore, { isLoading: restoring }] = useRestoreCabinetUserMutation();
@@ -638,6 +665,7 @@ export default function CabinetUsersPage() {
       await create(body).unwrap();
       addToast({ type: 'success', message: 'User created' });
       setCreateOpen(false);
+      setSelected(null);
     } catch { addToast({ type: 'error', message: 'Failed to create user' }); }
   };
 
@@ -647,98 +675,94 @@ export default function CabinetUsersPage() {
       if (confirm.action === 'disable') await disable(confirm.user.id).unwrap();
       else await restore(confirm.user.id).unwrap();
       addToast({ type: 'success', message: confirm.action === 'disable' ? 'User disabled' : 'User restored' });
+      setSelected(null);
     } catch { addToast({ type: 'error', message: 'Action failed' }); }
     setConfirm(null);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Cabinet Users</h1>
-        <div className="flex items-center gap-3 flex-wrap">
-          <input
-            type="search"
-            className="input input-bordered input-sm w-48"
-            placeholder="Search name or ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="CABINET_USER" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={() => setCreateOpen(true)}>
-              + Add User
-            </button>
-          </PermissionGate>
-        </div>
-      </div>
+  const cols = useMemo<ColDef<CabinetUserResponse>[]>(() => [
+    { field: 'id', headerName: 'ID', width: 100 },
+    { field: 'name', headerName: 'Name', flex: 1 },
+    {
+      headerName: 'Division',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.division ?? '—',
+    },
+    {
+      headerName: 'Designation',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.designation ?? '—',
+    },
+    {
+      headerName: 'Mobile',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.mobileNo ?? '—',
+    },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: CabinetUserResponse }) => (
+        d.disabled
+          ? <span className="badge badge-ghost badge-sm">Disabled</span>
+          : <span className="badge badge-success badge-sm">Active</span>
+      ),
+    },
+    {
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ({ data: d }: { data: CabinetUserResponse }) => (
+        <PermissionGate resource="CABINET_USER" action="UPDATE">
+          <button className="btn btn-primary btn-xs"
+            onClick={(e) => { e.stopPropagation(); setManaging(d); }}>
+            Manage
+          </button>
+        </PermissionGate>
+      ),
+    },
+  ], []);
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Division / Designation</th>
-                <th>Mobile</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={6} />}
-              {!isLoading && rows.length === 0 && (
-                <EmptyState colSpan={6} icon="🧑" title="No cabinet users found"
-                  message={search ? 'No users match your search.' : 'Cabinet users are the people who physically access key cabinets.'}
-                  action={!search ? { label: '+ Add User', onClick: () => setCreateOpen(true) } : undefined} />
-              )}
-              {rows.map((user) => (
-                <tr key={user.id}>
-                  <td className="font-mono text-sm">{user.id}</td>
-                  <td>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      {user.shortName && <p className="text-xs text-base-content/50">{user.shortName}</p>}
-                    </div>
-                  </td>
-                  <td className="text-xs text-base-content/70">
-                    {[user.division, user.designation].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                  <td className="font-mono text-sm">{user.mobileNo ?? '—'}</td>
-                  <td><StatusBadge disabled={user.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <PermissionGate resource="CABINET_USER" action="UPDATE">
-                        <button className="btn btn-primary btn-xs"
-                          onClick={() => setManaging(user)}>Manage</button>
-                      </PermissionGate>
-                      <PermissionGate resource="CABINET_USER" action={user.disabled ? 'RESTORE' : 'DELETE'}>
-                        {user.disabled ? (
-                          <button className="btn btn-ghost btn-xs text-success"
-                            onClick={() => setConfirm({ user, action: 'restore' })}>Restore</button>
-                        ) : (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm({ user, action: 'disable' })}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_USERS}
+        title="Cabinet Users"
+        resource="CABINET_USER"
+        onAdd={() => setCreateOpen(true)}
+        onUpdate={() => selected && setManaging(selected)}
+        onRestore={() => selected && setConfirm({ user: selected, action: 'restore' })}
+        onDisable={() => selected && setConfirm({ user: selected, action: 'disable' })}
+        updateDisabled={!selected}
+        restoreDisabled={!selected || !selected.disabled}
+        disableDisabled={!selected || selected.disabled}
+        extra={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <input type="search" className="input input-bordered input-sm" style={{ width: '160px' }}
+              placeholder="Search name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+              <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>Show disabled</span>
+              <input type="checkbox" className="toggle toggle-sm" checked={includeDisabled}
+                onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }} />
+            </label>
           </div>
-        )}
-      </div>
+        }
+      />
+
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowClicked={(r) => setSelected(r)}
+          onRowDoubleClicked={(r) => { setSelected(r); setManaging(r); }}
+          exportable
+          exportFilename="cabinet-users"
+          height="100%"
+        />
+      </div></div>
 
       {/* Create modal */}
       <Modal open={createOpen} title="New Cabinet User"

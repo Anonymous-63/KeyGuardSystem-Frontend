@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useListOperatorsQuery,
   useCreateOperatorMutation,
@@ -7,266 +7,880 @@ import {
   useRestoreOperatorMutation,
   useChangePasswordMutation,
   useListLocationsForOperatorQuery,
+  useAssignLocationToOperatorMutation,
+  useRemoveLocationFromOperatorMutation,
 } from '../features/operator/operatorApi';
+import { useListLocationsQuery } from '../features/location/locationApi';
 import type { OperatorResponse, OperatorRequest } from '../types/api';
 import { OPERATOR_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
-import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
-import { FormField, FormSelect, FormActions } from '../components/shared/Form';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+import { useAppSelector } from '../app/hooks';
+import { hasPermission } from '../features/auth/permissions';
 
-function OperatorForm({
-  initial, onSave, onCancel, loading,
-}: {
-  initial?: OperatorResponse;
-  onSave: (data: OperatorRequest) => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  const [id, setId] = useState(initial?.id ?? '');
-  const [name, setName] = useState(initial?.name ?? '');
-  const [emailId, setEmailId] = useState(initial?.emailId ?? '');
-  const [type, setType] = useState<number>(initial?.type ?? 5);
-  const [password, setPassword] = useState('');
+const PAGE_SIZE = 20;
+const DEFAULT_PASSWORD = 'Admin@123';
 
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ id, name, emailId: emailId || undefined, type, password }); }}
-      className="space-y-4">
-      <FormField label="Operator ID" value={id} onChange={(e) => setId(e.target.value)}
-        disabled={!!initial} required maxLength={30} mono />
-      <FormField label="Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={30} />
-      <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
-      <FormSelect label="Type" value={type} onChange={(e) => setType(Number(e.target.value))} required>
-        {Object.entries(OPERATOR_TYPES).map(([k, v]) => (
-          <option key={k} value={k}>{v} (Type {k})</option>
-        ))}
-      </FormSelect>
-      <FormField type="password" label={initial ? 'New Password (leave blank to keep)' : 'Password'}
-        value={password} onChange={(e) => setPassword(e.target.value)}
-        required={!initial} minLength={6} maxLength={100} />
-      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
-    </form>
-  );
+function getPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  if (current < 4)         return [0, 1, 2, 3, 4, '...', total - 1];
+  if (current > total - 5) return [0, '...', total - 5, total - 4, total - 3, total - 2, total - 1];
+  return [0, '...', current - 1, current, current + 1, '...', total - 1];
 }
 
-function OperatorLocationsPanel({ operatorId, operatorName }: { operatorId: string; operatorName: string }) {
-  const { data: locations, isLoading } = useListLocationsForOperatorQuery(operatorId);
+// ─── Icon primitive ───────────────────────────────────────────────────────────
+const Ico = ({ d, size = '1rem', style: extraStyle }: {
+  d: string; size?: string; style?: React.CSSProperties;
+}) => (
+  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"
+    style={{ width: size, height: size, flexShrink: 0, ...extraStyle }}>
+    <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+  </svg>
+);
+
+const ICO = {
+  search:  'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
+  edit:    'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
+  ban:     'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
+  restore: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99',
+  key:     'M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z',
+  mapPin:  'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z',
+};
+
+const COUNTRY_CODES = [
+  { code: '91',  label: '+91 (India)'     },
+  { code: '1',   label: '+1 (USA)'        },
+  { code: '44',  label: '+44 (UK)'        },
+  { code: '971', label: '+971 (UAE)'      },
+  { code: '65',  label: '+65 (Singapore)' },
+  { code: '61',  label: '+61 (Australia)' },
+];
+
+// ─── Enterprise form primitives ───────────────────────────────────────────────
+
+const FL = ({ text, required }: { text: string; required?: boolean }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginBottom: '0.325rem' }}>
+    <span style={{
+      fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em',
+      textTransform: 'uppercase', whiteSpace: 'nowrap',
+      color: 'var(--color-base-content)', opacity: 0.65,
+      userSelect: 'none',
+    }}>
+      {text}
+    </span>
+    {required && (
+      <span style={{ color: 'var(--color-error)', fontSize: '0.75rem', lineHeight: 1, opacity: 1 }}>*</span>
+    )}
+  </div>
+);
+
+const Sect = ({ label }: { label: string }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', margin: '0.125rem 0' }}>
+    <span style={{
+      fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.12em',
+      textTransform: 'uppercase', whiteSpace: 'nowrap',
+      color: 'var(--color-base-content)', opacity: 0.35,
+    }}>
+      {label}
+    </span>
+    <div style={{ flex: 1, height: '1px', background: 'var(--color-base-300)' }} />
+  </div>
+);
+
+// ─── Location picker — CREATE mode (local state) ──────────────────────────────
+function LocationPicker({ value, onChange }: { value: number[]; onChange: (ids: number[]) => void }) {
+  const { data: page } = useListLocationsQuery({ page: 0, size: 200, disabled: false });
+  const all       = page?.content ?? [];
+  const selSet    = new Set(value);
+  const selected  = all.filter((l) => selSet.has(l.id));
+  const available = all.filter((l) => !selSet.has(l.id));
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-base-content/60">
-        Locations assigned to <span className="font-semibold text-base-content">{operatorName}</span>
-      </p>
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <span className="loading loading-spinner loading-md text-primary" />
-        </div>
-      ) : !locations?.length ? (
-        <p className="text-sm text-base-content/40 text-center py-6 italic">
-          No locations assigned. Assign via Locations → Operators.
-        </p>
-      ) : (
-        <div className="space-y-1">
-          {locations.map((loc) => (
-            <div key={loc.locationId} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-base-200">
-              <span className="text-base">📍</span>
-              <p className="text-sm font-medium">{loc.locationName ?? `Location #${loc.locationId}`}</p>
-            </div>
-          ))}
+    <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
+      {/* Assigned chips */}
+      <div style={{
+        padding: selected.length > 0 ? '0.5rem 0.625rem' : '0.75rem 0.625rem',
+        minHeight: '2.5rem',
+        display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center',
+      }}>
+        {selected.length > 0 ? selected.map((l) => (
+          <span key={l.id} className="badge badge-primary badge-soft"
+            style={{ gap: '0.25rem', paddingRight: '0.3rem', fontSize: '0.75rem' }}>
+            <Ico d={ICO.mapPin} size="0.7rem" />
+            {l.name}
+            <button type="button" onClick={() => onChange(value.filter((id) => id !== l.id))}
+              style={{ lineHeight: 1, fontSize: '0.8rem', cursor: 'pointer', marginLeft: '0.15rem', opacity: 0.7 }}>
+              ×
+            </button>
+          </span>
+        )) : (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-base-content)', opacity: 0.35 }}>
+            No locations assigned yet
+          </span>
+        )}
+      </div>
+      {/* Add row */}
+      {available.length > 0 && (
+        <div style={{
+          borderTop: '1px solid var(--color-base-300)',
+          background: 'var(--color-base-200)',
+          padding: '0.4rem 0.625rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+        }}>
+          <Ico d={ICO.mapPin} size="0.8rem" style={{ opacity: 0.4 }} />
+          <select className="select select-bordered select-xs flex-1" value=""
+            onChange={(e) => { if (e.target.value) onChange([...value, Number(e.target.value)]); }}>
+            <option value="">Add a location…</option>
+            {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
         </div>
       )}
     </div>
   );
 }
 
-function ChangePasswordPanel({ operatorId, onClose }: { operatorId: string; onClose: () => void }) {
+// ─── Location chips — EDIT mode (immediate save) ──────────────────────────────
+function LocationChips({ operatorId }: { operatorId: string }) {
   const { addToast } = useToast();
-  const [newPassword, setNewPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const { data: assigned = [], isLoading } = useListLocationsForOperatorQuery(operatorId);
+  const { data: allPage }                  = useListLocationsQuery({ page: 0, size: 200, disabled: false });
+  const [assign,  { isLoading: assigning }] = useAssignLocationToOperatorMutation();
+  const [remove]                            = useRemoveLocationFromOperatorMutation();
+
+  const all         = allPage?.content ?? [];
+  const assignedSet = new Set(assigned.map((a) => a.locationId));
+  const available   = all.filter((l) => !assignedSet.has(l.id));
+
+  const handleAdd = async (locationId: number) => {
+    try { await assign({ locationId, operatorId }).unwrap(); }
+    catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
+  };
+  const handleRemove = async (locationId: number) => {
+    try { await remove({ locationId, operatorId }).unwrap(); }
+    catch { addToast({ type: 'error', message: 'Failed to remove location' }); }
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '0.75rem 0.625rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span className="loading loading-spinner loading-xs" />
+        <span style={{ fontSize: '0.78rem', opacity: 0.4 }}>Loading…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
+      {/* Assigned chips */}
+      <div style={{
+        padding: assigned.length > 0 ? '0.5rem 0.625rem' : '0.75rem 0.625rem',
+        minHeight: '2.5rem',
+        display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center',
+      }}>
+        {assigned.length > 0 ? assigned.map((a) => (
+          <span key={a.locationId} className="badge badge-primary badge-soft"
+            style={{ gap: '0.25rem', paddingRight: '0.3rem', fontSize: '0.75rem' }}>
+            <Ico d={ICO.mapPin} size="0.7rem" />
+            {a.locationName ?? `#${a.locationId}`}
+            <button type="button" onClick={() => handleRemove(a.locationId)}
+              style={{ lineHeight: 1, fontSize: '0.8rem', cursor: 'pointer', marginLeft: '0.15rem', opacity: 0.7 }}>
+              ×
+            </button>
+          </span>
+        )) : (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-base-content)', opacity: 0.35 }}>
+            No locations assigned
+          </span>
+        )}
+      </div>
+      {/* Add row */}
+      {available.length > 0 && (
+        <div style={{
+          borderTop: '1px solid var(--color-base-300)',
+          background: 'var(--color-base-200)',
+          padding: '0.4rem 0.625rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+        }}>
+          <Ico d={ICO.mapPin} size="0.8rem" style={{ opacity: 0.4 }} />
+          <select className="select select-bordered select-xs flex-1"
+            value="" disabled={assigning}
+            onChange={(e) => { if (e.target.value) handleAdd(Number(e.target.value)); }}>
+            <option value="">Add a location…</option>
+            {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          {assigning && <span className="loading loading-spinner loading-xs" />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Operator form ────────────────────────────────────────────────────────────
+function OperatorForm({
+  initial, onSave, onCancel, onChangePwd, loading,
+}: {
+  initial?: OperatorResponse;
+  onSave: (data: OperatorRequest, locationIds: number[]) => void;
+  onCancel: () => void;
+  onChangePwd?: () => void;
+  loading: boolean;
+}) {
+  const isEdit = !!initial;
+
+  const [name,        setName]        = useState(initial?.name              ?? '');
+  const [id,          setId]          = useState(initial?.id                ?? '');
+  const [type,        setType]        = useState<number>(initial?.type      ?? 5);
+  const [emailId,     setEmailId]     = useState(initial?.emailId           ?? '');
+  const [mobileNo,    setMobileNo]    = useState(initial?.mobileNo          ?? '');
+  const [countryCode, setCountryCode] = useState(initial?.mobileCountryCode ?? '91');
+  const [pendingLocs, setPendingLocs] = useState<number[]>([]);
+
+  const needsLocation = type === 4 || type === 5;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      ...(isEdit ? {} : { id }),
+      name,
+      type,
+      emailId:           emailId.trim()  || undefined,
+      mobileNo:          mobileNo.trim() || undefined,
+      mobileCountryCode: countryCode,
+    }, isEdit ? [] : pendingLocs);
+  };
+
+  const inp = 'input input-bordered w-full';
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* ── Operator Type — dropdown ──────────────────────────────────── */}
+      <div>
+        <FL text="Operator Type" required />
+        <select className="select select-bordered w-full"
+          value={type} onChange={(e) => setType(Number(e.target.value))}>
+          {Object.entries(OPERATOR_TYPES)
+            .filter(([k]) => Number(k) !== 1)
+            .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <p style={{ margin: '0.3rem 0 0', fontSize: '0.7rem', color: 'var(--color-base-content)', opacity: 0.45, lineHeight: 1.4 }}>
+          {type === 2 && 'Full database & reporting access across all locations'}
+          {type === 3 && 'Manages all locations, operators, and cabinet users'}
+          {type === 4 && 'Admin access limited to assigned locations only'}
+          {type === 5 && 'Standard access to assigned locations, no admin rights'}
+        </p>
+      </div>
+
+      {/* ── Assigned Locations (type 4 / 5 only) ─────────────────────── */}
+      {needsLocation && (
+        <div>
+          <FL text="Assigned Locations" />
+          {isEdit
+            ? <LocationChips operatorId={initial!.id} />
+            : <LocationPicker value={pendingLocs} onChange={setPendingLocs} />
+          }
+        </div>
+      )}
+
+      {/* ── Account Info ──────────────────────────────────────────────── */}
+      <Sect label="Account Info" />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        <div>
+          <FL text="Operator ID" required />
+          <input className={inp}
+            value={id} onChange={(e) => setId(e.target.value)}
+            disabled={isEdit} required={!isEdit}
+            maxLength={50} placeholder="e.g. john_doe" />
+          {isEdit && (
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.68rem', opacity: 0.4 }}>
+              ID cannot be changed
+            </p>
+          )}
+        </div>
+        <div>
+          <FL text="Full Name" required />
+          <input className={inp}
+            value={name} onChange={(e) => setName(e.target.value)}
+            required maxLength={30} placeholder="Full display name" />
+        </div>
+      </div>
+
+      <div>
+        <FL text="Email Address" />
+        <input type="email" className={inp}
+          value={emailId} onChange={(e) => setEmailId(e.target.value)}
+          maxLength={100} placeholder="email@example.com" />
+      </div>
+
+      {/* ── Contact ───────────────────────────────────────────────────── */}
+      <Sect label="Contact" />
+
+      <div>
+        <FL text="Mobile Number" />
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <select className="select select-bordered"
+            style={{ width: '148px', flexShrink: 0 }}
+            value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
+            {COUNTRY_CODES.map((c) => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+          <input className={`${inp} flex-1`} style={{ width: 'auto' }} type="tel"
+            placeholder="Enter mobile number"
+            value={mobileNo} onChange={(e) => setMobileNo(e.target.value)}
+            maxLength={15} />
+        </div>
+      </div>
+
+      {/* ── Form actions ─────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderTop: '1px solid var(--color-base-200)',
+        paddingTop: '0.875rem', marginTop: '0.125rem',
+      }}>
+        <div>
+          {isEdit && onChangePwd && (
+            <button type="button" className="btn btn-ghost btn-sm gap-1.5"
+              style={{ color: 'var(--color-base-content)', opacity: 0.6 }}
+              onClick={onChangePwd}>
+              <Ico d={ICO.key} size="0.875rem" />
+              Change Password
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={loading}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary btn-sm" style={{ minWidth: '130px' }} disabled={loading}>
+            {loading && <span className="loading loading-spinner loading-xs" />}
+            {isEdit ? 'Save Changes' : 'Create Operator'}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// ─── Change password panel ────────────────────────────────────────────────────
+function ChangePasswordPanel({ operatorId, isSelf, onClose }: {
+  operatorId: string; isSelf: boolean; onClose: () => void;
+}) {
+  const { addToast } = useToast();
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd,     setNewPwd]     = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
   const [changePassword, { isLoading }] = useChangePasswordMutation();
+
+  const mismatch = confirmPwd.length > 0 && newPwd !== confirmPwd;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword !== confirm) return;
+    if (newPwd !== confirmPwd) return;
     try {
-      await changePassword({ id: operatorId, body: { newPassword } }).unwrap();
-      addToast({ type: 'success', message: 'Password changed' });
+      await changePassword({
+        id: operatorId,
+        body: { newPassword: newPwd, ...(isSelf ? { currentPassword: currentPwd } : {}) },
+      }).unwrap();
+      addToast({ type: 'success', message: 'Password changed successfully' });
       onClose();
     } catch {
       addToast({ type: 'error', message: 'Failed to change password' });
     }
   };
 
+  const inp = 'input input-bordered w-full';
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <FormField type="password" label="New Password" value={newPassword}
-        onChange={(e) => setNewPassword(e.target.value)} required minLength={6} maxLength={100} />
-      <FormField type="password" label="Confirm Password" value={confirm}
-        onChange={(e) => setConfirm(e.target.value)} required minLength={6}
-        error={confirm && newPassword !== confirm ? 'Passwords do not match' : undefined} />
-      <FormActions onCancel={onClose} loading={isLoading} submitLabel="Set Password"
-        disabled={!newPassword || newPassword !== confirm} />
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {isSelf && (
+        <div>
+          <FL text="Current Password" required />
+          <input type="password" className={inp}
+            value={currentPwd} onChange={(e) => setCurrentPwd(e.target.value)} required />
+        </div>
+      )}
+      <div>
+        <FL text="New Password" required />
+        <input type="password" className={inp}
+          value={newPwd} onChange={(e) => setNewPwd(e.target.value)}
+          required minLength={6} maxLength={100} />
+      </div>
+      <div>
+        <FL text="Confirm New Password" required />
+        <input type="password"
+          className={`${inp}${mismatch ? ' input-error' : ''}`}
+          value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)}
+          required minLength={6} />
+        {mismatch && (
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--color-error)' }}>
+            Passwords do not match
+          </p>
+        )}
+      </div>
+      <div style={{
+        display: 'flex', justifyContent: 'flex-end', gap: '0.5rem',
+        borderTop: '1px solid var(--color-base-200)', paddingTop: '0.875rem',
+      }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} disabled={isLoading}>
+          Back
+        </button>
+        <button type="submit" className="btn btn-primary btn-sm" style={{ minWidth: '120px' }}
+          disabled={isLoading || !newPwd || mismatch}>
+          {isLoading && <span className="loading loading-spinner loading-xs" />}
+          Set Password
+        </button>
+      </div>
     </form>
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type Tab       = 'all' | 'active' | 'disabled';
+type ModalView = 'form' | 'pwd';
+
 export default function OperatorsPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
-  const [includeDisabled, setIncludeDisabled] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<OperatorResponse | null>(null);
-  const [confirm, setConfirm] = useState<{ op: OperatorResponse; action: 'disable' | 'restore' } | null>(null);
-  const [locationsOp, setLocationsOp] = useState<OperatorResponse | null>(null);
-  const [changePwdOp, setChangePwdOp] = useState<OperatorResponse | null>(null);
+  const operator = useAppSelector((s) => s.auth.operator);
 
-  const { data, isLoading } = useListOperatorsQuery({ page, size: 20, includeDisabled });
-  const [create, { isLoading: creating }] = useCreateOperatorMutation();
-  const [update, { isLoading: updating }] = useUpdateOperatorMutation();
+  const can = useCallback(
+    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') =>
+      operator != null && hasPermission(operator.type, 'OPERATOR', action),
+    [operator],
+  );
+
+  const [activeTab,     setActiveTab]     = useState<Tab>('active');
+  const [filterName,    setFilterName]    = useState('');
+  const [filterType,    setFilterType]    = useState('');
+  const [debouncedName, setDebouncedName] = useState('');
+  const [currentPage,   setCurrentPage]   = useState(0);
+  const [modalOpen,     setModalOpen]     = useState(false);
+  const [modalView,     setModalView]     = useState<ModalView>('form');
+  const [editing,       setEditing]       = useState<OperatorResponse | null>(null);
+  const [confirmState,  setConfirmState]  = useState<{ op: OperatorResponse; action: 'disable' | 'restore' } | null>(null);
+  const [selectedRows,  setSelectedRows]  = useState<OperatorResponse[]>([]);
+  const [clearTrigger,  setClearTrigger]  = useState(0);
+  const [bulkLoading,   setBulkLoading]   = useState(false);
+
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const h = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  const isMobile = windowWidth < 768;
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(filterName), 300);
+    return () => clearTimeout(t);
+  }, [filterName]);
+
+  useEffect(() => { setCurrentPage(0); }, [debouncedName, filterType, activeTab]);
+
+  const disabledParam = activeTab === 'all' ? undefined : activeTab === 'active' ? false : true;
+  const typeParam     = filterType ? Number(filterType) : undefined;
+  const filterBase    = { name: debouncedName || undefined, type: typeParam };
+
+  const { data, isLoading } = useListOperatorsQuery({
+    ...filterBase, page: currentPage, size: PAGE_SIZE, disabled: disabledParam,
+  });
+  const { data: countAllData }      = useListOperatorsQuery({ ...filterBase, page: 0, size: 1 });
+  const { data: countActiveData }   = useListOperatorsQuery({ ...filterBase, page: 0, size: 1, disabled: false });
+  const { data: countDisabledData } = useListOperatorsQuery({ ...filterBase, page: 0, size: 1, disabled: true });
+
+  const counts = {
+    all:      countAllData?.totalElements      ?? 0,
+    active:   countActiveData?.totalElements   ?? 0,
+    disabled: countDisabledData?.totalElements ?? 0,
+  };
+
+  const [create,  { isLoading: creating  }] = useCreateOperatorMutation();
+  const [update,  { isLoading: updating  }] = useUpdateOperatorMutation();
   const [disable, { isLoading: disabling }] = useDisableOperatorMutation();
   const [restore, { isLoading: restoring }] = useRestoreOperatorMutation();
+  const [assign]                            = useAssignLocationToOperatorMutation();
 
-  const openCreate = () => { setEditing(null); setModalOpen(true); };
-  const openEdit = (op: OperatorResponse) => { setEditing(op); setModalOpen(true); };
+  const rows       = data?.content       ?? [];
+  const totalItems = data?.totalElements ?? 0;
+  const totalPages = data?.totalPages    ?? 1;
 
-  const handleSave = async (body: OperatorRequest) => {
+  const hasActiveFilters = !!(filterName || filterType);
+  const clearFilters = () => { setFilterName(''); setFilterType(''); };
+  const clearSelection = () => { setSelectedRows([]); setClearTrigger((n) => n + 1); };
+
+  const openEdit = (op: OperatorResponse) => {
+    setEditing(op); setModalView('form'); setModalOpen(true);
+  };
+
+  const handleSave = async (body: OperatorRequest, locationIds: number[] = []) => {
     try {
-      if (editing) await update({ id: editing.id, body }).unwrap();
-      else await create(body).unwrap();
-      addToast({ type: 'success', message: editing ? 'Operator updated' : 'Operator created' });
+      if (editing) {
+        await update({ id: editing.id, body }).unwrap();
+        addToast({ type: 'success', message: 'Operator updated' });
+      } else {
+        const created = await create({ ...body, password: DEFAULT_PASSWORD }).unwrap();
+        for (const locationId of locationIds) {
+          try { await assign({ locationId, operatorId: created.id }).unwrap(); } catch {}
+        }
+        addToast({ type: 'success', message: `Operator created — default password: ${DEFAULT_PASSWORD}` });
+      }
       setModalOpen(false);
-    } catch {
-      addToast({ type: 'error', message: 'Failed to save operator' });
+    } catch (err: unknown) {
+      const e = err as { data?: { message?: string; error?: string } };
+      addToast({ type: 'error', message: e?.data?.message || e?.data?.error || 'Failed to save operator' });
     }
   };
 
   const handleConfirm = async () => {
-    if (!confirm) return;
+    if (!confirmState) return;
     try {
-      if (confirm.action === 'disable') await disable(confirm.op.id).unwrap();
-      else await restore(confirm.op.id).unwrap();
-      addToast({ type: 'success', message: confirm.action === 'disable' ? 'Operator disabled' : 'Operator restored' });
+      if (confirmState.action === 'disable') await disable(confirmState.op.id).unwrap();
+      else                                   await restore(confirmState.op.id).unwrap();
+      addToast({
+        type: 'success',
+        message: confirmState.action === 'disable' ? 'Operator disabled' : 'Operator restored',
+      });
     } catch {
       addToast({ type: 'error', message: 'Action failed' });
     }
-    setConfirm(null);
+    setConfirmState(null);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Web Operators</h1>
-        <div className="flex items-center gap-3">
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="OPERATOR" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Operator</button>
-          </PermissionGate>
+  const handleBulkDisable = async () => {
+    const targets = selectedRows.filter((r) => !r.disabled);
+    if (!targets.length) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(targets.map((r) => disable(r.id).unwrap()));
+      addToast({ type: 'success', message: `${targets.length} operator${targets.length > 1 ? 's' : ''} disabled` });
+      clearSelection();
+    } catch {
+      addToast({ type: 'error', message: 'Some disable operations failed' });
+    }
+    setBulkLoading(false);
+  };
+
+  const handleBulkRestore = async () => {
+    const targets = selectedRows.filter((r) => r.disabled);
+    if (!targets.length) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(targets.map((r) => restore(r.id).unwrap()));
+      addToast({ type: 'success', message: `${targets.length} operator${targets.length > 1 ? 's' : ''} restored` });
+      clearSelection();
+    } catch {
+      addToast({ type: 'error', message: 'Some restore operations failed' });
+    }
+    setBulkLoading(false);
+  };
+
+  const isSelf = operator?.id === editing?.id;
+
+  const modalTitle = modalView === 'pwd'
+    ? `Change Password — ${editing?.name ?? ''}`
+    : editing
+      ? `Update Record : ${editing.name} (${editing.id})`
+      : 'Add New Operator';
+
+  const bulkDisableCount = selectedRows.filter((r) => !r.disabled).length;
+  const bulkRestoreCount = selectedRows.filter((r) =>  r.disabled).length;
+
+  const cols = useMemo<ColDef<OperatorResponse>[]>(() => [
+    {
+      field: 'id', headerName: 'Operator ID',
+      width: 130, minWidth: 90,
+    },
+    {
+      field: 'name', headerName: 'Name',
+      flex: 1, minWidth: 130,
+    },
+    {
+      field: 'emailId', headerName: 'Email',
+      width: 210, minWidth: 150, hide: isMobile,
+      valueFormatter: ({ value }) => (value as string | undefined) ?? '—',
+    },
+    {
+      headerName: 'Type', width: 150, minWidth: 110, hide: isMobile,
+      valueGetter: ({ data: d }) => d ? (OPERATOR_TYPES[d.type] ?? `Type ${d.type}`) : '',
+    },
+    {
+      headerName: 'Status', width: 82, minWidth: 72, sortable: false,
+      cellRenderer: ({ data: d }: { data: OperatorResponse }) => (
+        d.disabled
+          ? <span className="badge badge-soft badge-error badge-sm"   style={{ cursor: 'default' }}>Disabled</span>
+          : <span className="badge badge-soft badge-success badge-sm" style={{ cursor: 'default' }}>Active</span>
+      ),
+    },
+    {
+      headerName: 'Actions',
+      width: isMobile ? 62 : 130,
+      minWidth: isMobile ? 56 : 120,
+      sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
+      cellRenderer: ({ data: d }: { data: OperatorResponse }) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
+          {can('UPDATE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
+                onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
+                <Ico d={ICO.edit} size="1rem" />
+              </button>
+            : <button className="btn btn-outline btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
+                <Ico d={ICO.edit} size="0.85rem" /> Edit
+              </button>
+          )}
+          {!d.disabled && can('DELETE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
+                <Ico d={ICO.ban} size="1rem" />
+              </button>
+            : <button className="btn btn-outline btn-error btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
+                <Ico d={ICO.ban} size="0.85rem" /> Disable
+              </button>
+          )}
+          {d.disabled && can('RESTORE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
+                <Ico d={ICO.restore} size="1rem" />
+              </button>
+            : <button className="btn btn-outline btn-info btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
+                <Ico d={ICO.restore} size="0.85rem" /> Restore
+              </button>
+          )}
         </div>
+      ),
+    },
+  ], [can, isMobile]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '0.875rem' }}>
+
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--color-base-content)', margin: 0, flex: 1, letterSpacing: '-0.01em' }}>
+          Web Operators
+        </h1>
+        {can('CREATE') && (
+          <button className="btn btn-sm btn-primary gap-1"
+            onClick={() => { setEditing(null); setModalView('form'); setModalOpen(true); }}>
+            <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>+</span> Add Operator
+          </button>
+        )}
       </div>
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={6} />}
-              {!isLoading && data?.content.length === 0 && (
-                <EmptyState colSpan={6} icon="👤" title="No operators found" />
-              )}
-              {data?.content.map((op) => (
-                <tr key={op.id}>
-                  <td className="font-mono text-sm">{op.id}</td>
-                  <td className="font-medium">{op.name}</td>
-                  <td className="text-base-content/70">{op.emailId ?? '—'}</td>
-                  <td>
-                    <span className="badge badge-outline badge-sm">
-                      {OPERATOR_TYPES[op.type] ?? `Type ${op.type}`}
-                    </span>
-                  </td>
-                  <td><StatusBadge disabled={op.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <button className="btn btn-ghost btn-xs text-primary"
-                        onClick={() => setLocationsOp(op)}>Locations</button>
-                      <PermissionGate resource="OPERATOR" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(op)}>Edit</button>
-                        <button className="btn btn-ghost btn-xs" onClick={() => setChangePwdOp(op)}>Change Pwd</button>
-                      </PermissionGate>
-                      <PermissionGate resource="OPERATOR" action="DELETE">
-                        {op.disabled ? (
-                          <button className="btn btn-ghost btn-xs text-success"
-                            onClick={() => setConfirm({ op, action: 'restore' })}>Restore</button>
-                        ) : (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm({ op, action: 'disable' })}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Card */}
+      <div className="bg-base-100 shadow-sm"
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: '0.5rem', overflow: 'hidden' }}>
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flex: 1, paddingLeft: '0.25rem' }}>
+            {(['all', 'active', 'disabled'] as Tab[]).map((tab) => {
+              const isActive = activeTab === tab;
+              const label    = tab === 'all' ? 'All' : tab === 'active' ? 'Active' : 'Disabled';
+              return (
+                <button key={tab} onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: '0.5rem 0.875rem', fontSize: '0.8125rem',
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? 'var(--color-primary)' : 'var(--sb-text-muted)',
+                    background: 'none', border: 'none',
+                    borderBottom: `2px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
+                    marginBottom: '-1px', cursor: 'pointer',
+                    transition: 'color 0.15s ease, border-color 0.15s ease',
+                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  }}>
+                  {label}
+                  <span style={{
+                    fontSize: '0.68rem', fontWeight: 600, padding: '0.05rem 0.35rem',
+                    borderRadius: '0.75rem',
+                    background: isActive ? 'var(--color-primary)' : 'var(--color-base-300)',
+                    color: isActive ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
+                    minWidth: '1.25rem', textAlign: 'center',
+                  }}>
+                    {counts[tab]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', borderLeft: '1px solid var(--sb-border)', padding: '0 0.75rem' }}>
+            {!isMobile && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                {isLoading ? '…' : `${totalItems} record${totalItems !== 1 ? 's' : ''}`}
+              </span>
+            )}
+          </div>
         </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
+
+        {/* Filter strip */}
+        <div style={{
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center', gap: '0.4rem',
+          padding: '0.45rem 0.875rem', borderBottom: '1px solid var(--sb-border)',
+          background: 'var(--color-base-200)', flexShrink: 0,
+        }}>
+          <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: '0.55rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
+              <Ico d={ICO.search} size="0.8rem" />
+            </span>
+            <input className="input input-bordered input-sm"
+              style={{ paddingLeft: '1.8rem', width: isMobile ? '100%' : '180px' }}
+              placeholder="Search name…"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)} />
+          </label>
+          <select className="select select-bordered select-sm"
+            style={{ width: isMobile ? '100%' : '160px' }}
+            value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <option value="">All Types</option>
+            {Object.entries(OPERATOR_TYPES).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          {hasActiveFilters && (
+            <button className="btn btn-xs btn-ghost gap-1" onClick={clearFilters}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
+
+        {/* Bulk selection bar */}
+        {selectedRows.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.35rem 1rem',
+            background: 'color-mix(in oklch, var(--color-primary) 8%, transparent)',
+            borderBottom: '1px solid color-mix(in oklch, var(--color-primary) 20%, transparent)',
+            flexShrink: 0, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-primary)' }}>
+              {selectedRows.length} selected
+            </span>
+            {bulkDisableCount > 0 && can('DELETE') && (
+              <button className="btn btn-xs btn-error btn-outline gap-1"
+                onClick={handleBulkDisable} disabled={bulkLoading}>
+                {bulkLoading && <span className="loading loading-spinner loading-xs" />}
+                Disable {bulkDisableCount > 1 ? `(${bulkDisableCount})` : ''}
+              </button>
+            )}
+            {bulkRestoreCount > 0 && can('RESTORE') && (
+              <button className="btn btn-xs btn-info btn-outline gap-1"
+                onClick={handleBulkRestore} disabled={bulkLoading}>
+                {bulkLoading && <span className="loading loading-spinner loading-xs" />}
+                Restore {bulkRestoreCount > 1 ? `(${bulkRestoreCount})` : ''}
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-ghost btn-xs" onClick={clearSelection}>Clear</button>
+          </div>
+        )}
+
+        {/* Grid */}
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowDoubleClicked={(r) => { if (can('UPDATE')) openEdit(r); }}
+          onSelectionChanged={setSelectedRows}
+          height="100%"
+          checkboxes
+          hideToolbar
+          clearSelectionTrigger={clearTrigger}
+        />
+
+        {/* Pagination */}
+        {totalItems > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: totalPages > 1 ? 'space-between' : 'flex-end',
+            padding: '0.45rem 0.875rem',
+            borderTop: '1px solid var(--color-base-300)',
+            background: 'var(--color-base-100)',
+            flexShrink: 0, gap: '0.5rem', flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {isLoading ? '…' : (
+                <>Showing {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalItems)} of {totalItems}</>
+              )}
+            </span>
+            {totalPages > 1 && (
+              isMobile ? (
+                <div className="join">
+                  <button className="join-item btn btn-sm" disabled={currentPage === 0}
+                    onClick={() => setCurrentPage((p) => p - 1)}>‹</button>
+                  <button className="join-item btn btn-sm btn-active pointer-events-none">
+                    {currentPage + 1} / {totalPages}
+                  </button>
+                  <button className="join-item btn btn-sm" disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage((p) => p + 1)}>›</button>
+                </div>
+              ) : (
+                <div className="join">
+                  <button className="join-item btn btn-sm" disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(0)}>«</button>
+                  <button className="join-item btn btn-sm" disabled={currentPage === 0}
+                    onClick={() => setCurrentPage((p) => p - 1)}>‹</button>
+                  {getPageNumbers(currentPage, totalPages).map((p, i) =>
+                    p === '...'
+                      ? <button key={`el-${i}`} className="join-item btn btn-sm btn-disabled">…</button>
+                      : <button key={p} onClick={() => setCurrentPage(p as number)}
+                          className={`join-item btn btn-sm${p === currentPage ? ' btn-active' : ''}`}>
+                          {(p as number) + 1}
+                        </button>
+                  )}
+                  <button className="join-item btn btn-sm" disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage((p) => p + 1)}>›</button>
+                  <button className="join-item btn btn-sm" disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage(totalPages - 1)}>»</button>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
 
-      <Modal open={modalOpen} title={editing ? 'Edit Operator' : 'New Operator'}
-        onClose={() => setModalOpen(false)}>
-        <OperatorForm initial={editing ?? undefined} onSave={handleSave}
-          onCancel={() => setModalOpen(false)} loading={creating || updating} />
-      </Modal>
-
-      <Modal open={!!locationsOp} title="Operator Locations"
-        onClose={() => setLocationsOp(null)} size="sm">
-        {locationsOp && (
-          <OperatorLocationsPanel operatorId={locationsOp.id} operatorName={locationsOp.name} />
+      {/* Edit / Create modal */}
+      <Modal open={modalOpen} title={modalTitle} onClose={() => setModalOpen(false)} size="lg">
+        {modalView === 'form' ? (
+          <OperatorForm
+            initial={editing ?? undefined}
+            onSave={handleSave}
+            onCancel={() => setModalOpen(false)}
+            onChangePwd={editing && can('UPDATE') ? () => setModalView('pwd') : undefined}
+            loading={creating || updating}
+          />
+        ) : (
+          editing && (
+            <ChangePasswordPanel
+              operatorId={editing.id}
+              isSelf={isSelf}
+              onClose={() => setModalView('form')}
+            />
+          )
         )}
       </Modal>
 
-      <Modal open={!!changePwdOp} title={`Change Password — ${changePwdOp?.name ?? ''}`}
-        onClose={() => setChangePwdOp(null)} size="sm">
-        {changePwdOp && (
-          <ChangePasswordPanel operatorId={changePwdOp.id} onClose={() => setChangePwdOp(null)} />
-        )}
-      </Modal>
-
+      {/* Disable / restore confirm */}
       <ConfirmDialog
-        open={!!confirm}
-        title={confirm?.action === 'disable' ? 'Disable Operator' : 'Restore Operator'}
+        open={!!confirmState}
+        title={confirmState?.action === 'disable' ? 'Disable Operator' : 'Restore Operator'}
         message={
-          confirm?.action === 'disable'
-            ? `Disable "${confirm?.op.name}"? They will not be able to log in.`
-            : `Restore "${confirm?.op.name}"?`
+          confirmState?.action === 'disable'
+            ? `Disable "${confirmState?.op.name}"? They will not be able to log in.`
+            : `Restore "${confirmState?.op.name}"?`
         }
-        confirmLabel={confirm?.action === 'disable' ? 'Disable' : 'Restore'}
-        danger={confirm?.action === 'disable'}
+        confirmLabel={confirmState?.action === 'disable' ? 'Disable' : 'Restore'}
+        danger={confirmState?.action === 'disable'}
         loading={disabling || restoring}
         onConfirm={handleConfirm}
-        onCancel={() => setConfirm(null)}
+        onCancel={() => setConfirmState(null)}
       />
     </div>
   );

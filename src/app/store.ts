@@ -8,6 +8,8 @@ import { cabinetUserApi } from '../features/cabinetUser/cabinetUserApi';
 import { transactionApi } from '../features/transaction/transactionApi';
 import { assetGroupApi } from '../features/assetGroup/assetGroupApi';
 import { timeConstraintApi } from '../features/timeConstraint/timeConstraintApi';
+import { dashboardApi } from '../features/dashboard/dashboardApi';
+import { configApi } from '../features/config/configApi';
 
 export const store = configureStore({
   reducer: {
@@ -20,6 +22,8 @@ export const store = configureStore({
     [transactionApi.reducerPath]: transactionApi.reducer,
     [assetGroupApi.reducerPath]: assetGroupApi.reducer,
     [timeConstraintApi.reducerPath]: timeConstraintApi.reducer,
+    [dashboardApi.reducerPath]: dashboardApi.reducer,
+    [configApi.reducerPath]: configApi.reducer,
   },
   middleware: (gDM) =>
     gDM()
@@ -30,7 +34,9 @@ export const store = configureStore({
       .concat(cabinetUserApi.middleware)
       .concat(transactionApi.middleware)
       .concat(assetGroupApi.middleware)
-      .concat(timeConstraintApi.middleware),
+      .concat(timeConstraintApi.middleware)
+      .concat(dashboardApi.middleware)
+      .concat(configApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

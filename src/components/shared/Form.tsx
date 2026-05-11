@@ -144,6 +144,51 @@ export function FormTextarea({
   );
 }
 
+// ─── FormRow — horizontal label-left layout matching AMSWebKey 3.0.0 ────────
+//
+// Usage:
+//   <FormRow label="Location Name" required>
+//     <input className="input input-bordered w-full" ... />
+//   </FormRow>
+//
+// Label occupies 28% / min 130px; control takes the rest.
+
+interface FormRowProps {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: ReactNode;
+}
+
+export function FormRow({ label, required, hint, children }: FormRowProps) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+      <div
+        style={{
+          width: '28%',
+          minWidth: '130px',
+          maxWidth: '200px',
+          flexShrink: 0,
+          paddingTop: '0.45rem',
+          fontWeight: 700,
+          fontSize: '0.875rem',
+          letterSpacing: '0.03em',
+          lineHeight: 1.4,
+        }}
+      >
+        {label}
+        {required && <span style={{ color: 'var(--color-error)', marginLeft: '0.15rem' }}>*</span>}
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        {children}
+        {hint && (
+          <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0, lineHeight: 1.4 }}>{hint}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── FormGrid ────────────────────────────────────────────────────────────────
 
 export function FormGrid({

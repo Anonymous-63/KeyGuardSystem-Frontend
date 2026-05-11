@@ -5,6 +5,7 @@ export interface ApiResponse<T> {
   message?: string;
   data: T;
   error?: string;
+  errorCode?: string;
   timestamp: string;
 }
 
@@ -37,36 +38,42 @@ export interface RefreshRequest {
 
 // ─── Location ─────────────────────────────────────────────────────────────────
 
-// Asset type stored in location (what kind of assets this location holds)
-export const LOCATION_ASSET_TYPES: Record<number, string> = {
-  1: 'Keys',
-  2: 'TLDs',
-  3: 'Lockers',
-};
+export const LOCATION_ASSET_TYPES = {
+  KEYS:    'Keys',
+  TLDS:    'TLDs',
+  LOCKERS: 'Lockers',
+} as const;
 
-// Cabinet type (cabinet configuration mode)
-export const LOCATION_CABINET_TYPES: Record<number, string> = {
-  0: 'Single',
-  1: 'Multi Same',
-  2: 'Multi Different',
-};
+export type LocationAssetType = keyof typeof LOCATION_ASSET_TYPES;
+
+export const LOCATION_CABINET_TYPES = {
+  SINGLE:     'Single',
+  MULTI_SAME: 'Multi Same',
+  MULTI_DIFF: 'Multi Different',
+} as const;
+
+export type LocationCabinetType = keyof typeof LOCATION_CABINET_TYPES;
 
 export interface LocationResponse {
   id: number;
   name: string;
   assetType: number;
-  assetTypeName?: string;
+  assetTypeName?: LocationAssetType;
   cabinetType: number;
-  cabinetTypeName?: string;
+  cabinetTypeName?: LocationCabinetType;
   features?: string;
   disabled: boolean;
-  mDate: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
 }
 
 export interface LocationRequest {
   name: string;
-  assetType: number;
-  cabinetType: number;
+  assetType: LocationAssetType;
+  cabinetType: LocationCabinetType;
   features?: string;
 }
 
@@ -105,15 +112,20 @@ export interface OperatorResponse {
   typeName?: string;
   disabled: boolean;
   passChangedAt?: string;
-  mDate: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
 }
 
 export interface OperatorRequest {
-  id: string;
-  password: string;
+  id?: string;
+  password?: string;
   name: string;
   emailId?: string;
   mobileNo?: string;
+  mobileCountryCode?: string;
   type: number;
 }
 
@@ -423,4 +435,56 @@ export interface CabinetTransactionResponse {
   slot?: number;
   datetime: string;
   extra?: string;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface RecentActivityItem {
+  autoNo: number;
+  assetName?: string;
+  assetNumber?: number;
+  issuedToName?: string;
+  issuedAt: string;
+  returnedAt?: string;
+  expectedBefore?: string;
+  status: 'OUT' | 'RETURNED' | 'OVERDUE';
+}
+
+export interface DashboardResponse {
+  totalLocations: number;
+  totalOperators: number;
+  totalCabinets: number;
+  totalAssets: number;
+  totalCabinetUsers: number;
+  totalAssetGroups: number;
+  assetsOut: number;
+  overdueCount: number;
+  recentActivity: RecentActivityItem[];
+}
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
+export interface OperatorAuditResponse {
+  id: number;
+  operatorId: string;
+  action: string;
+  resourceType?: string;
+  resourceId?: string;
+  detail?: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+// ─── App Config ───────────────────────────────────────────────────────────────
+
+export interface AppConfigResponse {
+  configKey: string;
+  configValue: string;
+  description?: string;
+  mDate: string;
+}
+
+export interface AppConfigUpdateRequest {
+  configValue: string;
+  description?: string;
 }

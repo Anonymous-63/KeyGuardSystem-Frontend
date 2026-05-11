@@ -1,24 +1,47 @@
 # KeyGuard System — Full Project Progress
 
-**Last updated:** 2026-05-08 (M01–M09 backend fully tested; restore endpoints added to all modules)
-**Frontend branch:** `feature/api-contract-fixes` (API contract fixes + DaisyUI/vite tweak committed)
-**Backend branch:** `feature/seed-data` (Sprint 2 + all restore endpoints; pending commit)
+**Last updated:** 2026-05-11
+**Frontend branch:** `feature/api-contract-fixes` (form refactor committed `c0dec1e`; enterprise redesign NEXT)
+**Backend branch:** `feature/seed-data` (Sprint 2 + all restore endpoints)
 
 ---
 
 ## Resume Command (Next Session)
 
-Tell Claude: **"Resume KeyGuard — Phase C: commit backend fixes, start frontend testing M01–M10"**
+### Current priority: Enterprise UI Redesign
+Tell Claude: **"continue enterprise redesign"** → loads full plan from memory, starts Phase 1 immediately.
 
-### Steps:
-1. Commit pending backend changes (restore endpoints for asset-groups, time-constraints + prior session fixes)
-2. Start frontend:
-   ```
-   cd "D:\Projects\AI KMS\KeyGuardSystem-Frontend"
-   npm run dev
-   ```
-3. Open http://localhost:5173 and login with `superadmin / Admin@123`
-4. Test each UI module systematically (M01 → M10)
+### After redesign is done — frontend testing:
+Tell Claude: **"Resume KeyGuard — Phase C: start frontend testing M01–M10"**
+1. Start frontend: `npm run dev` in `D:\Projects\AI KMS\KeyGuardSystem-Frontend`
+2. Open http://localhost:5174 and login with `superadmin / Admin@123`
+3. Test each UI module systematically (M01 → M10)
+
+---
+
+## Enterprise Redesign Status
+
+**Goal:** Recreate AMSWebKey 3.0.0 enterprise layout — NOT a modern redesign.
+**Analysis:** COMPLETE (2026-05-08) — see `C:\Users\A\.claude\projects\D--Projects-AI-KMS\memory\project_enterprise_redesign.md`
+**Implementation:** NOT STARTED
+
+| Phase | What | Status |
+|-------|------|--------|
+| 1 | App shell + sidebar (dark teal, role-based nav) | ❌ Not started |
+| 2 | PageHeader component (bg-lightcyan bar, icon+title, action buttons) | ❌ Not started |
+| 3 | Modal chrome (dark teal header, compact, Reset+Submit footer) | ❌ Not started |
+| 4 | Horizontal form layout (label-left 28%, input-right 72%) | ❌ Not started |
+| 5 | Table pattern (bordered, green thead, sticky search row) | ❌ Not started |
+| 6 | Apply to all 9 pages | ❌ Not started |
+
+**Key design decisions locked in:**
+- Sidebar width: 240px (old was 30rem/480px — too wide)
+- Dark teal: `#024950` — sidebar bg, modal headers
+- Light teal: `#D3EAE8` — page header bar, nav hover
+- Azure: `#e6f4f1` — main content area background
+- Form layout: horizontal label-left (from reference PNGs confirmed)
+- Modal footer: Reset (ghost/danger) + Submit (primary) — right-aligned
+- Table header: green-tinted (`bg-primary/10` or equivalent)
 
 Backend is already running on port 8080 with dev profile (PID 74868).
 
@@ -153,11 +176,16 @@ All mismatches between frontend types and backend DTOs are fixed:
 
 ---
 
-### M03 — Operators ✅ BACKEND TESTED (2026-05-08)
-**Backend:** OperatorController (restore endpoint added; @NotBlank removed from password for update)
-**Frontend:** OperatorsPage (CRUD + locations panel + change password)
-**Backend Test Results:** All CRUD + disable/restore tested and passing
-**Bugs fixed:** password @NotBlank removed from OperatorRequest (update never sends password)
+### M03 — Operators ✅ BACKEND ENTERPRISE REFACTOR DONE (2026-05-11)
+**Backend:** Full refactor — service interface+impl, MapStruct mapper, JPA Specs, caching, V16 migration, OpenAPI
+**Frontend:** Full redesign — FormRow layout, LocationPicker (create) + LocationChips (edit), Pwd moved to modal, proper column widths
+**Key changes (2026-05-11):**
+- Operator entity: audit fields (`created_at`, `updated_at`, `created_by`, `updated_by`, `version`), `mDate` dropped via V16 migration
+- `OperatorServiceImpl`: `@Cacheable`/`@CacheEvict`, JPA Specs filtering (name/type/disabled), Super Admin change-pwd bypass
+- `OperatorsPage.tsx`: FormRow pattern (matching LocationsPage), location select in create mode, Change Password inside edit modal
+- Table: removed Pwd button from actions; column widths fixed (ID 130 / Name flex / Email 210 / Type 150 / Status 82 / Actions 130)
+- Modal: two-view (`form` ↔ `pwd`) — Change Password accessible from within Edit modal
+**Pending:** Restart backend → V16 Flyway runs → test CRUD; test location assignment flow
 **Frontend test:** ❌ NOT DONE
 
 ---
@@ -333,6 +361,11 @@ All mismatches between frontend types and backend DTOs are fixed:
 
 | Date | What Changed | Branch |
 |------|--------------|--------|
+| 2026-05-11 | Operator module enterprise refactor — backend (V16 migration, MapStruct, specs, caching) + frontend (form redesign, location chips/picker, modal view toggle, column fixes) | feature/api-contract-fixes |
+| 2026-05-11 | LocationsPage: proper DaisyUI join pagination, numbered pages, clear-filter button, PAGE_SIZE=20 | feature/api-contract-fixes |
+| 2026-05-11 | Backend: @EnableCaching, LocationServiceImpl + OperatorServiceImpl caching, OpenApiConfig | feature/seed-data |
+| 2026-05-08 | Enterprise redesign: full AMSWebKey 3.0.0 analysis done; 6-phase plan stored in memory | — |
+| 2026-05-08 | Form refactor: all 9 pages use shared Form.tsx components; committed `c0dec1e` | feature/api-contract-fixes |
 | 2026-05-08 | AUDIT.md + PROGRESS.md synced to reflect Sprint 2 done | — |
 | 2026-05-08 | Backend: env config organized (application.yml env vars, application-dev.yml) | feature/seed-data |
 | 2026-05-08 | Backend: RedisConfig.java + V13/V14 test data committed | feature/seed-data |
