@@ -544,8 +544,9 @@ export default function OperatorsPage() {
         type: 'success',
         message: confirmState.action === 'disable' ? 'Operator disabled' : 'Operator restored',
       });
-    } catch {
-      addToast({ type: 'error', message: 'Action failed' });
+    } catch (err: unknown) {
+      const e = err as { data?: { message?: string; error?: string } };
+      addToast({ type: 'error', message: e?.data?.message || e?.data?.error || 'Action failed' });
     }
     setConfirmState(null);
   };
@@ -558,8 +559,9 @@ export default function OperatorsPage() {
       await Promise.all(targets.map((r) => disable(r.id).unwrap()));
       addToast({ type: 'success', message: `${targets.length} operator${targets.length > 1 ? 's' : ''} disabled` });
       clearSelection();
-    } catch {
-      addToast({ type: 'error', message: 'Some disable operations failed' });
+    } catch (err: unknown) {
+      const e = err as { data?: { message?: string; error?: string } };
+      addToast({ type: 'error', message: e?.data?.message || e?.data?.error || 'Some disable operations failed' });
     }
     setBulkLoading(false);
   };
@@ -572,8 +574,9 @@ export default function OperatorsPage() {
       await Promise.all(targets.map((r) => restore(r.id).unwrap()));
       addToast({ type: 'success', message: `${targets.length} operator${targets.length > 1 ? 's' : ''} restored` });
       clearSelection();
-    } catch {
-      addToast({ type: 'error', message: 'Some restore operations failed' });
+    } catch (err: unknown) {
+      const e = err as { data?: { message?: string; error?: string } };
+      addToast({ type: 'error', message: e?.data?.message || e?.data?.error || 'Some restore operations failed' });
     }
     setBulkLoading(false);
   };
@@ -617,8 +620,8 @@ export default function OperatorsPage() {
     },
     {
       headerName: 'Actions',
-      width: isMobile ? 62 : 130,
-      minWidth: isMobile ? 56 : 120,
+      width: isMobile ? 62 : 165,
+      minWidth: isMobile ? 56 : 155,
       sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
       cellRenderer: ({ data: d }: { data: OperatorResponse }) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
