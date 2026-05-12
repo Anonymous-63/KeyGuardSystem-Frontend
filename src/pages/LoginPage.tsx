@@ -2,24 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { login } from '../features/auth/authSlice';
-
-const IcoLock = () => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '2rem', height: '2rem' }}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-  </svg>
-);
-
-const IcoSun = () => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '1.1rem', height: '1.1rem' }}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-  </svg>
-);
-
-const IcoMoon = () => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: '1.1rem', height: '1.1rem' }}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-  </svg>
-);
+import { Lock, Sun, Moon } from 'lucide-react';
 
 function useTheme() {
   const [dark, setDark] = useState(() => localStorage.getItem('kgs-theme') === 'dark');
@@ -58,7 +41,7 @@ export default function LoginPage() {
         title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
         aria-label="Toggle theme"
       >
-        {dark ? <IcoSun /> : <IcoMoon />}
+        {dark ? <Sun size={18} strokeWidth={1.5} /> : <Moon size={18} strokeWidth={1.5} />}
       </button>
 
       <div className="card w-full max-w-sm bg-base-100 shadow-xl">
@@ -69,7 +52,7 @@ export default function LoginPage() {
               className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-content)' }}
             >
-              <IcoLock />
+              <Lock size={32} strokeWidth={1.5} />
             </div>
             <h1 className="text-2xl font-bold text-base-content">KeyGuard</h1>
             <p className="text-sm text-base-content/50 mt-1">Management Console</p>

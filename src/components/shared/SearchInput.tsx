@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Search } from 'lucide-react';
 
 interface Props {
   value: string;
@@ -25,10 +26,7 @@ export default function SearchInput({
   return (
     <div className={`relative ${className}`}>
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-        </svg>
+        <Search size={14} strokeWidth={1.5} />
       </span>
       <input
         className="input input-bordered input-sm pl-9 w-full"

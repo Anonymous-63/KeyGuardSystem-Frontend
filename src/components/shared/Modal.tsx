@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
+import { X } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -8,12 +9,6 @@ interface Props {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   footer?: ReactNode;
 }
-
-const IcoX = () => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ width: '1.1rem', height: '1.1rem' }}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
 
 export default function Modal({ open, title, onClose, children, size = 'md', footer }: Props) {
   useEffect(() => {
@@ -28,6 +23,7 @@ export default function Modal({ open, title, onClose, children, size = 'md', foo
 
   return (
     <div className="modal modal-open">
+      <div className="modal-backdrop" onClick={onClose} />
       <div className={`modal-box ${widthClass} w-full p-0 overflow-hidden flex flex-col max-h-[90vh]`}>
 
         {/* Header — dark teal chrome matching AMSWebKey */}
@@ -72,7 +68,7 @@ export default function Modal({ open, title, onClose, children, size = 'md', foo
             onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
           >
-            <IcoX />
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 
@@ -97,7 +93,6 @@ export default function Modal({ open, title, onClose, children, size = 'md', foo
           </div>
         )}
       </div>
-      <div className="modal-backdrop" onClick={onClose} />
     </div>
   );
 }
