@@ -330,13 +330,14 @@ function LocationChips({ operatorId }: { operatorId: string }) {
 
 // ─── Operator form ────────────────────────────────────────────────────────────
 function OperatorForm({
-  initial, onSave, onCancel, loading, callerType = 1,
+  initial, onSave, onCancel, loading, callerType = 1, isMobile = false,
 }: {
   initial?: OperatorResponse;
   onSave: (data: OperatorRequest, locationIds: number[]) => void;
   onCancel: () => void;
   loading: boolean;
   callerType?: number;
+  isMobile?: boolean;
 }) {
   const isEdit = !!initial;
 
@@ -398,7 +399,7 @@ function OperatorForm({
       {/* ── Account Info ──────────────────────────────────────────────── */}
       <Sect label="Account Info" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
         <div>
           <FL text="Operator ID" required />
           <input className={inp}
@@ -433,7 +434,7 @@ function OperatorForm({
         <FL text="Mobile Number" />
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <select className="select select-bordered"
-            style={{ width: '148px', flexShrink: 0 }}
+            style={{ width: isMobile ? 'auto' : '148px', flexShrink: 0, minWidth: '90px' }}
             value={countryCode} onChange={(e) => setCountryCode(e.target.value)}>
             {COUNTRY_CODES.map((c) => (
               <option key={c.code} value={c.code}>{c.label}</option>
@@ -1007,6 +1008,7 @@ export default function OperatorsPage() {
             onCancel={() => setModalOpen(false)}
             loading={creating || updating}
             callerType={operator?.type ?? 1}
+            isMobile={isMobile}
           />
         ) : (
           editing && (

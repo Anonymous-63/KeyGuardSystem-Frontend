@@ -188,15 +188,15 @@ function Toggle({ label, desc, checked, onChange }: {
   );
 }
 
-// ─── Grid helpers ─────────────────────────────────────────────────────────────
+// ─── Grid helpers — auto-collapse below their minmax threshold ────────────────
 const Row2 = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.875rem' }}>{children}</div>
 );
 const Row3 = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.875rem' }}>{children}</div>
 );
 const HostPort = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem' }}>{children}</div>
 );
 const Stack = ({ children }: { children: React.ReactNode }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>{children}</div>
@@ -207,6 +207,14 @@ export default function SettingsPage() {
   const { addToast } = useToast();
   const operator = useAppSelector((s) => s.auth.operator);
   const canUpdate = operator != null && hasPermission(operator.type, 'APP_CONFIG', 'UPDATE');
+
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const h = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  const isMobile = windowWidth < 768;
 
   const [active,  setActive]  = useState<Section>('org');
   const [savingSec, setSavingSec] = useState<Section | null>(null);
@@ -303,70 +311,119 @@ export default function SettingsPage() {
         Application Config
       </h1>
 
-      {/* Two-panel layout */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '1.25rem', alignItems: 'flex-start' }}>
+      {/* Two-panel layout — stacks on mobile */}
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        flex: 1, minHeight: 0, gap: '1.25rem',
+        alignItems: 'flex-start',
+      }}>
 
-        {/* ── Left nav ──────────────────────────────────────────────────────── */}
-        <div style={{
-          width: '220px', flexShrink: 0,
-          border: '1px solid var(--color-base-300)',
-          borderRadius: '0.625rem',
-          overflow: 'hidden',
-          background: 'var(--color-base-100)',
-        }}>
-          {NAV.map(({ id, label, sub, icon }, i) => {
-            const isActive = active === id;
-            const dirty    = isDirty(id);
-            const cfgd     = isConfigured(id);
-            return (
-              <button key={id} onClick={() => setActive(id)}
-                style={{
-                  width: '100%', textAlign: 'left',
-                  display: 'flex', alignItems: 'center', gap: '0.75rem',
-                  padding: '0.75rem 1rem',
-                  borderBottom: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
-                  background: isActive
-                    ? 'color-mix(in oklch, var(--color-primary) 8%, transparent)'
-                    : 'transparent',
-                  borderLeft: `3px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
-                  cursor: 'pointer',
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}>
-                {/* Icon */}
-                <span style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)', opacity: isActive ? 1 : 0.45, flexShrink: 0 }}>
+        {/* ── Nav ───────────────────────────────────────────────────────────── */}
+        {isMobile ? (
+          /* Mobile: horizontal scrolling tab strip */
+          <div style={{
+            display: 'flex', overflowX: 'auto', gap: '0.25rem',
+            padding: '0.375rem',
+            border: '1px solid var(--color-base-300)',
+            borderRadius: '0.625rem',
+            background: 'var(--color-base-100)',
+            flexShrink: 0, width: '100%',
+            scrollbarWidth: 'none',
+          }}>
+            {NAV.map(({ id, label, icon }) => {
+              const isActive = active === id;
+              const dirty    = isDirty(id);
+              const cfgd     = isConfigured(id);
+              return (
+                <button key={id} onClick={() => setActive(id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.375rem',
+                    padding: '0.45rem 0.75rem', borderRadius: '0.375rem', flexShrink: 0,
+                    background: isActive ? 'var(--color-primary)' : 'transparent',
+                    color: isActive ? 'var(--color-primary-content)' : 'var(--color-base-content)',
+                    border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                    fontSize: '0.8rem', fontWeight: isActive ? 600 : 400,
+                    position: 'relative', transition: 'background 0.15s',
+                    opacity: isActive ? 1 : 0.7,
+                  }}>
                   {icon}
-                </span>
-                {/* Labels */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)' }}>
-                      {label}
-                    </span>
-                    {dirty && (
-                      <span style={{
-                        width: '6px', height: '6px', borderRadius: '50%',
-                        background: 'var(--color-warning)', flexShrink: 0,
-                      }} title="Unsaved changes" />
-                    )}
+                  {label}
+                  {dirty && (
+                    <span style={{
+                      width: '6px', height: '6px', borderRadius: '50%',
+                      background: 'var(--color-warning)',
+                      position: 'absolute', top: '4px', right: '4px',
+                    }} />
+                  )}
+                  {cfgd && !isActive && (
+                    <span style={{
+                      width: '6px', height: '6px', borderRadius: '50%',
+                      background: 'var(--color-success)',
+                      position: 'absolute', top: '4px', right: dirty ? '12px' : '4px',
+                    }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          /* Desktop: left sidebar */
+          <div style={{
+            width: '220px', flexShrink: 0,
+            border: '1px solid var(--color-base-300)',
+            borderRadius: '0.625rem',
+            overflow: 'hidden',
+            background: 'var(--color-base-100)',
+          }}>
+            {NAV.map(({ id, label, sub, icon }, i) => {
+              const isActive = active === id;
+              const dirty    = isDirty(id);
+              const cfgd     = isConfigured(id);
+              return (
+                <button key={id} onClick={() => setActive(id)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    borderBottom: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
+                    background: isActive
+                      ? 'color-mix(in oklch, var(--color-primary) 8%, transparent)'
+                      : 'transparent',
+                    borderLeft: `3px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
+                    cursor: 'pointer',
+                    transition: 'background 0.15s, border-color 0.15s',
+                  }}>
+                  <span style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)', opacity: isActive ? 1 : 0.45, flexShrink: 0 }}>
+                    {icon}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)' }}>
+                        {label}
+                      </span>
+                      {dirty && (
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warning)', flexShrink: 0 }} title="Unsaved changes" />
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.05rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sub}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.05rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sub}
-                  </div>
-                </div>
-                {/* Status dot */}
-                <span style={{ color: cfgd ? 'var(--color-success)' : 'var(--color-base-300)', flexShrink: 0 }}>
-                  {cfgd
-                    ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-success)', display: 'block' }} title="Configured" />
-                    : <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--color-base-300)', display: 'block' }} title="Not configured" />
-                  }
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span style={{ color: cfgd ? 'var(--color-success)' : 'var(--color-base-300)', flexShrink: 0 }}>
+                    {cfgd
+                      ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-success)', display: 'block' }} title="Configured" />
+                      : <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--color-base-300)', display: 'block' }} title="Not configured" />
+                    }
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Right content ─────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', width: isMobile ? '100%' : undefined }}>
 
           {/* ── Organization ────────────────────────────────────────────── */}
           {active === 'org' && (
