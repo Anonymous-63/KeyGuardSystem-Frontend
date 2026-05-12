@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useListLocationsQuery,
+  useLazyListLocationsQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,
   useDisableLocationMutation,
@@ -14,6 +15,7 @@ import { useToast } from '../components/shared/Toast';
 import { DataGrid, type ColDef } from '../components/shared/DataGrid';
 import { useAppSelector } from '../app/hooks';
 import { hasPermission } from '../features/auth/permissions';
+import { Search, Download, Pencil, Ban, RefreshCw } from 'lucide-react';
 
 const FEATURES_ENABLED  = '01000000000000000000';
 const FEATURES_DISABLED = '00000000000000000000';
@@ -29,23 +31,6 @@ function getPageNumbers(current: number, total: number): (number | '...')[] {
 function decodeFeatures(hex?: string): boolean {
   return hex != null && hex.startsWith('01');
 }
-
-const Ico = ({ d, size = '1rem' }: { d: string | string[]; size?: string }) => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"
-    style={{ width: size, height: size, flexShrink: 0 }}>
-    {(Array.isArray(d) ? d : [d]).map((p, i) => (
-      <path key={i} strokeLinecap="round" strokeLinejoin="round" d={p} />
-    ))}
-  </svg>
-);
-
-const ICO = {
-  search:   'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
-  download: 'M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3',
-  edit:     'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
-  ban:      'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
-  restore:  'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99',
-};
 
 const FL = ({ text, required }: { text: string; required?: boolean }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginBottom: '0.325rem' }}>
@@ -250,6 +235,8 @@ export default function LocationsPage() {
     disabled: countDisabledData?.totalElements ?? 0,
   };
 
+  const [fetchAll, { isFetching: exportFetching }] = useLazyListLocationsQuery();
+
   const [create, { isLoading: creating }]  = useCreateLocationMutation();
   const [update, { isLoading: updating }]  = useUpdateLocationMutation();
   const [disable, { isLoading: disabling }]= useDisableLocationMutation();
@@ -265,21 +252,27 @@ export default function LocationsPage() {
 
   const clearSelection = () => { setSelectedRows([]); setClearTrigger((n) => n + 1); };
 
-  const handleExport = () => {
-    const headers = ['ID', 'Name', 'Asset Type', 'Cabinet Type', 'Status'];
-    const csvData = rows.map((r) => [
-      r.id,
-      `"${r.name.replace(/"/g, '""')}"`,
-      r.assetTypeName   ? LOCATION_ASSET_TYPES[r.assetTypeName]   : '',
-      r.cabinetTypeName ? LOCATION_CABINET_TYPES[r.cabinetTypeName] : '',
-      r.disabled ? 'Disabled' : 'Active',
-    ]);
-    const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = 'locations.csv'; a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    if (totalItems === 0) return;
+    try {
+      const result = await fetchAll({ ...filterBase, disabled: disabledParam, page: 0, size: totalItems }).unwrap();
+      const headers = ['ID', 'Name', 'Asset Type', 'Cabinet Type', 'Status'];
+      const csvData = result.content.map((r) => [
+        r.id,
+        `"${r.name.replace(/"/g, '""')}"`,
+        r.assetTypeName   ? LOCATION_ASSET_TYPES[r.assetTypeName]   : '',
+        r.cabinetTypeName ? LOCATION_CABINET_TYPES[r.cabinetTypeName] : '',
+        r.disabled ? 'Disabled' : 'Active',
+      ]);
+      const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'locations.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addToast({ type: 'error', message: 'Export failed' });
+    }
   };
 
   const handleSave = async (body: LocationRequest) => {
@@ -362,31 +355,31 @@ export default function LocationsPage() {
           {can('UPDATE') && (isMobile
             ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
                 onClick={(e) => { e.stopPropagation(); setEditing(d); setModalOpen(true); }}>
-                <Ico d={ICO.edit} size="1rem" />
+                <Pencil size={16} strokeWidth={1.5} />
               </button>
             : <button className="btn btn-outline btn-xs gap-1" title="Edit"
                 onClick={(e) => { e.stopPropagation(); setEditing(d); setModalOpen(true); }}>
-                <Ico d={ICO.edit} size="0.85rem" /> Edit
+                <Pencil size={14} strokeWidth={1.5} /> Edit
               </button>
           )}
           {!d.disabled && can('DELETE') && (isMobile
             ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
                 onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'disable' }); }}>
-                <Ico d={ICO.ban} size="1rem" />
+                <Ban size={16} strokeWidth={1.5} />
               </button>
             : <button className="btn btn-outline btn-error btn-xs gap-1" title="Disable"
                 onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'disable' }); }}>
-                <Ico d={ICO.ban} size="0.85rem" /> Disable
+                <Ban size={14} strokeWidth={1.5} /> Disable
               </button>
           )}
           {d.disabled && can('RESTORE') && (isMobile
             ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
                 onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'restore' }); }}>
-                <Ico d={ICO.restore} size="1rem" />
+                <RefreshCw size={16} strokeWidth={1.5} />
               </button>
             : <button className="btn btn-outline btn-info btn-xs gap-1" title="Restore"
                 onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'restore' }); }}>
-                <Ico d={ICO.restore} size="0.85rem" /> Restore
+                <RefreshCw size={14} strokeWidth={1.5} /> Restore
               </button>
           )}
         </div>
@@ -460,11 +453,14 @@ export default function LocationsPage() {
             )}
             <button
               onClick={handleExport}
-              title="Export current view as CSV"
+              disabled={exportFetching || totalItems === 0}
+              title="Export all filtered records as CSV"
               className={isMobile ? 'btn btn-sm btn-outline btn-primary btn-square' : 'btn btn-sm btn-outline btn-primary gap-1.5'}
               style={{ fontSize: '0.75rem', height: '1.75rem', minHeight: '1.75rem', paddingInline: isMobile ? undefined : '0.6rem' }}>
-              <Ico d={ICO.download} size="0.9rem" />
-              {!isMobile && 'Export CSV'}
+              {exportFetching
+                ? <span className="loading loading-spinner loading-xs" />
+                : <Download size={14} strokeWidth={1.5} />}
+              {!isMobile && (exportFetching ? 'Exporting…' : 'Export CSV')}
             </button>
           </div>
         </div>
@@ -478,7 +474,7 @@ export default function LocationsPage() {
         }}>
           <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span style={{ position: 'absolute', left: '0.55rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
-              <Ico d={ICO.search} size="0.8rem" />
+              <Search size={13} strokeWidth={1.5} />
             </span>
             <input className="input input-bordered input-sm"
               style={{ paddingLeft: '1.8rem', width: isMobile ? '100%' : '180px' }}

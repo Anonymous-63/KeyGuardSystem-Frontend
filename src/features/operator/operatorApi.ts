@@ -14,11 +14,11 @@ export const operatorApi = createApi({
 
     listOperators: b.query<PagedResponse<OperatorResponse>, {
       page?: number; size?: number;
-      name?: string; type?: number; disabled?: boolean;
+      search?: string; type?: number; disabled?: boolean;
     }>({
-      query: ({ page = 0, size = 20, name, type, disabled } = {}) => {
+      query: ({ page = 0, size = 20, search, type, disabled } = {}) => {
         const params = new URLSearchParams({ page: String(page), size: String(size) });
-        if (name)     params.set('name', name);
+        if (search)   params.set('search', search);
         if (type != null) params.set('type', String(type));
         if (disabled != null) params.set('disabled', String(disabled));
         return `/operators?${params}`;
@@ -88,6 +88,7 @@ export const operatorApi = createApi({
 
 export const {
   useListOperatorsQuery,
+  useLazyListOperatorsQuery,
   useGetOperatorQuery,
   useCreateOperatorMutation,
   useUpdateOperatorMutation,

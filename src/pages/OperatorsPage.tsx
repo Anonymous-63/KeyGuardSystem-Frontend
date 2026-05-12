@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useListOperatorsQuery,
+  useLazyListOperatorsQuery,
   useCreateOperatorMutation,
   useUpdateOperatorMutation,
   useDisableOperatorMutation,
@@ -599,6 +600,8 @@ export default function OperatorsPage() {
     disabled: countDisabledData?.totalElements ?? 0,
   };
 
+  const [fetchAll, { isFetching: exportFetching }] = useLazyListOperatorsQuery();
+
   const [create,  { isLoading: creating  }] = useCreateOperatorMutation();
   const [update,  { isLoading: updating  }] = useUpdateOperatorMutation();
   const [disable, { isLoading: disabling }] = useDisableOperatorMutation();
@@ -613,21 +616,27 @@ export default function OperatorsPage() {
   const clearFilters = () => { setFilterSearch(''); setFilterType(''); };
   const clearSelection = () => { setSelectedRows([]); setClearTrigger((n) => n + 1); };
 
-  const handleExport = () => {
-    const headers = ['ID', 'Name', 'Email', 'Type', 'Status'];
-    const csvData = rows.map((r) => [
-      r.id,
-      `"${r.name.replace(/"/g, '""')}"`,
-      r.emailId ? `"${r.emailId.replace(/"/g, '""')}"` : '',
-      OPERATOR_TYPES[r.type] ?? `Type ${r.type}`,
-      r.disabled ? 'Disabled' : 'Active',
-    ]);
-    const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = 'operators.csv'; a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    if (totalItems === 0) return;
+    try {
+      const result = await fetchAll({ ...filterBase, disabled: disabledParam, page: 0, size: totalItems }).unwrap();
+      const headers = ['ID', 'Name', 'Email', 'Type', 'Status'];
+      const csvData = result.content.map((r) => [
+        r.id,
+        `"${r.name.replace(/"/g, '""')}"`,
+        r.emailId ? `"${r.emailId.replace(/"/g, '""')}"` : '',
+        OPERATOR_TYPES[r.type] ?? `Type ${r.type}`,
+        r.disabled ? 'Disabled' : 'Active',
+      ]);
+      const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'operators.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addToast({ type: 'error', message: 'Export failed' });
+    }
   };
 
   const openEdit = (op: OperatorResponse) => {
@@ -742,8 +751,10 @@ export default function OperatorsPage() {
       minWidth: isMobile ? 56 : 155,
       sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
       cellRenderer: ({ data: d }: { data: OperatorResponse }) => {
-        const isSuperAdminRow = d.type === 1;
-        const canEdit = can('UPDATE') && (!isSuperAdminRow || operator?.type === 1);
+        const isSuperAdminRow  = d.type === 1;
+        const isSameLevelPeer  = d.type === operator?.type && d.id !== operator?.id;
+        const restricted       = isSuperAdminRow || isSameLevelPeer;
+        const canEdit          = can('UPDATE') && !restricted;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
             {canEdit && (isMobile
@@ -756,7 +767,7 @@ export default function OperatorsPage() {
                   <Pencil size={14} strokeWidth={1.5} /> Edit
                 </button>
             )}
-            {!d.disabled && can('DELETE') && !isSuperAdminRow && (isMobile
+            {!d.disabled && can('DELETE') && !restricted && (isMobile
               ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
                   onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
                   <Ban size={16} strokeWidth={1.5} />
@@ -766,7 +777,7 @@ export default function OperatorsPage() {
                   <Ban size={14} strokeWidth={1.5} /> Disable
                 </button>
             )}
-            {d.disabled && can('RESTORE') && !isSuperAdminRow && (isMobile
+            {d.disabled && can('RESTORE') && !restricted && (isMobile
               ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
                   onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
                   <RefreshCw size={16} strokeWidth={1.5} />
@@ -843,11 +854,14 @@ export default function OperatorsPage() {
             {can('EXPORT') && (
               <button
                 onClick={handleExport}
-                title="Export current view as CSV"
+                disabled={exportFetching || totalItems === 0}
+                title="Export all filtered records as CSV"
                 className={isMobile ? 'btn btn-sm btn-outline btn-primary btn-square' : 'btn btn-sm btn-outline btn-primary gap-1.5'}
                 style={{ fontSize: '0.75rem', height: '1.75rem', minHeight: '1.75rem', paddingInline: isMobile ? undefined : '0.6rem' }}>
-                <Download size={14} strokeWidth={1.5} />
-                {!isMobile && 'Export CSV'}
+                {exportFetching
+                  ? <span className="loading loading-spinner loading-xs" />
+                  : <Download size={14} strokeWidth={1.5} />}
+                {!isMobile && (exportFetching ? 'Exporting…' : 'Export CSV')}
               </button>
             )}
           </div>
@@ -922,7 +936,10 @@ export default function OperatorsPage() {
           rowData={rows}
           loading={isLoading}
           getRowId={(r) => String(r.id)}
-          onRowDoubleClicked={(r) => { if (can('UPDATE')) openEdit(r); }}
+          onRowDoubleClicked={(r) => {
+            const restricted = r.type === 1 || (r.type === operator?.type && r.id !== operator?.id);
+            if (can('UPDATE') && !restricted) openEdit(r);
+          }}
           onSelectionChanged={setSelectedRows}
           height="100%"
           checkboxes

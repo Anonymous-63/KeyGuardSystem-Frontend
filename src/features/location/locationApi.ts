@@ -74,6 +74,7 @@ export const locationApi = createApi({
 
 export const {
   useListLocationsQuery,
+  useLazyListLocationsQuery,
   useGetLocationQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,
