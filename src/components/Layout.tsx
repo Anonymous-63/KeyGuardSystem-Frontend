@@ -11,7 +11,8 @@ import {
   Layers, Clock, ArrowLeftRight, Settings, Sun, Moon, Menu,
   LogOut, Lock, ClipboardList, Search, Bell, X,
 } from 'lucide-react';
-import { useListConfigsQuery } from '../features/config/configApi';
+import { useGetPublicOrgQuery } from '../features/config/configApi';
+import { useGetMeQuery } from '../features/operator/operatorApi';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -76,9 +77,9 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const operator = useAppSelector((s) => s.auth.operator);
-  const { data: configs } = useListConfigsQuery();
-  const orgName = configs?.find((c) => c.configKey === 'org.name')?.configValue?.trim() ?? '';
-  const hasLogo = configs?.some((c) => c.configKey === 'org.logo' && c.configValue?.trim());
+  const { data: publicOrg } = useGetPublicOrgQuery();
+  const orgName = publicOrg?.orgName?.trim() ?? '';
+  const hasLogo = publicOrg?.orgLogoUrl != null;
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
@@ -90,29 +91,49 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   })).filter((g) => g.items.length > 0);
 
   return (
-    <aside style={{ background: 'var(--sb-bg)', borderRight: '1px solid var(--sb-border)', width: '210px', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
+    <aside style={{ background: 'var(--sb-bg)', borderRight: '1px solid var(--sb-border)', width: '240px', display: 'flex', flexDirection: 'column', height: '100%', flexShrink: 0 }}>
 
       {/* Brand */}
-      <div style={{ padding: '0.875rem 1rem 0.75rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <div style={{ width: '2rem', height: '2rem', borderRadius: '0.375rem', background: 'var(--ent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'white', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '-0.02em', overflow: 'hidden' }}>
+      <div style={{ padding: '1rem 1.125rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
+        {/* Logo — org logo if set, else product icon */}
+        <div style={{
+          width: '2.625rem', height: '2.625rem', borderRadius: '0.5rem', flexShrink: 0,
+          background: hasLogo ? 'white' : 'linear-gradient(145deg, #0f2744 0%, #1e4d8c 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06)',
+        }}>
           {hasLogo
-            ? <img src="/api/v1/config/logo" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : orgName ? orgName.slice(0, 2).toUpperCase() : <Lock size={13} strokeWidth={1.5} />
+            ? <img src="/api/v1/config/logo" alt="logo"
+                   style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            : <Lock size={15} color="white" strokeWidth={2} />
           }
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
-          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-base-content)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+
+        {/* Text block */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: '1.0625rem', fontWeight: 800,
+            letterSpacing: '-0.03em', lineHeight: 1.1,
+            color: 'var(--color-base-content)',
+            fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
+          }}>
             KeyGuard
-          </span>
-          {orgName && (
-            <span style={{ fontSize: '0.65rem', color: 'var(--sb-text-muted)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {orgName}
-            </span>
-          )}
+          </div>
+          <div style={{
+            fontSize: '0.6875rem', fontWeight: 400, lineHeight: 1.3,
+            marginTop: '0.2rem',
+            color: 'var(--sb-text-muted)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {orgName || 'Key Management System'}
+          </div>
         </div>
+
         {onClose && (
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sb-text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', flexShrink: 0 }}>
-            <X size={16} strokeWidth={1.5} />
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sb-text-muted)', cursor: 'pointer', padding: '0.25rem', display: 'flex', flexShrink: 0, opacity: 0.55 }}>
+            <X size={15} strokeWidth={1.5} />
           </button>
         )}
       </div>
@@ -165,10 +186,18 @@ export default function Layout() {
     navigate('/login', { replace: true });
   };
 
+  const { data: meData } = useGetMeQuery(undefined, { skip: !operator });
+  const avatarPhotoPath = meData?.photoPath ?? operator?.photoPath;
+  const avatarPhotoSrc  = (avatarPhotoPath && operator?.id)
+    ? `/api/v1/operators/${operator.id}/photo?v=${encodeURIComponent(avatarPhotoPath)}`
+    : null;
+
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openMenu  = () => { if (menuTimerRef.current) clearTimeout(menuTimerRef.current); setAvatarMenuOpen(true); };
   const closeMenu = () => { menuTimerRef.current = setTimeout(() => setAvatarMenuOpen(false), 150); };
+
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
 
   const [searchOpen,  setSearchOpen]  = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -278,13 +307,17 @@ export default function Layout() {
                 title={operator?.name ?? operator?.id ?? 'Profile'}
                 style={{
                   width: '2rem', height: '2rem', borderRadius: '50%',
-                  background: 'var(--ent-dark)', color: 'white',
+                  background: avatarPhotoSrc ? 'transparent' : 'var(--ent-dark)', color: 'white',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '0.7rem', fontWeight: 700,
                   border: 'none', cursor: 'pointer', flexShrink: 0,
+                  overflow: 'hidden', padding: 0,
                 }}
               >
-                {initials}
+                {avatarPhotoSrc
+                  ? <img src={avatarPhotoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <User size={15} strokeWidth={1.5} style={{ color: 'white', opacity: 0.85 }} />
+                }
               </button>
               {avatarMenuOpen && (
                 <div
@@ -362,19 +395,63 @@ export default function Layout() {
             <button className="ent-icon-btn" title="Notifications">
               <Bell size={17} strokeWidth={1.5} />
             </button>
-            <button
-              onClick={() => navigate('/profile')}
-              title={operator?.name ?? operator?.id ?? 'Profile'}
-              style={{
-                width: '1.875rem', height: '1.875rem', borderRadius: '50%',
-                background: 'var(--ent-dark)', color: 'white',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.65rem', fontWeight: 700,
-                border: 'none', cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              {initials}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setMobileUserMenuOpen((v) => !v)}
+                title={operator?.name ?? operator?.id ?? 'Profile'}
+                style={{
+                  width: '1.875rem', height: '1.875rem', borderRadius: '50%',
+                  background: avatarPhotoSrc ? 'transparent' : 'var(--ent-dark)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.65rem', fontWeight: 700,
+                  border: 'none', cursor: 'pointer', flexShrink: 0,
+                  overflow: 'hidden', padding: 0,
+                }}
+              >
+                {avatarPhotoSrc
+                  ? <img src={avatarPhotoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <User size={13} strokeWidth={1.5} style={{ color: 'white', opacity: 0.85 }} />
+                }
+              </button>
+              {mobileUserMenuOpen && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    onClick={() => setMobileUserMenuOpen(false)}
+                  />
+                  <div style={{
+                    position: 'absolute', right: 0, top: 'calc(100% + 0.4rem)', zIndex: 100,
+                    background: 'var(--color-base-100)',
+                    border: '1px solid var(--color-base-300)',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    minWidth: '180px',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--color-base-200)' }}>
+                      <p style={{ fontWeight: 600, fontSize: '0.8125rem', margin: 0, color: 'var(--color-base-content)' }}>
+                        {operator?.name ?? operator?.id}
+                      </p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', margin: 0, marginTop: '0.1rem' }}>
+                        {operator ? (OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { navigate('/profile'); setMobileUserMenuOpen(false); }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-base-content)', textAlign: 'left' }}
+                    >
+                      <User size={14} strokeWidth={1.5} /> My Profile
+                    </button>
+                    <button
+                      onClick={() => { handleLogout(); setMobileUserMenuOpen(false); }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-error)', textAlign: 'left' }}
+                    >
+                      <LogOut size={14} strokeWidth={1.5} /> Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </header>
 
           {/* Content area */}

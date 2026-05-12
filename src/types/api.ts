@@ -117,6 +117,7 @@ export interface OperatorResponse {
   createdBy?: string;
   updatedBy?: string;
   version?: number;
+  photoPath?: string;
 }
 
 export interface OperatorRequest {
@@ -477,14 +478,118 @@ export interface OperatorAuditResponse {
 
 // ─── App Config ───────────────────────────────────────────────────────────────
 
-export interface AppConfigResponse {
-  configKey: string;
-  configValue: string;
-  description?: string;
-  mDate: string;
+export interface CaptchaConfig {
+  enabled: boolean;
+  captchaLength: number;
+  captchaValiditySeconds: number;
 }
 
-export interface AppConfigUpdateRequest {
-  configValue: string;
-  description?: string;
+export interface DbBackupConfigRes {
+  enabled: boolean;
+  backupTime: string;
+  retentionDays: number;
 }
+
+export interface OrgConfigRes {
+  orgName: string;
+  orgLogoUrl?: string;
+}
+
+export interface SmtpConfigRes {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSocketFactoryClass?: string;
+  smtpSocketFactoryPort?: number;
+  smtpUsername?: string;
+}
+
+export interface SmsConfigRes {
+  smppHost?: string;
+  smppPort?: number;
+  smppUserId?: string;
+  smppTon?: number;
+  smppNpi?: number;
+}
+
+export interface LdapConfigRes {
+  enabled: boolean;
+  secured: boolean;
+  url?: string;
+  userDnPath?: string;
+  authType?: string;
+  keystorePath?: string;
+}
+
+export interface OtherConfigRes {
+  captchaConfig?: CaptchaConfig;
+  twoStepAuth: boolean;
+}
+
+export interface AppConfigRes {
+  organization?: OrgConfigRes;
+  smtp?: SmtpConfigRes;
+  sms?: SmsConfigRes;
+  ldap?: LdapConfigRes;
+  other?: OtherConfigRes;
+  dbBackup?: DbBackupConfigRes;
+}
+
+export interface PublicOrgConfigRes {
+  orgName: string;
+  orgLogoUrl?: string;
+  captchaEnabled: boolean;
+  twoStepAuth: boolean;
+}
+
+// Update request types
+export interface OrgConfigUpdateReq {
+  orgName: string;
+  orgLogo?: File;
+}
+
+export interface SmtpConfigUpdateReq {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSocketFactoryClass?: string;
+  smtpSocketFactoryPort?: number;
+  smtpUsername?: string;
+  smtpPassword?: string;
+}
+
+export interface SmsConfigUpdateReq {
+  smppHost?: string;
+  smppPort?: number;
+  smppUserId?: string;
+  smppUserPass?: string;
+  smppTon?: number;
+  smppNpi?: number;
+}
+
+export interface LdapConfigUpdateReq {
+  enabled?: boolean;
+  secured?: boolean;
+  url?: string;
+  userDnPath?: string;
+  authType?: string;
+  keystorePath?: string;
+  keystorePass?: string;
+}
+
+export interface OtherConfigUpdateReq {
+  captchaConfig?: CaptchaConfig;
+  twoStepAuth?: boolean;
+}
+
+export interface DbBackupConfigUpdateReq {
+  enabled?: boolean;
+  backupTime?: string;
+  retentionDays?: number;
+}
+
+export interface OperatorPhotoUploadResponse {
+  photoPath: string;
+}
+
+// Legacy alias kept for any remaining references — remove after full frontend migration
+export type AppConfigResponse = AppConfigRes;
+export type AppConfigUpdateRequest = SmtpConfigUpdateReq;
