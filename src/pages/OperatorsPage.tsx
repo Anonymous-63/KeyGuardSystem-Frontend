@@ -19,6 +19,7 @@ import { useToast } from '../components/shared/Toast';
 import { DataGrid, type ColDef } from '../components/shared/DataGrid';
 import { useAppSelector } from '../app/hooks';
 import { hasPermission } from '../features/auth/permissions';
+import { Search, Pencil, Ban, RefreshCw, MapPin, Download } from 'lucide-react';
 
 const PAGE_SIZE = 20;
 const DEFAULT_PASSWORD = 'Admin@123';
@@ -29,25 +30,6 @@ function getPageNumbers(current: number, total: number): (number | '...')[] {
   if (current > total - 5) return [0, '...', total - 5, total - 4, total - 3, total - 2, total - 1];
   return [0, '...', current - 1, current, current + 1, '...', total - 1];
 }
-
-// ─── Icon primitive ───────────────────────────────────────────────────────────
-const Ico = ({ d, size = '1rem', style: extraStyle }: {
-  d: string; size?: string; style?: React.CSSProperties;
-}) => (
-  <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"
-    style={{ width: size, height: size, flexShrink: 0, ...extraStyle }}>
-    <path strokeLinecap="round" strokeLinejoin="round" d={d} />
-  </svg>
-);
-
-const ICO = {
-  search:  'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
-  edit:    'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
-  ban:     'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636',
-  restore: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99',
-  key:     'M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z',
-  mapPin:  'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z',
-};
 
 const COUNTRY_CODES = [
   { code: '91',  label: '+91 (India)'     },
@@ -89,6 +71,155 @@ const Sect = ({ label }: { label: string }) => (
   </div>
 );
 
+// ─── Picker dropdown — expands from dashed trigger, stays open on each pick ───
+function LocationDropdown({
+  available, onAdd, disabled = false,
+}: {
+  available: { id: number; name: string }[];
+  onAdd: (id: number) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const filtered = search.trim()
+    ? available.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
+    : available;
+
+  if (!open) {
+    return (
+      <button type="button" disabled={disabled}
+        onClick={() => setOpen(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          width: '100%', padding: '0.38rem 0.625rem',
+          fontSize: '0.82rem',
+          color: 'var(--color-base-content)',
+          background: 'var(--color-base-100)',
+          border: '1px dashed var(--color-base-300)',
+          borderRadius: '0.375rem',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+        }}>
+        <span style={{ opacity: 0.5 }}>+</span>
+        <span style={{ flex: 1, textAlign: 'left', opacity: 0.5 }}>Assign location…</span>
+        <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>{available.length} available</span>
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+        <input autoFocus className="input input-bordered input-sm flex-1"
+          placeholder="Search locations…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); setSearch(''); } }} />
+        <button type="button" className="btn btn-ghost btn-sm btn-square"
+          onClick={() => { setOpen(false); setSearch(''); }}>✕</button>
+      </div>
+      <div style={{
+        maxHeight: '9rem', overflowY: 'auto',
+        border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
+        background: 'var(--color-base-100)',
+      }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '0.5rem 0.625rem', fontSize: '0.78rem', opacity: 0.45, textAlign: 'center' }}>
+            No matches
+          </div>
+        ) : filtered.map((l) => (
+          <button key={l.id} type="button" disabled={disabled}
+            data-loc-row="true"
+            onClick={() => onAdd(l.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.4rem',
+              width: '100%', padding: '0.35rem 0.625rem',
+              fontSize: '0.82rem', textAlign: 'left',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--color-base-content)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-base-200)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
+            <MapPin size={12} strokeWidth={1.5} style={{ opacity: 0.4, flexShrink: 0 }} />
+            {l.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared assigned list with filter search ──────────────────────────────────
+function AssignedList({
+  items, onRemove, disabled = false,
+}: {
+  items: { id: number; name: string }[];
+  onRemove: (id: number) => void;
+  disabled?: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = search.trim()
+    ? items.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
+  return (
+    <>
+      {/* Filter bar — only shown when there are assigned items */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.35rem',
+        padding: '0.3rem 0.625rem',
+        borderBottom: '1px solid var(--color-base-300)',
+        background: 'var(--color-base-50, var(--color-base-100))',
+      }}>
+        <Search size={11} strokeWidth={1.5} style={{ opacity: 0.3, flexShrink: 0 }} />
+        <input
+          placeholder="Filter assigned…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1, background: 'none', border: 'none', outline: 'none',
+            fontSize: '0.78rem', minWidth: 0,
+          }}
+        />
+        {search && (
+          <button type="button" onClick={() => setSearch('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.4, fontSize: '0.9rem', lineHeight: 1, padding: '0 0.1rem' }}>
+            ×
+          </button>
+        )}
+      </div>
+      {/* Rows */}
+      <div style={{ maxHeight: '10rem', overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.78rem', opacity: 0.35, textAlign: 'center' }}>
+            {search ? 'No matches' : 'No locations assigned yet'}
+          </div>
+        ) : filtered.map((l, i) => (
+          <div key={l.id} style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.38rem 0.75rem',
+            borderBottom: '1px solid color-mix(in oklch, var(--color-primary) 15%, transparent)',
+            fontSize: '0.82rem',
+            background: 'color-mix(in oklch, var(--color-primary) 8%, transparent)',
+          }}>
+            <MapPin size={12} strokeWidth={1.5} style={{ color: 'var(--color-primary)', opacity: 0.5, flexShrink: 0 }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-primary)', fontWeight: 500 }}>
+              {l.name}
+            </span>
+            <button type="button" disabled={disabled}
+              onClick={() => onRemove(l.id)}
+              className="btn btn-ghost btn-xs btn-square"
+              style={{ flexShrink: 0, color: 'var(--color-primary)', opacity: 0.6 }}
+              title="Remove">
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 // ─── Location picker — CREATE mode (local state) ──────────────────────────────
 function LocationPicker({ value, onChange }: { value: number[]; onChange: (ids: number[]) => void }) {
   const { data: page } = useListLocationsQuery({ page: 0, size: 200, disabled: false });
@@ -99,44 +230,33 @@ function LocationPicker({ value, onChange }: { value: number[]; onChange: (ids: 
 
   return (
     <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-      {/* Assigned chips */}
-      <div style={{
-        padding: selected.length > 0 ? '0.5rem 0.625rem' : '0.75rem 0.625rem',
-        minHeight: '2.5rem',
-        display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center',
-      }}>
-        {selected.length > 0 ? selected.map((l) => (
-          <span key={l.id} className="badge badge-primary badge-soft"
-            style={{ gap: '0.25rem', paddingRight: '0.3rem', fontSize: '0.75rem' }}>
-            <Ico d={ICO.mapPin} size="0.7rem" />
-            {l.name}
-            <button type="button" onClick={() => onChange(value.filter((id) => id !== l.id))}
-              style={{ lineHeight: 1, fontSize: '0.8rem', cursor: 'pointer', marginLeft: '0.15rem', opacity: 0.7 }}>
-              ×
-            </button>
-          </span>
-        )) : (
-          <span style={{ fontSize: '0.78rem', color: 'var(--color-base-content)', opacity: 0.35 }}>
-            No locations assigned yet
-          </span>
-        )}
-      </div>
-      {/* Add row */}
-      {available.length > 0 && (
-        <div style={{
-          borderTop: '1px solid var(--color-base-300)',
-          background: 'var(--color-base-200)',
-          padding: '0.4rem 0.625rem',
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-        }}>
-          <Ico d={ICO.mapPin} size="0.8rem" style={{ opacity: 0.4 }} />
-          <select className="select select-bordered select-xs flex-1" value=""
-            onChange={(e) => { if (e.target.value) onChange([...value, Number(e.target.value)]); }}>
-            <option value="">Add a location…</option>
-            {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
+      {/* Assigned section */}
+      {selected.length > 0 ? (
+        <AssignedList items={selected} onRemove={(id) => onChange(value.filter((v) => v !== id))} />
+      ) : (
+        <div style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', opacity: 0.35, textAlign: 'center' }}>
+          No locations assigned yet
         </div>
       )}
+      {/* Picker */}
+      {available.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--color-base-300)', background: 'var(--color-base-200)', padding: '0.4rem 0.625rem' }}>
+          <LocationDropdown available={available} onAdd={(id) => onChange([...value, id])} />
+        </div>
+      )}
+      {/* Count footer */}
+      <div style={{
+        display: 'flex', gap: '1rem',
+        padding: '0.22rem 0.75rem',
+        borderTop: '1px solid var(--color-base-300)',
+        background: 'var(--color-base-200)',
+      }}>
+        <span style={{ fontSize: '0.7rem' }}>
+          <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{selected.length}</span>
+          <span style={{ opacity: 0.5 }}> assigned</span>
+        </span>
+        <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>{available.length} available</span>
+      </div>
     </div>
   );
 }
@@ -144,16 +264,24 @@ function LocationPicker({ value, onChange }: { value: number[]; onChange: (ids: 
 // ─── Location chips — EDIT mode (immediate save) ──────────────────────────────
 function LocationChips({ operatorId }: { operatorId: string }) {
   const { addToast } = useToast();
-  const { data: assigned = [], isLoading } = useListLocationsForOperatorQuery(operatorId);
-  const { data: allPage }                  = useListLocationsQuery({ page: 0, size: 200, disabled: false });
-  const [assign,  { isLoading: assigning }] = useAssignLocationToOperatorMutation();
-  const [remove]                            = useRemoveLocationFromOperatorMutation();
+  const { data: assignedList = [], isLoading } = useListLocationsForOperatorQuery(operatorId);
+  const { data: allPage }                      = useListLocationsQuery({ page: 0, size: 200, disabled: false });
+  const [assign, { isLoading: assigning }]     = useAssignLocationToOperatorMutation();
+  const [remove, { isLoading: removing }]      = useRemoveLocationFromOperatorMutation();
 
   const all         = allPage?.content ?? [];
-  const assignedSet = new Set(assigned.map((a) => a.locationId));
+  const assignedSet = new Set(assignedList.map((a) => a.locationId));
+  const items       = assignedList.map((a) => ({ id: a.locationId, name: a.locationName ?? `#${a.locationId}` }));
   const available   = all.filter((l) => !assignedSet.has(l.id));
 
-  const handleAdd = async (locationId: number) => {
+  if (isLoading) return (
+    <div style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <span className="loading loading-spinner loading-xs" />
+      <span style={{ fontSize: '0.78rem', opacity: 0.4 }}>Loading…</span>
+    </div>
+  );
+
+  const handleAssign = async (locationId: number) => {
     try { await assign({ locationId, operatorId }).unwrap(); }
     catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
   };
@@ -162,70 +290,52 @@ function LocationChips({ operatorId }: { operatorId: string }) {
     catch { addToast({ type: 'error', message: 'Failed to remove location' }); }
   };
 
-  if (isLoading) {
-    return (
-      <div style={{ padding: '0.75rem 0.625rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span className="loading loading-spinner loading-xs" />
-        <span style={{ fontSize: '0.78rem', opacity: 0.4 }}>Loading…</span>
-      </div>
-    );
-  }
-
   return (
     <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-      {/* Assigned chips */}
-      <div style={{
-        padding: assigned.length > 0 ? '0.5rem 0.625rem' : '0.75rem 0.625rem',
-        minHeight: '2.5rem',
-        display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center',
-      }}>
-        {assigned.length > 0 ? assigned.map((a) => (
-          <span key={a.locationId} className="badge badge-primary badge-soft"
-            style={{ gap: '0.25rem', paddingRight: '0.3rem', fontSize: '0.75rem' }}>
-            <Ico d={ICO.mapPin} size="0.7rem" />
-            {a.locationName ?? `#${a.locationId}`}
-            <button type="button" onClick={() => handleRemove(a.locationId)}
-              style={{ lineHeight: 1, fontSize: '0.8rem', cursor: 'pointer', marginLeft: '0.15rem', opacity: 0.7 }}>
-              ×
-            </button>
-          </span>
-        )) : (
-          <span style={{ fontSize: '0.78rem', color: 'var(--color-base-content)', opacity: 0.35 }}>
-            No locations assigned
-          </span>
-        )}
-      </div>
-      {/* Add row */}
-      {available.length > 0 && (
-        <div style={{
-          borderTop: '1px solid var(--color-base-300)',
-          background: 'var(--color-base-200)',
-          padding: '0.4rem 0.625rem',
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-        }}>
-          <Ico d={ICO.mapPin} size="0.8rem" style={{ opacity: 0.4 }} />
-          <select className="select select-bordered select-xs flex-1"
-            value="" disabled={assigning}
-            onChange={(e) => { if (e.target.value) handleAdd(Number(e.target.value)); }}>
-            <option value="">Add a location…</option>
-            {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-          {assigning && <span className="loading loading-spinner loading-xs" />}
+      {/* Assigned section */}
+      {items.length > 0 ? (
+        <AssignedList items={items} onRemove={handleRemove} disabled={assigning || removing} />
+      ) : (
+        <div style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', opacity: 0.35, textAlign: 'center' }}>
+          No locations assigned
         </div>
       )}
+      {/* Picker */}
+      {available.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--color-base-300)', background: 'var(--color-base-200)', padding: '0.4rem 0.625rem', position: 'relative' }}>
+          <LocationDropdown available={available} onAdd={handleAssign} disabled={assigning || removing} />
+          {(assigning || removing) && (
+            <span className="loading loading-spinner loading-xs"
+              style={{ position: 'absolute', right: '0.625rem', top: '0.75rem', pointerEvents: 'none' }} />
+          )}
+        </div>
+      )}
+      {/* Count footer */}
+      <div style={{
+        display: 'flex', gap: '1rem',
+        padding: '0.22rem 0.75rem',
+        borderTop: '1px solid var(--color-base-300)',
+        background: 'var(--color-base-200)',
+      }}>
+        <span style={{ fontSize: '0.7rem' }}>
+          <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{items.length}</span>
+          <span style={{ opacity: 0.5 }}> assigned</span>
+        </span>
+        <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>{available.length} available</span>
+      </div>
     </div>
   );
 }
 
 // ─── Operator form ────────────────────────────────────────────────────────────
 function OperatorForm({
-  initial, onSave, onCancel, onChangePwd, loading,
+  initial, onSave, onCancel, loading, callerType = 1,
 }: {
   initial?: OperatorResponse;
   onSave: (data: OperatorRequest, locationIds: number[]) => void;
   onCancel: () => void;
-  onChangePwd?: () => void;
   loading: boolean;
+  callerType?: number;
 }) {
   const isEdit = !!initial;
 
@@ -262,7 +372,7 @@ function OperatorForm({
         <select className="select select-bordered w-full"
           value={type} onChange={(e) => setType(Number(e.target.value))}>
           {Object.entries(OPERATOR_TYPES)
-            .filter(([k]) => Number(k) !== 1)
+            .filter(([k]) => Number(k) >= callerType && Number(k) !== 1)
             .map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <p style={{ margin: '0.3rem 0 0', fontSize: '0.7rem', color: 'var(--color-base-content)', opacity: 0.45, lineHeight: 1.4 }}>
@@ -341,16 +451,7 @@ function OperatorForm({
         borderTop: '1px solid var(--color-base-200)',
         paddingTop: '0.875rem', marginTop: '0.125rem',
       }}>
-        <div>
-          {isEdit && onChangePwd && (
-            <button type="button" className="btn btn-ghost btn-sm gap-1.5"
-              style={{ color: 'var(--color-base-content)', opacity: 0.6 }}
-              onClick={onChangePwd}>
-              <Ico d={ICO.key} size="0.875rem" />
-              Change Password
-            </button>
-          )}
-        </div>
+        <div />
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={loading}>
             Cancel
@@ -453,10 +554,10 @@ export default function OperatorsPage() {
     [operator],
   );
 
-  const [activeTab,     setActiveTab]     = useState<Tab>('active');
-  const [filterName,    setFilterName]    = useState('');
-  const [filterType,    setFilterType]    = useState('');
-  const [debouncedName, setDebouncedName] = useState('');
+  const [activeTab,       setActiveTab]       = useState<Tab>('active');
+  const [filterSearch,    setFilterSearch]    = useState('');
+  const [filterType,      setFilterType]      = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage,   setCurrentPage]   = useState(0);
   const [modalOpen,     setModalOpen]     = useState(false);
   const [modalView,     setModalView]     = useState<ModalView>('form');
@@ -475,15 +576,15 @@ export default function OperatorsPage() {
   const isMobile = windowWidth < 768;
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedName(filterName), 300);
+    const t = setTimeout(() => setDebouncedSearch(filterSearch), 300);
     return () => clearTimeout(t);
-  }, [filterName]);
+  }, [filterSearch]);
 
-  useEffect(() => { setCurrentPage(0); }, [debouncedName, filterType, activeTab]);
+  useEffect(() => { setCurrentPage(0); }, [debouncedSearch, filterType, activeTab]);
 
   const disabledParam = activeTab === 'all' ? undefined : activeTab === 'active' ? false : true;
   const typeParam     = filterType ? Number(filterType) : undefined;
-  const filterBase    = { name: debouncedName || undefined, type: typeParam };
+  const filterBase    = { search: debouncedSearch || undefined, type: typeParam };
 
   const { data, isLoading } = useListOperatorsQuery({
     ...filterBase, page: currentPage, size: PAGE_SIZE, disabled: disabledParam,
@@ -508,9 +609,26 @@ export default function OperatorsPage() {
   const totalItems = data?.totalElements ?? 0;
   const totalPages = data?.totalPages    ?? 1;
 
-  const hasActiveFilters = !!(filterName || filterType);
-  const clearFilters = () => { setFilterName(''); setFilterType(''); };
+  const hasActiveFilters = !!(filterSearch || filterType);
+  const clearFilters = () => { setFilterSearch(''); setFilterType(''); };
   const clearSelection = () => { setSelectedRows([]); setClearTrigger((n) => n + 1); };
+
+  const handleExport = () => {
+    const headers = ['ID', 'Name', 'Email', 'Type', 'Status'];
+    const csvData = rows.map((r) => [
+      r.id,
+      `"${r.name.replace(/"/g, '""')}"`,
+      r.emailId ? `"${r.emailId.replace(/"/g, '""')}"` : '',
+      OPERATOR_TYPES[r.type] ?? `Type ${r.type}`,
+      r.disabled ? 'Disabled' : 'Active',
+    ]);
+    const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'operators.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const openEdit = (op: OperatorResponse) => {
     setEditing(op); setModalView('form'); setModalOpen(true);
@@ -552,7 +670,7 @@ export default function OperatorsPage() {
   };
 
   const handleBulkDisable = async () => {
-    const targets = selectedRows.filter((r) => !r.disabled);
+    const targets = selectedRows.filter((r) => !r.disabled && r.type !== 1);
     if (!targets.length) return;
     setBulkLoading(true);
     try {
@@ -567,7 +685,7 @@ export default function OperatorsPage() {
   };
 
   const handleBulkRestore = async () => {
-    const targets = selectedRows.filter((r) => r.disabled);
+    const targets = selectedRows.filter((r) => r.disabled && r.type !== 1);
     if (!targets.length) return;
     setBulkLoading(true);
     try {
@@ -589,8 +707,8 @@ export default function OperatorsPage() {
       ? `Update Record : ${editing.name} (${editing.id})`
       : 'Add New Operator';
 
-  const bulkDisableCount = selectedRows.filter((r) => !r.disabled).length;
-  const bulkRestoreCount = selectedRows.filter((r) =>  r.disabled).length;
+  const bulkDisableCount = selectedRows.filter((r) => !r.disabled && r.type !== 1).length;
+  const bulkRestoreCount = selectedRows.filter((r) =>  r.disabled && r.type !== 1).length;
 
   const cols = useMemo<ColDef<OperatorResponse>[]>(() => [
     {
@@ -623,40 +741,44 @@ export default function OperatorsPage() {
       width: isMobile ? 62 : 165,
       minWidth: isMobile ? 56 : 155,
       sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
-      cellRenderer: ({ data: d }: { data: OperatorResponse }) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
-          {can('UPDATE') && (isMobile
-            ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
-                onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
-                <Ico d={ICO.edit} size="1rem" />
-              </button>
-            : <button className="btn btn-outline btn-xs gap-1"
-                onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
-                <Ico d={ICO.edit} size="0.85rem" /> Edit
-              </button>
-          )}
-          {!d.disabled && can('DELETE') && (isMobile
-            ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
-                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
-                <Ico d={ICO.ban} size="1rem" />
-              </button>
-            : <button className="btn btn-outline btn-error btn-xs gap-1"
-                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
-                <Ico d={ICO.ban} size="0.85rem" /> Disable
-              </button>
-          )}
-          {d.disabled && can('RESTORE') && (isMobile
-            ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
-                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
-                <Ico d={ICO.restore} size="1rem" />
-              </button>
-            : <button className="btn btn-outline btn-info btn-xs gap-1"
-                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
-                <Ico d={ICO.restore} size="0.85rem" /> Restore
-              </button>
-          )}
-        </div>
-      ),
+      cellRenderer: ({ data: d }: { data: OperatorResponse }) => {
+        const isSuperAdminRow = d.type === 1;
+        const canEdit = can('UPDATE') && (!isSuperAdminRow || operator?.type === 1);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
+            {canEdit && (isMobile
+              ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
+                  onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
+                  <Pencil size={16} strokeWidth={1.5} />
+                </button>
+              : <button className="btn btn-outline btn-xs gap-1"
+                  onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
+                  <Pencil size={14} strokeWidth={1.5} /> Edit
+                </button>
+            )}
+            {!d.disabled && can('DELETE') && !isSuperAdminRow && (isMobile
+              ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
+                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
+                  <Ban size={16} strokeWidth={1.5} />
+                </button>
+              : <button className="btn btn-outline btn-error btn-xs gap-1"
+                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
+                  <Ban size={14} strokeWidth={1.5} /> Disable
+                </button>
+            )}
+            {d.disabled && can('RESTORE') && !isSuperAdminRow && (isMobile
+              ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
+                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
+                  <RefreshCw size={16} strokeWidth={1.5} />
+                </button>
+              : <button className="btn btn-outline btn-info btn-xs gap-1"
+                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
+                  <RefreshCw size={14} strokeWidth={1.5} /> Restore
+                </button>
+            )}
+          </div>
+        );
+      },
     },
   ], [can, isMobile]);
 
@@ -712,11 +834,21 @@ export default function OperatorsPage() {
               );
             })}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', borderLeft: '1px solid var(--sb-border)', padding: '0 0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', borderLeft: '1px solid var(--sb-border)', padding: '0 0.75rem', gap: '0.75rem' }}>
             {!isMobile && (
               <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                 {isLoading ? '…' : `${totalItems} record${totalItems !== 1 ? 's' : ''}`}
               </span>
+            )}
+            {can('EXPORT') && (
+              <button
+                onClick={handleExport}
+                title="Export current view as CSV"
+                className={isMobile ? 'btn btn-sm btn-outline btn-primary btn-square' : 'btn btn-sm btn-outline btn-primary gap-1.5'}
+                style={{ fontSize: '0.75rem', height: '1.75rem', minHeight: '1.75rem', paddingInline: isMobile ? undefined : '0.6rem' }}>
+                <Download size={14} strokeWidth={1.5} />
+                {!isMobile && 'Export CSV'}
+              </button>
             )}
           </div>
         </div>
@@ -730,13 +862,13 @@ export default function OperatorsPage() {
         }}>
           <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <span style={{ position: 'absolute', left: '0.55rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
-              <Ico d={ICO.search} size="0.8rem" />
+              <Search size={13} strokeWidth={1.5} />
             </span>
             <input className="input input-bordered input-sm"
-              style={{ paddingLeft: '1.8rem', width: isMobile ? '100%' : '180px' }}
-              placeholder="Search name…"
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)} />
+              style={{ paddingLeft: '1.8rem', width: isMobile ? '100%' : '240px' }}
+              placeholder="Search ID, name, email…"
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)} />
           </label>
           <select className="select select-bordered select-sm"
             style={{ width: isMobile ? '100%' : '160px' }}
@@ -856,8 +988,8 @@ export default function OperatorsPage() {
             initial={editing ?? undefined}
             onSave={handleSave}
             onCancel={() => setModalOpen(false)}
-            onChangePwd={editing && can('UPDATE') ? () => setModalView('pwd') : undefined}
             loading={creating || updating}
+            callerType={operator?.type ?? 1}
           />
         ) : (
           editing && (
