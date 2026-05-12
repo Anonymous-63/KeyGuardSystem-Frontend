@@ -326,7 +326,7 @@ export default function SettingsPage() {
 
         {/* ── Nav ───────────────────────────────────────────────────────────── */}
         {isMobile ? (
-          /* Mobile: 5-segment bar — all tabs always visible, no scroll */
+          /* Mobile: 5-segment bar — underline active indicator, dot for status */
           <div style={{
             display: 'flex',
             border: '1px solid var(--color-base-300)',
@@ -346,16 +346,21 @@ export default function SettingsPage() {
                     flex: 1, minWidth: 0,
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center',
-                    gap: '0.22rem', padding: '0.6rem 0.2rem 0.5rem',
+                    gap: '0.22rem',
+                    paddingTop: '0.6rem',
+                    paddingBottom: isActive ? 'calc(0.5rem - 3px)' : '0.5rem',
+                    paddingLeft: '0.2rem', paddingRight: '0.2rem',
                     background: isActive
-                      ? 'var(--color-primary)'
+                      ? 'color-mix(in oklch, var(--color-primary) 10%, var(--color-base-100))'
                       : 'transparent',
-                    color: isActive ? 'var(--color-primary-content)' : 'var(--color-base-content)',
+                    color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)',
                     border: 'none',
                     borderRight: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
+                    /* Active: thick bottom underline instead of full fill */
+                    borderBottom: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
                     cursor: 'pointer', position: 'relative',
-                    transition: 'background 0.15s, color 0.15s',
-                    opacity: isActive ? 1 : 0.5,
+                    transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+                    opacity: isActive ? 1 : 0.55,
                   }}>
                   <span style={{ lineHeight: 1, display: 'flex' }}>{icon}</span>
                   <span style={{
@@ -364,8 +369,8 @@ export default function SettingsPage() {
                   }}>
                     {SHORT}
                   </span>
-                  {/* Dot: warning=unsaved, success=configured */}
-                  {(dirty || cfgd) && (
+                  {/* Top-right dot: orange=unsaved, green=configured (only on inactive) */}
+                  {!isActive && (dirty || cfgd) && (
                     <span style={{
                       position: 'absolute', top: '5px', right: '6px',
                       width: '5px', height: '5px', borderRadius: '50%',
