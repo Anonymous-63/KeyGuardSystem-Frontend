@@ -1,177 +1,289 @@
-import { useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useListLocationsQuery,
+  useLazyListLocationsQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,
   useDisableLocationMutation,
   useRestoreLocationMutation,
-  useListLocationOperatorsQuery,
-  useAssignOperatorToLocationMutation,
-  useRemoveOperatorFromLocationMutation,
 } from '../features/location/locationApi';
-import { useListOperatorsQuery } from '../features/operator/operatorApi';
 import type { LocationResponse, LocationRequest } from '../types/api';
+import { LOCATION_ASSET_TYPES, LOCATION_CABINET_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+import { useAppSelector } from '../app/hooks';
+import { hasPermission } from '../features/auth/permissions';
+import { Search, Download, Pencil, Ban, RefreshCw } from 'lucide-react';
+
+const FEATURES_ENABLED  = '01000000000000000000';
+const FEATURES_DISABLED = '00000000000000000000';
+const PAGE_SIZE         = 20;
+
+function getPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  if (current < 4)         return [0, 1, 2, 3, 4, '...', total - 1];
+  if (current > total - 5) return [0, '...', total - 5, total - 4, total - 3, total - 2, total - 1];
+  return [0, '...', current - 1, current, current + 1, '...', total - 1];
+}
+
+function decodeFeatures(hex?: string): boolean {
+  return hex != null && hex.startsWith('01');
+}
+
+const FL = ({ text, required }: { text: string; required?: boolean }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginBottom: '0.325rem' }}>
+    <span style={{
+      fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em',
+      textTransform: 'uppercase', whiteSpace: 'nowrap',
+      color: 'var(--color-base-content)', opacity: 0.65,
+      userSelect: 'none',
+    }}>
+      {text}
+    </span>
+    {required && (
+      <span style={{ color: 'var(--color-error)', fontSize: '0.75rem', lineHeight: 1, opacity: 1 }}>*</span>
+    )}
+  </div>
+);
 
 function LocationForm({
-  initial, onSave, onCancel, loading,
+  initial, existingLocations, onSave, onCancel, loading,
 }: {
   initial?: LocationResponse;
+  existingLocations: LocationResponse[];
   onSave: (data: LocationRequest) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
-  const [name, setName] = useState(initial?.name ?? '');
-  const [address, setAddress] = useState(initial?.address ?? '');
+  const defaultName        = initial?.name            ?? '';
+  const defaultAssetType   = initial?.assetTypeName   ?? 'KEYS';
+  const defaultCabinetType = initial?.cabinetTypeName ?? 'SINGLE';
+  const defaultLcd         = decodeFeatures(initial?.features);
+
+  const [name,        setName]        = useState(defaultName);
+  const [assetType,   setAssetType]   = useState(defaultAssetType);
+  const [cabinetType, setCabinetType] = useState(defaultCabinetType);
+  const [lcdEnabled,  setLcdEnabled]  = useState(defaultLcd);
+  const [nameError,   setNameError]   = useState('');
+
+  function validateName(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) return 'Name is required.';
+    if (trimmed.length < 3) return 'Name must be at least 3 characters.';
+    if (!/^[a-zA-Z\s]+$/.test(trimmed)) return 'Name must contain only letters and spaces.';
+    const dup = existingLocations.find(
+      (l) => l.name.toLowerCase() === trimmed.toLowerCase() && l.id !== initial?.id,
+    );
+    if (dup) return 'Location name already exists.';
+    return '';
+  }
+
+  const handleNameChange = (v: string) => { setName(v); if (nameError) setNameError(validateName(v)); };
+  const handleReset = () => {
+    setName(defaultName); setAssetType(defaultAssetType);
+    setCabinetType(defaultCabinetType); setLcdEnabled(defaultLcd); setNameError('');
+  };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const err = validateName(name);
+    if (err) { setNameError(err); return; }
+    onSave({
+      name:        name.trim(),
+      assetType:   assetType   as import('../types/api').LocationAssetType,
+      cabinetType: cabinetType as import('../types/api').LocationCabinetType,
+      features:    lcdEnabled ? FEATURES_ENABLED : FEATURES_DISABLED,
+    });
+  };
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave({ name, address }); }} className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Name *</span></label>
-        <input className="input input-bordered" value={name}
-          onChange={(e) => setName(e.target.value)} required maxLength={50} />
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      <div>
+        <FL text="Location Name" required />
+        <input
+          className={`input input-bordered w-full${nameError ? ' input-error' : ''}`}
+          value={name} placeholder="e.g. Mumbai Office" maxLength={50}
+          onChange={(e) => handleNameChange(e.target.value)}
+          onBlur={() => setNameError(validateName(name))}
+        />
+        {nameError && (
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'var(--color-error)' }}>
+            {nameError}
+          </p>
+        )}
       </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Address</span></label>
-        <input className="input input-bordered" value={address}
-          onChange={(e) => setAddress(e.target.value)} maxLength={200} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        <div>
+          <FL text="Asset Type" required />
+          <select className="select select-bordered w-full" value={assetType}
+            onChange={(e) => setAssetType(e.target.value)} required>
+            {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div>
+          <FL text="Cabinet Type" required />
+          <select className="select select-bordered w-full" value={cabinetType}
+            onChange={(e) => setCabinetType(e.target.value)} required>
+            {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
       </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
+
+      <div>
+        <FL text="Features" />
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+          padding: '0.625rem 0.75rem',
+          border: `1.5px solid ${lcdEnabled ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+          borderRadius: '0.5rem',
+          background: lcdEnabled ? 'color-mix(in oklch, var(--color-primary) 6%, transparent)' : 'transparent',
+          transition: 'border-color 0.12s ease, background 0.12s ease',
+          userSelect: 'none',
+        }}>
+          <input type="checkbox" className="checkbox checkbox-primary checkbox-sm"
+            checked={lcdEnabled} onChange={(e) => setLcdEnabled(e.target.checked)} />
+          <div>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-base-content)' }}>
+              3.5&apos; LCD Cabinet
+            </span>
+            <p style={{ margin: 0, fontSize: '0.7rem', opacity: 0.45, lineHeight: 1.4 }}>
+              Enable LCD display support for this location&apos;s cabinets
+            </p>
+          </div>
+        </label>
+      </div>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem',
+        borderTop: '1px solid var(--color-base-200)',
+        paddingTop: '0.875rem', marginTop: '0.125rem',
+      }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={handleReset} disabled={loading}>
+          Reset
+        </button>
+        <button type="submit" className="btn btn-primary btn-sm" style={{ minWidth: '120px' }} disabled={loading}>
           {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
+          {initial ? 'Save Changes' : 'Create Location'}
         </button>
       </div>
     </form>
   );
 }
 
-function LocationOperatorsPanel({ locationId, locationName }: { locationId: number; locationName: string }) {
-  const { addToast } = useToast();
-  const [selectedOpId, setSelectedOpId] = useState('');
-  const { data: assigned, isLoading } = useListLocationOperatorsQuery(locationId);
-  const { data: allOps } = useListOperatorsQuery({ size: 200 });
-  const [assign, { isLoading: assigning }] = useAssignOperatorToLocationMutation();
-  const [remove, { isLoading: removing }] = useRemoveOperatorFromLocationMutation();
-
-  const assignedIds = new Set(assigned?.map((o) => o.operatorId) ?? []);
-  const available = allOps?.content.filter((o) => !o.disabled && !assignedIds.has(o.id)) ?? [];
-
-  const handleAssign = async () => {
-    if (!selectedOpId) return;
-    try {
-      await assign({ locationId, body: { operatorId: selectedOpId } }).unwrap();
-      addToast({ type: 'success', message: 'Operator assigned' });
-      setSelectedOpId('');
-    } catch {
-      addToast({ type: 'error', message: 'Failed to assign operator' });
-    }
-  };
-
-  const handleRemove = async (operatorId: string) => {
-    try {
-      await remove({ locationId, operatorId }).unwrap();
-      addToast({ type: 'success', message: 'Operator removed' });
-    } catch {
-      addToast({ type: 'error', message: 'Failed to remove operator' });
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-base-content/60">
-        Operators assigned to <span className="font-semibold text-base-content">{locationName}</span>
-      </p>
-
-      {isLoading ? (
-        <div className="flex justify-center py-6">
-          <span className="loading loading-spinner loading-sm text-primary" />
-        </div>
-      ) : !assigned?.length ? (
-        <p className="text-sm text-base-content/40 text-center py-4 italic">No operators assigned</p>
-      ) : (
-        <div className="divide-y divide-base-200">
-          {assigned.map((op) => (
-            <div key={op.operatorId} className="flex items-center justify-between py-2">
-              <div>
-                <p className="text-sm font-medium">{op.operatorName}</p>
-                <p className="text-xs text-base-content/50 font-mono">{op.operatorId}</p>
-              </div>
-              <PermissionGate resource="LOCATION" action="ASSIGN">
-                <button
-                  className="btn btn-ghost btn-xs text-error"
-                  disabled={removing}
-                  onClick={() => handleRemove(op.operatorId)}
-                >
-                  Remove
-                </button>
-              </PermissionGate>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <PermissionGate resource="LOCATION" action="ASSIGN">
-        <div className="border-t border-base-200 pt-3">
-          <p className="text-xs font-semibold text-base-content/50 uppercase tracking-wide mb-2">Assign Operator</p>
-          <div className="flex gap-2">
-            <select
-              className="select select-bordered select-sm flex-1"
-              value={selectedOpId}
-              onChange={(e) => setSelectedOpId(e.target.value)}
-            >
-              <option value="">Select operator…</option>
-              {available.map((op) => (
-                <option key={op.id} value={op.id}>{op.name} ({op.id})</option>
-              ))}
-            </select>
-            <button
-              className="btn btn-primary btn-sm"
-              disabled={!selectedOpId || assigning}
-              onClick={handleAssign}
-            >
-              {assigning && <span className="loading loading-spinner loading-xs" />}
-              Assign
-            </button>
-          </div>
-        </div>
-      </PermissionGate>
-    </div>
-  );
-}
+type Tab = 'all' | 'active' | 'disabled';
 
 export default function LocationsPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
-  const [includeDisabled, setIncludeDisabled] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<LocationResponse | null>(null);
-  const [confirm, setConfirm] = useState<{ loc: LocationResponse; action: 'disable' | 'restore' } | null>(null);
-  const [operatorsLoc, setOperatorsLoc] = useState<LocationResponse | null>(null);
+  const operator = useAppSelector((s) => s.auth.operator);
 
-  const { data, isLoading } = useListLocationsQuery({ page, size: 20, includeDisabled });
-  const [create, { isLoading: creating }] = useCreateLocationMutation();
-  const [update, { isLoading: updating }] = useUpdateLocationMutation();
-  const [disable, { isLoading: disabling }] = useDisableLocationMutation();
-  const [restore, { isLoading: restoring }] = useRestoreLocationMutation();
+  const can = useCallback(
+    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') =>
+      operator != null && hasPermission(operator.type, 'LOCATION', action),
+    [operator],
+  );
 
-  const openCreate = () => { setEditing(null); setModalOpen(true); };
-  const openEdit = (loc: LocationResponse) => { setEditing(loc); setModalOpen(true); };
+  const [activeTab,          setActiveTab]          = useState<Tab>('active');
+  const [filterName,         setFilterName]         = useState('');
+  const [filterAssetType,    setFilterAssetType]    = useState('');
+  const [filterCabinetType,  setFilterCabinetType]  = useState('');
+  const [debouncedName,      setDebouncedName]      = useState('');
+  const [currentPage,        setCurrentPage]        = useState(0);
+  const [modalOpen,          setModalOpen]          = useState(false);
+  const [editing,            setEditing]            = useState<LocationResponse | null>(null);
+  const [confirm,            setConfirm]            = useState<{ loc: LocationResponse; action: 'disable' | 'restore' } | null>(null);
+  const [selectedRows,       setSelectedRows]       = useState<LocationResponse[]>([]);
+  const [clearTrigger,       setClearTrigger]       = useState(0);
+  const [bulkLoading,        setBulkLoading]        = useState(false);
+
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const h = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  const isMobile = windowWidth < 768;
+
+  // Debounce name filter 300 ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(filterName), 300);
+    return () => clearTimeout(t);
+  }, [filterName]);
+
+  // Reset page when any filter or tab changes
+  useEffect(() => { setCurrentPage(0); }, [debouncedName, filterAssetType, filterCabinetType, activeTab]);
+
+  const disabledParam = activeTab === 'all' ? undefined : activeTab === 'active' ? false : true;
+  const filterBase = {
+    name:        debouncedName    || undefined,
+    assetType:   filterAssetType  || undefined,
+    cabinetType: filterCabinetType || undefined,
+  };
+
+  const { data, isLoading } = useListLocationsQuery({ ...filterBase, page: currentPage, size: PAGE_SIZE, disabled: disabledParam });
+
+  // Tab counts — 3 lightweight queries (size=1), same text filters, vary disabled only
+  const { data: countAllData }      = useListLocationsQuery({ ...filterBase, page: 0, size: 1 });
+  const { data: countActiveData }   = useListLocationsQuery({ ...filterBase, page: 0, size: 1, disabled: false });
+  const { data: countDisabledData } = useListLocationsQuery({ ...filterBase, page: 0, size: 1, disabled: true });
+
+  const counts = {
+    all:      countAllData?.totalElements      ?? 0,
+    active:   countActiveData?.totalElements   ?? 0,
+    disabled: countDisabledData?.totalElements ?? 0,
+  };
+
+  const [fetchAll, { isFetching: exportFetching }] = useLazyListLocationsQuery();
+
+  const [create, { isLoading: creating }]  = useCreateLocationMutation();
+  const [update, { isLoading: updating }]  = useUpdateLocationMutation();
+  const [disable, { isLoading: disabling }]= useDisableLocationMutation();
+  const [restore, { isLoading: restoring }]= useRestoreLocationMutation();
+
+  const rows        = data?.content       ?? [];
+  const totalItems  = data?.totalElements ?? 0;
+  const totalPages  = data?.totalPages    ?? 1;
+
+  const hasActiveFilters = !!(filterName || filterAssetType || filterCabinetType);
+
+  const clearFilters = () => { setFilterName(''); setFilterAssetType(''); setFilterCabinetType(''); };
+
+  const clearSelection = () => { setSelectedRows([]); setClearTrigger((n) => n + 1); };
+
+  const handleExport = async () => {
+    if (totalItems === 0) return;
+    try {
+      const result = await fetchAll({ ...filterBase, disabled: disabledParam, page: 0, size: totalItems }).unwrap();
+      const headers = ['ID', 'Name', 'Asset Type', 'Cabinet Type', 'Status'];
+      const csvData = result.content.map((r) => [
+        r.id,
+        `"${r.name.replace(/"/g, '""')}"`,
+        r.assetTypeName   ? LOCATION_ASSET_TYPES[r.assetTypeName]   : '',
+        r.cabinetTypeName ? LOCATION_CABINET_TYPES[r.cabinetTypeName] : '',
+        r.disabled ? 'Disabled' : 'Active',
+      ]);
+      const csv  = [headers, ...csvData].map((row) => row.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'locations.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addToast({ type: 'error', message: 'Export failed' });
+    }
+  };
 
   const handleSave = async (body: LocationRequest) => {
     try {
       if (editing) await update({ id: editing.id, body }).unwrap();
-      else await create(body).unwrap();
+      else         await create(body).unwrap();
       addToast({ type: 'success', message: editing ? 'Location updated' : 'Location created' });
       setModalOpen(false);
-    } catch {
-      addToast({ type: 'error', message: 'Failed to save location' });
+    } catch (err: unknown) {
+      const e = err as { data?: { message?: string; error?: string } };
+      addToast({ type: 'error', message: e?.data?.message || e?.data?.error || 'Failed to save location' });
     }
   };
 
@@ -179,7 +291,7 @@ export default function LocationsPage() {
     if (!confirm) return;
     try {
       if (confirm.action === 'disable') await disable(confirm.loc.id).unwrap();
-      else await restore(confirm.loc.id).unwrap();
+      else                              await restore(confirm.loc.id).unwrap();
       addToast({ type: 'success', message: confirm.action === 'disable' ? 'Location disabled' : 'Location restored' });
     } catch {
       addToast({ type: 'error', message: 'Action failed' });
@@ -187,90 +299,323 @@ export default function LocationsPage() {
     setConfirm(null);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Locations</h1>
-        <div className="flex items-center gap-3">
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="LOCATION" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Add Location</button>
-          </PermissionGate>
+  const handleBulkDisable = async () => {
+    const targets = selectedRows.filter((r) => !r.disabled);
+    if (!targets.length) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(targets.map((r) => disable(r.id).unwrap()));
+      addToast({ type: 'success', message: `${targets.length} location${targets.length > 1 ? 's' : ''} disabled` });
+      clearSelection();
+    } catch {
+      addToast({ type: 'error', message: 'Some disable operations failed' });
+    }
+    setBulkLoading(false);
+  };
+
+  const handleBulkRestore = async () => {
+    const targets = selectedRows.filter((r) => r.disabled);
+    if (!targets.length) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(targets.map((r) => restore(r.id).unwrap()));
+      addToast({ type: 'success', message: `${targets.length} location${targets.length > 1 ? 's' : ''} restored` });
+      clearSelection();
+    } catch {
+      addToast({ type: 'error', message: 'Some restore operations failed' });
+    }
+    setBulkLoading(false);
+  };
+
+  const cols = useMemo<ColDef<LocationResponse>[]>(() => [
+    { field: 'name', headerName: 'Name', flex: 1, minWidth: 100 },
+    {
+      headerName: 'Asset Type', width: 120, hide: isMobile,
+      valueGetter: ({ data: d }) => d ? (d.assetTypeName   ? LOCATION_ASSET_TYPES[d.assetTypeName]   : '--') : '',
+    },
+    {
+      headerName: 'Cabinet Type', width: 120, hide: isMobile,
+      valueGetter: ({ data: d }) => d ? (d.cabinetTypeName ? LOCATION_CABINET_TYPES[d.cabinetTypeName] : '--') : '',
+    },
+    {
+      headerName: 'Status', width: 90, sortable: false,
+      cellRenderer: ({ data: d }: { data: LocationResponse }) => (
+        d.disabled
+          ? <span className="badge badge-soft badge-error badge-sm" style={{ cursor: 'default' }}>Disabled</span>
+          : <span className="badge badge-soft badge-success badge-sm" style={{ cursor: 'default' }}>Active</span>
+      ),
+    },
+    {
+      headerName: 'Actions',
+      width: isMobile ? 78 : 148,
+      minWidth: isMobile ? 72 : 140,
+      sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
+      cellRenderer: ({ data: d }: { data: LocationResponse }) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', height: '100%' }}>
+          {can('UPDATE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
+                onClick={(e) => { e.stopPropagation(); setEditing(d); setModalOpen(true); }}>
+                <Pencil size={16} strokeWidth={1.5} />
+              </button>
+            : <button className="btn btn-outline btn-xs gap-1" title="Edit"
+                onClick={(e) => { e.stopPropagation(); setEditing(d); setModalOpen(true); }}>
+                <Pencil size={14} strokeWidth={1.5} /> Edit
+              </button>
+          )}
+          {!d.disabled && can('DELETE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
+                onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'disable' }); }}>
+                <Ban size={16} strokeWidth={1.5} />
+              </button>
+            : <button className="btn btn-outline btn-error btn-xs gap-1" title="Disable"
+                onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'disable' }); }}>
+                <Ban size={14} strokeWidth={1.5} /> Disable
+              </button>
+          )}
+          {d.disabled && can('RESTORE') && (isMobile
+            ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
+                onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'restore' }); }}>
+                <RefreshCw size={16} strokeWidth={1.5} />
+              </button>
+            : <button className="btn btn-outline btn-info btn-xs gap-1" title="Restore"
+                onClick={(e) => { e.stopPropagation(); setConfirm({ loc: d, action: 'restore' }); }}>
+                <RefreshCw size={14} strokeWidth={1.5} /> Restore
+              </button>
+          )}
         </div>
+      ),
+    },
+  ], [can, isMobile]);
+
+  const bulkDisableCount  = selectedRows.filter((r) => !r.disabled).length;
+  const bulkRestoreCount  = selectedRows.filter((r) =>  r.disabled).length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '0.875rem' }}>
+
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--color-base-content)', margin: 0, flex: 1, letterSpacing: '-0.01em' }}>
+          Location
+        </h1>
+        {can('CREATE') && (
+          <button className="btn btn-sm btn-primary gap-1"
+            onClick={() => { setEditing(null); setModalOpen(true); }}>
+            <span style={{ fontSize: '1.05rem', lineHeight: 1 }}>+</span> Add location
+          </button>
+        )}
       </div>
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Address</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && (
-                <tr><td colSpan={5} className="text-center py-8">
-                  <span className="loading loading-spinner" />
-                </td></tr>
-              )}
-              {!isLoading && data?.content.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-8 text-base-content/50">No locations found</td></tr>
-              )}
-              {data?.content.map((loc) => (
-                <tr key={loc.id}>
-                  <td className="font-mono text-sm">{loc.id}</td>
-                  <td className="font-medium">{loc.name}</td>
-                  <td className="text-base-content/70">{loc.address ?? '—'}</td>
-                  <td><StatusBadge disabled={loc.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <button className="btn btn-ghost btn-xs text-primary"
-                        onClick={() => setOperatorsLoc(loc)}>Operators</button>
-                      <PermissionGate resource="LOCATION" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(loc)}>Edit</button>
-                      </PermissionGate>
-                      <PermissionGate resource="LOCATION" action="DELETE">
-                        {loc.disabled ? (
-                          <button className="btn btn-ghost btn-xs text-success"
-                            onClick={() => setConfirm({ loc, action: 'restore' })}>Restore</button>
-                        ) : (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm({ loc, action: 'disable' })}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Card */}
+      <div className="bg-base-100 shadow-sm"
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderRadius: '0.5rem', overflow: 'hidden' }}>
+
+        {/* Tab bar */}
+        <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flex: 1, paddingLeft: '0.25rem' }}>
+            {(['all', 'active', 'disabled'] as Tab[]).map((tab) => {
+              const isActive = activeTab === tab;
+              const label = tab === 'all' ? 'All' : tab === 'active' ? 'Active' : 'Disabled';
+              return (
+                <button key={tab} onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: '0.5rem 0.875rem',
+                    fontSize: '0.8125rem',
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? 'var(--color-primary)' : 'var(--sb-text-muted)',
+                    background: 'none', border: 'none',
+                    borderBottom: `2px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
+                    marginBottom: '-1px', cursor: 'pointer',
+                    transition: 'color 0.15s ease, border-color 0.15s ease',
+                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  }}>
+                  {label}
+                  <span style={{
+                    fontSize: '0.68rem', fontWeight: 600, padding: '0.05rem 0.35rem',
+                    borderRadius: '0.75rem',
+                    background: isActive ? 'var(--color-primary)' : 'var(--color-base-300)',
+                    color: isActive ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
+                    minWidth: '1.25rem', textAlign: 'center',
+                  }}>
+                    {counts[tab]}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: record count + Export CSV */}
+          <div style={{ display: 'flex', alignItems: 'center', borderLeft: '1px solid var(--sb-border)', padding: '0 0.75rem', gap: '0.75rem' }}>
+            {!isMobile && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                {isLoading ? '…' : `${totalItems} record${totalItems !== 1 ? 's' : ''}`}
+              </span>
+            )}
+            <button
+              onClick={handleExport}
+              disabled={exportFetching || totalItems === 0}
+              title="Export all filtered records as CSV"
+              className={isMobile ? 'btn btn-sm btn-outline btn-primary btn-square' : 'btn btn-sm btn-outline btn-primary gap-1.5'}
+              style={{ fontSize: '0.75rem', height: '1.75rem', minHeight: '1.75rem', paddingInline: isMobile ? undefined : '0.6rem' }}>
+              {exportFetching
+                ? <span className="loading loading-spinner loading-xs" />
+                : <Download size={14} strokeWidth={1.5} />}
+              {!isMobile && (exportFetching ? 'Exporting…' : 'Export CSV')}
+            </button>
+          </div>
         </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
+
+        {/* Filter strip — always visible */}
+        <div style={{
+          display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center', gap: '0.4rem',
+          padding: '0.45rem 0.875rem', borderBottom: '1px solid var(--sb-border)',
+          background: 'var(--color-base-200)', flexShrink: 0,
+        }}>
+          <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: '0.55rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
+              <Search size={13} strokeWidth={1.5} />
+            </span>
+            <input className="input input-bordered input-sm"
+              style={{ paddingLeft: '1.8rem', width: isMobile ? '100%' : '180px' }}
+              placeholder="Search name..."
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)} />
+          </label>
+          <select className="select select-bordered select-sm"
+            style={{ width: isMobile ? '100%' : '150px' }}
+            value={filterAssetType} onChange={(e) => setFilterAssetType(e.target.value)}>
+            <option value="">All Asset Types</option>
+            {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select className="select select-bordered select-sm"
+            style={{ width: isMobile ? '100%' : '160px' }}
+            value={filterCabinetType} onChange={(e) => setFilterCabinetType(e.target.value)}>
+            <option value="">All Cabinet Types</option>
+            {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          {hasActiveFilters && (
+            <button className="btn btn-xs btn-ghost gap-1" onClick={clearFilters}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
+
+        {/* Bulk selection bar */}
+        {selectedRows.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.35rem 1rem',
+            background: 'color-mix(in oklch, var(--color-primary) 8%, transparent)',
+            borderBottom: '1px solid color-mix(in oklch, var(--color-primary) 20%, transparent)',
+            flexShrink: 0, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-primary)' }}>
+              {selectedRows.length} selected
+            </span>
+            {bulkDisableCount > 0 && can('DELETE') && (
+              <button className="btn btn-xs btn-error btn-outline gap-1"
+                onClick={handleBulkDisable} disabled={bulkLoading}>
+                {bulkLoading && <span className="loading loading-spinner loading-xs" />}
+                Disable {bulkDisableCount > 1 ? `(${bulkDisableCount})` : ''}
+              </button>
+            )}
+            {bulkRestoreCount > 0 && can('RESTORE') && (
+              <button className="btn btn-xs btn-info btn-outline gap-1"
+                onClick={handleBulkRestore} disabled={bulkLoading}>
+                {bulkLoading && <span className="loading loading-spinner loading-xs" />}
+                Restore {bulkRestoreCount > 1 ? `(${bulkRestoreCount})` : ''}
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            <button className="btn btn-ghost btn-xs" onClick={clearSelection}>Clear</button>
+          </div>
+        )}
+
+        {/* Grid */}
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowDoubleClicked={(r) => { setEditing(r); setModalOpen(true); }}
+          onSelectionChanged={setSelectedRows}
+          height="100%"
+          checkboxes
+          hideToolbar
+          clearSelectionTrigger={clearTrigger}
+        />
+
+        {/* Pagination */}
+        {totalItems > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: totalPages > 1 ? 'space-between' : 'flex-end',
+            padding: '0.45rem 0.875rem',
+            borderTop: '1px solid var(--color-base-300)',
+            background: 'var(--color-base-100)',
+            flexShrink: 0, gap: '0.5rem', flexWrap: 'wrap',
+          }}>
+            {/* Record range */}
+            <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              {isLoading ? '…' : (
+                <>Showing {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalItems)} of {totalItems}</>
+              )}
+            </span>
+
+            {/* Page controls */}
+            {totalPages > 1 && (
+              isMobile ? (
+                <div className="join">
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage((p) => p - 1)}>‹</button>
+                  <button className="join-item btn btn-sm btn-active pointer-events-none">
+                    {currentPage + 1} / {totalPages}
+                  </button>
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage((p) => p + 1)}>›</button>
+                </div>
+              ) : (
+                <div className="join">
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(0)}>«</button>
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage((p) => p - 1)}>‹</button>
+                  {getPageNumbers(currentPage, totalPages).map((p, i) =>
+                    p === '...'
+                      ? <button key={`el-${i}`} className="join-item btn btn-sm btn-disabled">…</button>
+                      : <button key={p} onClick={() => setCurrentPage(p as number)}
+                          className={`join-item btn btn-sm${p === currentPage ? ' btn-active' : ''}`}>
+                          {(p as number) + 1}
+                        </button>
+                  )}
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage((p) => p + 1)}>›</button>
+                  <button className="join-item btn btn-sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage(totalPages - 1)}>»</button>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
 
-      <Modal open={modalOpen} title={editing ? 'Edit Location' : 'New Location'} onClose={() => setModalOpen(false)}>
-        <LocationForm initial={editing ?? undefined} onSave={handleSave}
-          onCancel={() => setModalOpen(false)} loading={creating || updating} />
-      </Modal>
-
-      <Modal open={!!operatorsLoc} title="Location Operators"
-        onClose={() => setOperatorsLoc(null)} size="md">
-        {operatorsLoc && (
-          <LocationOperatorsPanel locationId={operatorsLoc.id} locationName={operatorsLoc.name} />
-        )}
+      <Modal open={modalOpen}
+        title={editing ? `Edit Location -- ${editing.name}` : 'Add New Location'}
+        onClose={() => setModalOpen(false)}>
+        <LocationForm
+          initial={editing ?? undefined}
+          existingLocations={data?.content ?? []}
+          onSave={handleSave}
+          onCancel={() => setModalOpen(false)}
+          loading={creating || updating}
+        />
       </Modal>
 
       <ConfirmDialog

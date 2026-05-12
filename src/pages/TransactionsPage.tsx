@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useListAssetTransactionsQuery,
   useListAssetsOutQuery,
@@ -10,23 +10,15 @@ import {
 import type { AssetTransactionResponse, AssetReturnRequest, AssetTransactionWriteRequest } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormGrid, FormActions } from '../components/shared/Form';
+import PageHeader from '../components/shared/PageHeader';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+
+const ICO_ARROWS = ['M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5'];
 
 type ViewMode = 'all' | 'out' | 'overdue';
-
-function TransactionStatusBadge({ tx }: { tx: AssetTransactionResponse }) {
-  if (tx.returnedAt) {
-    return <span className="badge badge-success badge-sm">Returned</span>;
-  }
-  if (tx.overdueMinutes && tx.overdueMinutes > 0) {
-    return <span className="badge badge-error badge-sm">Overdue</span>;
-  }
-  return <span className="badge badge-warning badge-sm">Out</span>;
-}
 
 function ReturnForm({
   tx, onSave, onCancel, loading,
@@ -40,44 +32,28 @@ function ReturnForm({
   const [returnedTo, setReturnedTo] = useState<number | ''>(tx.issuedFrom);
   const [returnedAt, setReturnedAt] = useState(new Date().toISOString().slice(0, 16));
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      returnedAt: returnedAt ? `${returnedAt}:00` : undefined,
+      returnedBy: returnedBy || undefined,
+      returnedTo: returnedTo !== '' ? returnedTo : undefined,
+    });
+  };
+
   return (
-    <div className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-base-200 rounded-lg p-3 text-sm space-y-1">
         <div className="flex justify-between"><span className="text-base-content/60">Asset</span><span className="font-medium">{tx.assetName ?? `#${tx.assetId}`}</span></div>
         <div className="flex justify-between"><span className="text-base-content/60">Issued to</span><span className="font-medium">{tx.issuedTo}</span></div>
         <div className="flex justify-between"><span className="text-base-content/60">Issued at</span><span>{new Date(tx.issuedAt).toLocaleString()}</span></div>
         {tx.expectedBefore && <div className="flex justify-between"><span className="text-base-content/60">Expected before</span><span className={tx.overdueMinutes && tx.overdueMinutes > 0 ? 'text-error font-medium' : ''}>{new Date(tx.expectedBefore).toLocaleString()}</span></div>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Return Time *</span></label>
-          <input type="datetime-local" className="input input-bordered" value={returnedAt}
-            onChange={(e) => setReturnedAt(e.target.value)} required />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Returned By (User ID)</span></label>
-          <input className="input input-bordered" value={returnedBy}
-            onChange={(e) => setReturnedBy(e.target.value)} maxLength={30} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Returned to Cabinet ID</span></label>
-          <input type="number" className="input input-bordered" value={returnedTo}
-            onChange={(e) => setReturnedTo(e.target.value === '' ? '' : Number(e.target.value))} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="button" className="btn btn-primary" disabled={loading}
-          onClick={() => onSave({
-            returnedAt: returnedAt ? `${returnedAt}:00` : undefined,
-            returnedBy: returnedBy || undefined,
-            returnedTo: returnedTo !== '' ? returnedTo : undefined,
-          })}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Record Return
-        </button>
-      </div>
-    </div>
+      <FormField type="datetime-local" label="Return Time" value={returnedAt} onChange={(e) => setReturnedAt(e.target.value)} required />
+      <FormField label="Returned By (User ID)" value={returnedBy} onChange={(e) => setReturnedBy(e.target.value)} maxLength={30} />
+      <FormField type="number" label="Returned to Cabinet ID" value={returnedTo} onChange={(e) => setReturnedTo(e.target.value === '' ? '' : Number(e.target.value))} />
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Record Return" />
+    </form>
   );
 }
 
@@ -107,44 +83,15 @@ function IssuanceForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">Asset ID *</span></label>
-          <input type="number" className="input input-bordered" value={assetId}
-            onChange={(e) => setAssetId(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Asset Number *</span></label>
-          <input type="number" className="input input-bordered" value={assetNumber}
-            onChange={(e) => setAssetNumber(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Cabinet ID (From) *</span></label>
-          <input type="number" className="input input-bordered" value={issuedFrom}
-            onChange={(e) => setIssuedFrom(e.target.value === '' ? '' : Number(e.target.value))}
-            required min={1} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Issued To (User ID) *</span></label>
-          <input className="input input-bordered" value={issuedTo}
-            onChange={(e) => setIssuedTo(e.target.value)} required maxLength={30} />
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Expected Return</span></label>
-          <input type="datetime-local" className="input input-bordered" value={expectedBefore}
-            onChange={(e) => setExpectedBefore(e.target.value)} />
-        </div>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Record Issuance
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <FormGrid>
+        <FormField type="number" label="Asset ID" value={assetId} onChange={(e) => setAssetId(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField type="number" label="Asset Number" value={assetNumber} onChange={(e) => setAssetNumber(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField type="number" label="Cabinet ID (From)" value={issuedFrom} onChange={(e) => setIssuedFrom(e.target.value === '' ? '' : Number(e.target.value))} required min={1} />
+        <FormField label="Issued To (User ID)" value={issuedTo} onChange={(e) => setIssuedTo(e.target.value)} required maxLength={30} />
+        <FormField type="datetime-local" label="Expected Return" value={expectedBefore} onChange={(e) => setExpectedBefore(e.target.value)} wrapperClassName="col-span-full" />
+      </FormGrid>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Record Issuance" />
     </form>
   );
 }
@@ -220,16 +167,73 @@ export default function TransactionsPage() {
     { mode: 'overdue', label: 'Overdue', icon: '⚠️' },
   ];
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Transactions</h1>
-        <PermissionGate resource="TRANSACTION" action="CREATE">
-          <button className="btn btn-primary btn-sm" onClick={() => setIssuanceOpen(true)}>
-            + Record Issuance
-          </button>
+  const cols = useMemo<ColDef<AssetTransactionResponse>[]>(() => [
+    {
+      headerName: 'Asset',
+      flex: 1,
+      valueGetter: ({ data: d }) => d ? (d.assetName ?? `Asset #${d.assetId}`) : '',
+    },
+    {
+      headerName: 'User',
+      flex: 1,
+      valueGetter: ({ data: d }) => d ? (d.issuedToName ? `${d.issuedTo} · ${d.issuedToName}` : d.issuedTo) : '',
+    },
+    {
+      headerName: 'Cabinet',
+      width: 120,
+      valueGetter: ({ data: d }) => d ? (d.issuedFromName ?? `Cabinet ${d.issuedFrom}`) : '',
+    },
+    {
+      headerName: 'Issued',
+      width: 140,
+      valueGetter: ({ data: d }) => d ? new Date(d.issuedAt).toLocaleString() : '',
+    },
+    {
+      headerName: 'Expected',
+      width: 140,
+      valueGetter: ({ data: d }) => d ? (d.expectedBefore ? new Date(d.expectedBefore).toLocaleString() : '—') : '',
+    },
+    {
+      headerName: 'Returned',
+      width: 140,
+      valueGetter: ({ data: d }) => d ? (d.returnedAt ? new Date(d.returnedAt).toLocaleString() : '—') : '',
+    },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: AssetTransactionResponse }) => {
+        if (d.returnedAt) return <span className="badge badge-success badge-sm">Returned</span>;
+        if (d.overdueMinutes && d.overdueMinutes > 0) return <span className="badge badge-error badge-sm">Overdue</span>;
+        return <span className="badge badge-warning badge-sm">Out</span>;
+      },
+    },
+    {
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ({ data: d }: { data: AssetTransactionResponse }) => (
+        <PermissionGate resource="TRANSACTION" action="UPDATE">
+          {!d.returnedAt ? (
+            <button className="btn btn-ghost btn-xs text-primary"
+              onClick={(e) => { e.stopPropagation(); setReturning(d); }}>
+              Return
+            </button>
+          ) : <span />}
         </PermissionGate>
-      </div>
+      ),
+    },
+  ], []);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_ARROWS}
+        title="Transactions"
+        resource="TRANSACTION"
+        onAdd={() => setIssuanceOpen(true)}
+      />
 
       {/* Tab bar */}
       <div className="tabs tabs-boxed bg-base-100 mb-4 w-fit shadow">
@@ -265,77 +269,17 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Asset</th>
-                <th>Issued To</th>
-                <th>From Cabinet</th>
-                <th>Issued At</th>
-                <th>Expected Return</th>
-                <th>Status</th>
-                <PermissionGate resource="TRANSACTION" action="UPDATE">
-                  <th>Actions</th>
-                </PermissionGate>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={8} />}
-              {!isLoading && rows.length === 0 && (
-                <EmptyState colSpan={8} icon="📋" title="No transactions found" />
-              )}
-              {rows.map((tx) => (
-                <tr key={tx.autoNo} className={tx.overdueMinutes && tx.overdueMinutes > 0 && !tx.returnedAt ? 'bg-error/5' : ''}>
-                  <td className="font-mono text-sm text-base-content/60">{tx.autoNo}</td>
-                  <td>
-                    <div>
-                      <p className="font-medium">{tx.assetName ?? `Asset #${tx.assetId}`}</p>
-                      {tx.assetNumber && <p className="text-xs text-base-content/50">#{tx.assetNumber}</p>}
-                    </div>
-                  </td>
-                  <td className="text-sm">
-                    <div>
-                      <p className="font-medium">{tx.issuedTo}</p>
-                      {tx.issuedToName && <p className="text-xs text-base-content/50">{tx.issuedToName}</p>}
-                    </div>
-                  </td>
-                  <td className="text-sm text-base-content/70">
-                    {tx.issuedFromName ?? `Cabinet ${tx.issuedFrom}`}
-                  </td>
-                  <td className="text-sm">{new Date(tx.issuedAt).toLocaleString()}</td>
-                  <td className="text-sm">
-                    {tx.expectedBefore ? (
-                      <span className={tx.overdueMinutes && tx.overdueMinutes > 0 && !tx.returnedAt ? 'text-error font-medium' : ''}>
-                        {new Date(tx.expectedBefore).toLocaleString()}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td><TransactionStatusBadge tx={tx} /></td>
-                  <PermissionGate resource="TRANSACTION" action="UPDATE">
-                    <td>
-                      {!tx.returnedAt && (
-                        <button className="btn btn-ghost btn-xs text-primary"
-                          onClick={() => setReturning(tx)}>
-                          Return
-                        </button>
-                      )}
-                    </td>
-                  </PermissionGate>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {viewMode === 'all' && !hasDateFilter && allData && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={allData.totalPages}
-              totalElements={allData.totalElements} size={20} onPageChange={setPage} />
-          </div>
-        )}
-      </div>
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.autoNo)}
+          exportable
+          exportFilename="transactions"
+          height="100%"
+        />
+      </div></div>
 
       {/* Return modal */}
       <Modal open={!!returning && !confirmReturn} title="Record Asset Return"

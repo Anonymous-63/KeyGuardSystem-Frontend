@@ -3,7 +3,7 @@ import { baseQueryWithReauth } from '../../api/baseQuery';
 import type {
   ApiResponse, PagedResponse,
   CabinetUserResponse, CabinetUserRequest,
-  AssignLocationRequest, LocationResponse,
+  AssignLocationRequest, LocationAssignmentResponse,
   UserAssetRequest, UserAssetResponse,
   UserTimeConstraintRequest, UserTimeConstraintResponse,
   UserAssetGroupRequest, UserAssetGroupResponse,
@@ -31,9 +31,9 @@ export const cabinetUserApi = createApi({
       transformResponse: (r: ApiResponse<CabinetUserResponse>) => r.data,
       providesTags: (_r, _e, id) => [{ type: 'CabinetUser', id }],
     }),
-    getCabinetUserLocations: b.query<LocationResponse[], string>({
+    getCabinetUserLocations: b.query<LocationAssignmentResponse[], string>({
       query: (id) => `/cabinet-users/${id}/locations`,
-      transformResponse: (r: ApiResponse<LocationResponse[]>) => r.data,
+      transformResponse: (r: ApiResponse<LocationAssignmentResponse[]>) => r.data,
       providesTags: (_r, _e, id) => [{ type: 'CabinetUser', id }],
     }),
     createCabinetUser: b.mutation<CabinetUserResponse, CabinetUserRequest>({

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useListTimeConstraintsQuery,
   useCreateTimeConstraintMutation,
   useUpdateTimeConstraintMutation,
   useDisableTimeConstraintMutation,
+  useRestoreTimeConstraintMutation,
 } from '../features/timeConstraint/timeConstraintApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import type {
@@ -12,14 +13,14 @@ import type {
 import { TIME_CONSTRAINT_TYPES, DAY_SHORT } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
-import PermissionGate from '../components/PermissionGate';
+import PageHeader from '../components/shared/PageHeader';
 import { useToast } from '../components/shared/Toast';
+import { FormRow, FormSection, FormActions } from '../components/shared/Form';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
 
-const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', fromTime: '08:00', toTime: '17:00' };
+const ICO_CLOCK = ['M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'];
+
+const EMPTY_DETAIL: TimeConstraintDetailRequest = { day: 0, name: '', startTime: '08:00', endTime: '17:00' };
 
 function ConstraintForm({
   initial, onSave, onCancel, loading,
@@ -36,8 +37,12 @@ function ConstraintForm({
   const [fromDate, setFromDate] = useState(initial?.fromDate?.slice(0, 10) ?? '');
   const [toDate, setToDate] = useState(initial?.toDate?.slice(0, 10) ?? '');
   const [details, setDetails] = useState<TimeConstraintDetailRequest[]>(
-    initial?.details?.map((d) => ({ day: d.day, name: d.name, fromTime: d.fromTime, toTime: d.toTime })) ??
-    [{ ...EMPTY_DETAIL }]
+    initial?.details?.map((d) => ({
+      day: d.day,
+      name: d.name,
+      startTime: d.startTime.slice(0, 5),
+      endTime: d.endTime.slice(0, 5),
+    })) ?? [{ ...EMPTY_DETAIL }]
   );
 
   const addDetail = () => setDetails((prev) => [...prev, { ...EMPTY_DETAIL }]);
@@ -50,48 +55,40 @@ function ConstraintForm({
       e.preventDefault();
       onSave({ name, locationId, type, fromDate: fromDate || undefined, toDate: toDate || undefined, details });
     }} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Location *</span></label>
-          <select className="select select-bordered" value={locationId}
+      <FormSection title="General">
+        <FormRow label="Name" required>
+          <input className="input input-bordered w-full" value={name}
+            onChange={(e) => setName(e.target.value)} required maxLength={20} />
+        </FormRow>
+        <FormRow label="Location" required>
+          <select className="select select-bordered w-full" value={locationId}
             onChange={(e) => setLocationId(Number(e.target.value))} required>
             <option value={0} disabled>Select location…</option>
             {locations?.content.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </select>
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Type</span></label>
-          <select className="select select-bordered" value={type}
+        </FormRow>
+        <FormRow label="Type">
+          <select className="select select-bordered w-full" value={type}
             onChange={(e) => setType(Number(e.target.value))}>
             {Object.entries(TIME_CONSTRAINT_TYPES).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-        </div>
-        {type === 0 && (
-          <>
-            <div className="form-control">
-              <label className="label"><span className="label-text">From Date</span></label>
-              <input type="date" className="input input-bordered" value={fromDate}
+        </FormRow>
+        {type === 4 && (
+          <FormRow label="Date Range">
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input type="date" className="input input-bordered flex-1" value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)} />
-            </div>
-            <div className="form-control">
-              <label className="label"><span className="label-text">To Date</span></label>
-              <input type="date" className="input input-bordered" value={toDate}
+              <input type="date" className="input input-bordered flex-1" value={toDate}
                 min={fromDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
-          </>
+          </FormRow>
         )}
-      </div>
+      </FormSection>
 
-      {/* Schedule details */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium">Time Windows</p>
@@ -112,17 +109,17 @@ function ConstraintForm({
               <div className="col-span-3">
                 <label className="label py-0"><span className="label-text text-xs">Name</span></label>
                 <input className="input input-bordered input-xs w-full" value={d.name}
-                  onChange={(e) => updateDetail(i, 'name', e.target.value)} />
+                  onChange={(e) => updateDetail(i, 'name', e.target.value)} maxLength={50} />
               </div>
               <div className="col-span-2">
                 <label className="label py-0"><span className="label-text text-xs">From</span></label>
-                <input type="time" className="input input-bordered input-xs w-full" value={d.fromTime}
-                  onChange={(e) => updateDetail(i, 'fromTime', e.target.value)} />
+                <input type="time" className="input input-bordered input-xs w-full" value={d.startTime}
+                  onChange={(e) => updateDetail(i, 'startTime', e.target.value)} />
               </div>
               <div className="col-span-2">
                 <label className="label py-0"><span className="label-text text-xs">To</span></label>
-                <input type="time" className="input input-bordered input-xs w-full" value={d.toTime}
-                  onChange={(e) => updateDetail(i, 'toTime', e.target.value)} />
+                <input type="time" className="input input-bordered input-xs w-full" value={d.endTime}
+                  onChange={(e) => updateDetail(i, 'endTime', e.target.value)} />
               </div>
               <div className="col-span-2 flex justify-end">
                 <button type="button" className="btn btn-xs btn-ghost text-error"
@@ -133,32 +130,33 @@ function ConstraintForm({
         </div>
       </div>
 
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }
 
 export default function TimeConstraintsPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
+  const [selected, setSelected] = useState<TimeConstraintResponse | null>(null);
+  const [filterName, setFilterName] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TimeConstraintResponse | null>(null);
-  const [confirm, setConfirm] = useState<TimeConstraintResponse | null>(null);
+  const [confirm, setConfirm] = useState<{ tc: TimeConstraintResponse; action: 'disable' | 'restore' } | null>(null);
 
   const { data: locations } = useListLocationsQuery({ size: 200 });
-  const { data, isLoading } = useListTimeConstraintsQuery({ page, size: 20, includeDisabled });
+  const { data, isLoading } = useListTimeConstraintsQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateTimeConstraintMutation();
   const [update, { isLoading: updating }] = useUpdateTimeConstraintMutation();
   const [disable, { isLoading: disabling }] = useDisableTimeConstraintMutation();
+  const [restore, { isLoading: restoring }] = useRestoreTimeConstraintMutation();
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
+
+  const rows = (data?.content ?? []).filter((tc) => {
+    if (filterName && !tc.name.toLowerCase().includes(filterName.toLowerCase())) return false;
+    return true;
+  });
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (tc: TimeConstraintResponse) => { setEditing(tc); setModalOpen(true); };
@@ -169,90 +167,103 @@ export default function TimeConstraintsPage() {
       else await create(body).unwrap();
       addToast({ type: 'success', message: editing ? 'Constraint updated' : 'Constraint created' });
       setModalOpen(false);
+      setSelected(null);
     } catch {
       addToast({ type: 'error', message: 'Failed to save constraint' });
     }
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Time Constraints</h1>
-        <div className="flex items-center gap-3">
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="TIME_CONSTRAINT" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ New Constraint</button>
-          </PermissionGate>
-        </div>
-      </div>
+  const cols = useMemo<ColDef<TimeConstraintResponse>[]>(() => [
+    { field: 'id', headerName: 'ID', width: 70 },
+    { field: 'name', headerName: 'Name', flex: 1 },
+    {
+      headerName: 'Location',
+      width: 120,
+      valueGetter: ({ data: d }) => d ? locationName(d.locationId) : '',
+    },
+    {
+      headerName: 'Type',
+      width: 100,
+      valueGetter: ({ data: d }) => d ? (TIME_CONSTRAINT_TYPES[d.type] ?? `Type ${d.type}`) : '',
+    },
+    {
+      headerName: 'Windows',
+      width: 140,
+      sortable: false,
+      valueGetter: ({ data: d }) => {
+        if (!d) return '';
+        const unique = Array.from(new Set(d.details.map((det) => det.day))).sort();
+        return unique.map((day) => {
+          const det = d.details.find((x) => x.day === day);
+          return det
+            ? `${DAY_SHORT[day]} ${det.startTime.slice(0, 5)}-${det.endTime.slice(0, 5)}`
+            : DAY_SHORT[day];
+        }).join(', ');
+      },
+    },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: TimeConstraintResponse }) => (
+        d.disabled
+          ? <span className="badge badge-ghost badge-sm">Disabled</span>
+          : <span className="badge badge-success badge-sm">Active</span>
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [locations]);
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Type</th>
-                <th>Windows</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={7} />}
-              {!isLoading && data?.content.length === 0 && (
-                <EmptyState colSpan={7} icon="⏰" title="No time constraints"
-                  message="Constraints restrict when assets can be accessed." />
-              )}
-              {data?.content.map((tc) => (
-                <tr key={tc.id}>
-                  <td className="font-mono text-sm">{tc.id}</td>
-                  <td className="font-medium">{tc.name}</td>
-                  <td className="text-base-content/70">{locationName(tc.locationId)}</td>
-                  <td>
-                    <span className="badge badge-outline badge-sm">
-                      {TIME_CONSTRAINT_TYPES[tc.type] ?? `Type ${tc.type}`}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="flex flex-wrap gap-0.5">
-                      {Array.from(new Set(tc.details.map((d) => d.day))).sort().map((day) => (
-                        <span key={day} className="badge badge-neutral badge-xs">{DAY_SHORT[day]}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td><StatusBadge disabled={tc.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <PermissionGate resource="TIME_CONSTRAINT" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(tc)}>Edit</button>
-                      </PermissionGate>
-                      <PermissionGate resource="TIME_CONSTRAINT" action="DELETE">
-                        {!tc.disabled && (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm(tc)}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
-          </div>
-        )}
-      </div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_CLOCK}
+        title="Time Constraints"
+        resource="TIME_CONSTRAINT"
+        onAdd={openCreate}
+        onUpdate={() => selected && openEdit(selected)}
+        onRestore={() => selected && setConfirm({ tc: selected, action: 'restore' })}
+        onDisable={() => selected && setConfirm({ tc: selected, action: 'disable' })}
+        updateDisabled={!selected}
+        restoreDisabled={!selected || !selected.disabled}
+        disableDisabled={!selected || selected.disabled}
+        extra={
+          <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+            <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>
+              Show disabled
+            </span>
+            <input
+              type="checkbox"
+              className="toggle toggle-sm"
+              checked={includeDisabled}
+              onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }}
+            />
+          </label>
+        }
+      />
+
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowClicked={(r) => setSelected(r)}
+          onRowDoubleClicked={(r) => { setSelected(r); openEdit(r); }}
+          exportable
+          exportFilename="time-constraints"
+          height="100%"
+          toolbar={
+            <input
+              className="input input-bordered input-xs"
+              style={{ width: '140px' }}
+              placeholder="Filter name…"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+            />
+          }
+        />
+      </div></div>
 
       <Modal open={modalOpen} title={editing ? 'Edit Time Constraint' : 'New Time Constraint'}
         onClose={() => setModalOpen(false)} size="lg">
@@ -262,18 +273,24 @@ export default function TimeConstraintsPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title="Disable Time Constraint"
-        message={`Disable "${confirm?.name}"? Users assigned this constraint will lose time-based access control.`}
-        confirmLabel="Disable"
-        danger
-        loading={disabling}
+        title={confirm?.action === 'disable' ? 'Disable Time Constraint' : 'Restore Time Constraint'}
+        message={
+          confirm?.action === 'disable'
+            ? `Disable "${confirm?.tc.name}"? Users assigned this constraint will lose time-based access control.`
+            : `Restore "${confirm?.tc.name}"?`
+        }
+        confirmLabel={confirm?.action === 'disable' ? 'Disable' : 'Restore'}
+        danger={confirm?.action === 'disable'}
+        loading={disabling || restoring}
         onConfirm={async () => {
           if (confirm) {
             try {
-              await disable(confirm.id).unwrap();
-              addToast({ type: 'success', message: 'Constraint disabled' });
+              if (confirm.action === 'disable') await disable(confirm.tc.id).unwrap();
+              else await restore(confirm.tc.id).unwrap();
+              addToast({ type: 'success', message: confirm.action === 'disable' ? 'Constraint disabled' : 'Constraint restored' });
+              setSelected(null);
             } catch {
-              addToast({ type: 'error', message: 'Failed to disable constraint' });
+              addToast({ type: 'error', message: 'Action failed' });
             }
             setConfirm(null);
           }

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useListAssetGroupsQuery,
   useCreateAssetGroupMutation,
   useUpdateAssetGroupMutation,
   useDisableAssetGroupMutation,
+  useRestoreAssetGroupMutation,
   useAddAssetToGroupMutation,
   useRemoveAssetFromGroupMutation,
 } from '../features/assetGroup/assetGroupApi';
@@ -12,12 +13,17 @@ import { useListAssetsByLocationQuery } from '../features/asset/assetApi';
 import type { AssetGroupResponse, AssetGroupRequest } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
-import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormRow, FormActions } from '../components/shared/Form';
+import PageHeader from '../components/shared/PageHeader';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+
+const ICO_ASSET_GROUP = [
+  'M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75z',
+  'M14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25z',
+  'M3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z',
+];
 
 function GroupForm({
   initial, onSave, onCancel, loading,
@@ -33,28 +39,18 @@ function GroupForm({
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave({ name, locationId }); }} className="space-y-3">
-      <div className="form-control">
-        <label className="label"><span className="label-text">Group Name *</span></label>
-        <input className="input input-bordered" value={name}
-          onChange={(e) => setName(e.target.value)} required maxLength={100} />
-      </div>
-      <div className="form-control">
-        <label className="label"><span className="label-text">Location *</span></label>
-        <select className="select select-bordered" value={locationId}
-          onChange={(e) => setLocationId(Number(e.target.value))} required>
+      <FormRow label="Group Name" required>
+        <input className="input input-bordered w-full" value={name} onChange={(e) => setName(e.target.value)} required maxLength={20} />
+      </FormRow>
+      <FormRow label="Location" required>
+        <select className="select select-bordered w-full" value={locationId} onChange={(e) => setLocationId(Number(e.target.value))} required>
           <option value={0} disabled>Select location…</option>
           {locations?.content.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
         </select>
-      </div>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          {initial ? 'Update' : 'Create'}
-        </button>
-      </div>
+      </FormRow>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
     </form>
   );
 }
@@ -134,8 +130,8 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
           </div>
         </PermissionGate>
       </div>
-      <div className="modal-action">
-        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+      <div className="flex justify-end pt-4 mt-2 border-t border-base-200">
+        <button type="button" className="btn btn-ghost" onClick={onClose}>Close</button>
       </div>
     </div>
   );
@@ -143,19 +139,21 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
 
 export default function AssetGroupsPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [editing, setEditing] = useState<AssetGroupResponse | null>(null);
   const [assigning, setAssigning] = useState<AssetGroupResponse | null>(null);
-  const [confirm, setConfirm] = useState<AssetGroupResponse | null>(null);
+  const [selected, setSelected] = useState<AssetGroupResponse | null>(null);
+  const [filterName, setFilterName] = useState('');
+  const [confirm, setConfirm] = useState<{ g: AssetGroupResponse; action: 'disable' | 'restore' } | null>(null);
 
   const { data: locations } = useListLocationsQuery({ size: 200 });
-  const { data, isLoading } = useListAssetGroupsQuery({ page, size: 20, includeDisabled });
+  const { data, isLoading } = useListAssetGroupsQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateAssetGroupMutation();
   const [update, { isLoading: updating }] = useUpdateAssetGroupMutation();
   const [disable, { isLoading: disabling }] = useDisableAssetGroupMutation();
+  const [restore, { isLoading: restoring }] = useRestoreAssetGroupMutation();
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
@@ -163,90 +161,106 @@ export default function AssetGroupsPage() {
   const openEdit = (g: AssetGroupResponse) => { setEditing(g); setModalOpen(true); };
   const openAssign = (g: AssetGroupResponse) => { setAssigning(g); setAssignOpen(true); };
 
+  const rows = (data?.content ?? []).filter((item) => {
+    if (filterName && !item.name.toLowerCase().includes(filterName.toLowerCase())) return false;
+    return true;
+  });
+
   const handleSave = async (body: AssetGroupRequest) => {
     try {
       if (editing) await update({ id: editing.id, body }).unwrap();
       else await create(body).unwrap();
       addToast({ type: 'success', message: editing ? 'Group updated' : 'Group created' });
       setModalOpen(false);
+      setSelected(null);
     } catch {
       addToast({ type: 'error', message: 'Failed to save group' });
     }
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Asset Groups</h1>
-        <div className="flex items-center gap-3">
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="ASSET_GROUP" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={openCreate}>+ New Group</button>
-          </PermissionGate>
-        </div>
-      </div>
+  const cols = useMemo<ColDef<AssetGroupResponse>[]>(() => [
+    { field: 'id', headerName: 'ID', width: 70 },
+    { field: 'name', headerName: 'Name', flex: 1 },
+    {
+      headerName: 'Location',
+      width: 120,
+      valueGetter: ({ data: d }) => d ? locationName(d.locationId) : '',
+    },
+    {
+      headerName: 'Assets',
+      width: 80,
+      valueGetter: ({ data: d }) => d ? d.assetIds.length : 0,
+    },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: AssetGroupResponse }) => (
+        d.disabled
+          ? <span className="badge badge-ghost badge-sm">Disabled</span>
+          : <span className="badge badge-success badge-sm">Active</span>
+      ),
+    },
+    {
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ({ data: d }: { data: AssetGroupResponse }) => (
+        <PermissionGate resource="ASSET_GROUP" action="ASSIGN">
+          <button className="btn btn-ghost btn-xs text-primary"
+            onClick={(e) => { e.stopPropagation(); openAssign(d); }}>
+            Assets
+          </button>
+        </PermissionGate>
+      ),
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [locations]);
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Assets</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={6} />}
-              {!isLoading && data?.content.length === 0 && (
-                <EmptyState colSpan={6} icon="📦" title="No asset groups"
-                  message="Groups bundle assets for batch assignment to users." />
-              )}
-              {data?.content.map((g) => (
-                <tr key={g.id}>
-                  <td className="font-mono text-sm">{g.id}</td>
-                  <td className="font-medium">{g.name}</td>
-                  <td className="text-base-content/70">{locationName(g.locationId)}</td>
-                  <td>
-                    <span className="badge badge-neutral badge-sm">{g.assetIds.length} assets</span>
-                  </td>
-                  <td><StatusBadge disabled={g.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <PermissionGate resource="ASSET_GROUP" action="ASSIGN">
-                        <button className="btn btn-ghost btn-xs text-primary"
-                          onClick={() => openAssign(g)}>Assets</button>
-                      </PermissionGate>
-                      <PermissionGate resource="ASSET_GROUP" action="UPDATE">
-                        <button className="btn btn-ghost btn-xs" onClick={() => openEdit(g)}>Edit</button>
-                      </PermissionGate>
-                      <PermissionGate resource="ASSET_GROUP" action="DELETE">
-                        {!g.disabled && (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm(g)}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
-          </div>
-        )}
-      </div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_ASSET_GROUP}
+        title="Asset Groups"
+        resource="ASSET_GROUP"
+        onAdd={openCreate}
+        onUpdate={() => selected && openEdit(selected)}
+        onRestore={() => selected && setConfirm({ g: selected, action: 'restore' })}
+        onDisable={() => selected && setConfirm({ g: selected, action: 'disable' })}
+        updateDisabled={!selected}
+        restoreDisabled={!selected || !selected.disabled}
+        disableDisabled={!selected || selected.disabled}
+        extra={
+          <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+            <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>Show disabled</span>
+            <input type="checkbox" className="toggle toggle-sm" checked={includeDisabled} onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }} />
+          </label>
+        }
+      />
+
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowClicked={(r) => setSelected(r)}
+          onRowDoubleClicked={(r) => { setSelected(r); openEdit(r); }}
+          exportable
+          exportFilename="asset-groups"
+          height="100%"
+          toolbar={
+            <input
+              className="input input-bordered input-xs"
+              style={{ width: '140px' }}
+              placeholder="Filter name…"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+            />
+          }
+        />
+      </div></div>
 
       <Modal open={modalOpen} title={editing ? 'Edit Asset Group' : 'New Asset Group'}
         onClose={() => setModalOpen(false)}>
@@ -264,18 +278,24 @@ export default function AssetGroupsPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title="Disable Asset Group"
-        message={`Disable group "${confirm?.name}"?`}
-        confirmLabel="Disable"
-        danger
-        loading={disabling}
+        title={confirm?.action === 'disable' ? 'Disable Asset Group' : 'Restore Asset Group'}
+        message={
+          confirm?.action === 'disable'
+            ? `Disable group "${confirm?.g.name}"?`
+            : `Restore group "${confirm?.g.name}"?`
+        }
+        confirmLabel={confirm?.action === 'disable' ? 'Disable' : 'Restore'}
+        danger={confirm?.action === 'disable'}
+        loading={disabling || restoring}
         onConfirm={async () => {
           if (confirm) {
             try {
-              await disable(confirm.id).unwrap();
-              addToast({ type: 'success', message: 'Group disabled' });
+              if (confirm.action === 'disable') await disable(confirm.g.id).unwrap();
+              else await restore(confirm.g.id).unwrap();
+              addToast({ type: 'success', message: confirm.action === 'disable' ? 'Group disabled' : 'Group restored' });
+              setSelected(null);
             } catch {
-              addToast({ type: 'error', message: 'Failed to disable group' });
+              addToast({ type: 'error', message: 'Action failed' });
             }
             setConfirm(null);
           }

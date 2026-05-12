@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from './app/hooks';
+import { fetchMe } from './features/auth/authSlice';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -14,8 +17,19 @@ import TimeConstraintsPage from './pages/TimeConstraintsPage';
 import ProfilePage from './pages/ProfilePage';
 import CabinetDetailPage from './pages/CabinetDetailPage';
 import AssetDetailPage from './pages/AssetDetailPage';
+import AuditTrailPage from './pages/AuditTrailPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
+  const dispatch = useAppDispatch();
+  const { accessToken, operator } = useAppSelector((s) => s.auth);
+
+  useEffect(() => {
+    if (accessToken && !operator) {
+      dispatch(fetchMe());
+    }
+  }, [accessToken, operator, dispatch]);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -33,6 +47,8 @@ export default function App() {
           <Route path="/asset-groups"     element={<AssetGroupsPage />} />
           <Route path="/time-constraints" element={<TimeConstraintsPage />} />
           <Route path="/profile"          element={<ProfilePage />} />
+          <Route path="/audit"            element={<AuditTrailPage />} />
+          <Route path="/settings"         element={<SettingsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

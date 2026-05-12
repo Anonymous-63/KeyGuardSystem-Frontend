@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useListCabinetUsersQuery,
   useCreateCabinetUserMutation,
@@ -28,12 +28,14 @@ import { CABINET_USER_TYPES } from '../types/api';
 import Modal from '../components/shared/Modal';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import StatusBadge from '../components/shared/StatusBadge';
-import Pagination from '../components/shared/Pagination';
-import LoadingRow from '../components/shared/LoadingRow';
-import EmptyState from '../components/shared/EmptyState';
 import Tabs from '../components/shared/Tabs';
 import PermissionGate from '../components/PermissionGate';
 import { useToast } from '../components/shared/Toast';
+import { FormField, FormRow, FormGrid, FormActions } from '../components/shared/Form';
+import PageHeader from '../components/shared/PageHeader';
+import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+
+const ICO_USERS = ['M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'];
 
 // ─── User Detail Modal ────────────────────────────────────────────────────────
 
@@ -52,108 +54,63 @@ function UserDetailsForm({
   const [shortName, setShortName] = useState(initial.shortName ?? '');
   const [cardUid, setCardUid] = useState<number | ''>(initial.cardUid ?? '');
   const [pin, setPin] = useState('');
-  const [type, setType] = useState<number>(initial.type);
-  const [email, setEmail] = useState(initial.email ?? '');
+  const [emailId, setEmailId] = useState(initial.emailId ?? '');
   const [mobileNo, setMobileNo] = useState(initial.mobileNo ?? '');
   const [division, setDivision] = useState(initial.division ?? '');
   const [designation, setDesignation] = useState(initial.designation ?? '');
-  const [validFrom, setValidFrom] = useState(initial.validFrom?.slice(0, 16) ?? '');
-  const [validUpto, setValidUpto] = useState(initial.validUpto?.slice(0, 16) ?? '');
+  const [address, setAddress] = useState(initial.address ?? '');
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({
-        name, type,
+        id: initial.id,
+        name,
         shortId: shortId || undefined,
         shortName: shortName || undefined,
         cardUid: cardUid !== '' ? cardUid : undefined,
         pin: pin || undefined,
-        email: email || undefined,
+        emailId: emailId || undefined,
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
-        validFrom: validFrom || undefined,
-        validUpto: validUpto || undefined,
+        address: address || undefined,
       });
-    }}>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">User ID</span></label>
-          <input className="input input-bordered input-sm font-mono" value={initial.id} disabled />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Type *</span></label>
-          <select className="select select-bordered select-sm" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
-            {Object.entries(CABINET_USER_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label py-1"><span className="label-text text-xs">Full Name *</span></label>
-          <input className="input input-bordered input-sm" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Short ID</span></label>
-          <input className="input input-bordered input-sm" value={shortId}
-            onChange={(e) => setShortId(e.target.value)} maxLength={10} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Short Name</span></label>
-          <input className="input input-bordered input-sm" value={shortName}
-            onChange={(e) => setShortName(e.target.value)} maxLength={20} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Card UID</span></label>
-          <input type="number" className="input input-bordered input-sm font-mono" value={cardUid}
-            onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">PIN (leave blank to keep)</span></label>
-          <input type="password" className="input input-bordered input-sm" value={pin}
-            onChange={(e) => setPin(e.target.value)} maxLength={8} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Email</span></label>
-          <input type="email" className="input input-bordered input-sm" value={email}
-            onChange={(e) => setEmail(e.target.value)} maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Mobile No</span></label>
-          <input className="input input-bordered input-sm" value={mobileNo}
-            onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Division</span></label>
-          <input className="input input-bordered input-sm" value={division}
-            onChange={(e) => setDivision(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Designation</span></label>
-          <input className="input input-bordered input-sm" value={designation}
-            onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Valid From</span></label>
-          <input type="datetime-local" className="input input-bordered input-sm" value={validFrom}
-            onChange={(e) => setValidFrom(e.target.value)} />
-        </div>
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Valid Until</span></label>
-          <input type="datetime-local" className="input input-bordered input-sm" value={validUpto}
-            min={validFrom} onChange={(e) => setValidUpto(e.target.value)} />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 mt-4">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Save Changes
-        </button>
-      </div>
+    }} className="space-y-3">
+      <FormRow label="User ID">
+        <input className="input input-bordered w-full font-mono" value={initial.id} disabled />
+      </FormRow>
+      <FormRow label="Full Name" required>
+        <input className="input input-bordered w-full" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} />
+      </FormRow>
+      <FormRow label="Short ID">
+        <input className="input input-bordered w-full" value={shortId} onChange={(e) => setShortId(e.target.value)} maxLength={10} />
+      </FormRow>
+      <FormRow label="Short Name">
+        <input className="input input-bordered w-full" value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={20} />
+      </FormRow>
+      <FormRow label="Card UID">
+        <input type="number" className="input input-bordered w-full font-mono" value={cardUid} onChange={(e) => setCardUid(e.target.value === '' ? '' : Number(e.target.value))} />
+      </FormRow>
+      <FormRow label="PIN">
+        <input type="password" className="input input-bordered w-full" value={pin} onChange={(e) => setPin(e.target.value)} maxLength={8} placeholder="Leave blank to keep" />
+      </FormRow>
+      <FormRow label="Email">
+        <input type="email" className="input input-bordered w-full" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+      </FormRow>
+      <FormRow label="Mobile No">
+        <input className="input input-bordered w-full" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+      </FormRow>
+      <FormRow label="Division">
+        <input className="input input-bordered w-full" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
+      </FormRow>
+      <FormRow label="Designation">
+        <input className="input input-bordered w-full" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
+      </FormRow>
+      <FormRow label="Address">
+        <input className="input input-bordered w-full" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} />
+      </FormRow>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Save Changes" />
     </form>
   );
 }
@@ -165,9 +122,11 @@ function LocationsTab({ userId }: { userId: string }) {
   const [assign, { isLoading: assigning }] = useAssignLocationMutation();
   const [remove, { isLoading: removing }] = useRemoveLocationMutation();
   const [selectedId, setSelectedId] = useState<number>(0);
+  const [validFrom, setValidFrom] = useState('');
 
-  const assignedIds = new Set(assigned?.map((l) => l.id) ?? []);
-  const available = allLocations?.content.filter((l) => !assignedIds.has(l.id) && !l.disabled) ?? [];
+  const assignedLocationIds = new Set(assigned?.map((l) => l.locationId) ?? []);
+  const available = allLocations?.content.filter((l) => !assignedLocationIds.has(l.id) && !l.disabled) ?? [];
+  const getLocName = (id: number) => allLocations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
   return (
     <div className="space-y-4">
@@ -182,17 +141,25 @@ function LocationsTab({ userId }: { userId: string }) {
         ) : (
           <div className="space-y-1">
             {assigned?.map((loc) => (
-              <div key={loc.id}
+              <div key={loc.locationId}
                 className="flex items-center justify-between px-3 py-2 rounded-lg bg-base-200">
                 <div>
-                  <span className="text-sm font-medium">📍 {loc.name}</span>
-                  {loc.address && <span className="text-xs text-base-content/50 ml-2">{loc.address}</span>}
+                  <span className="text-sm font-medium">📍 {getLocName(loc.locationId)}</span>
+                  <div className="text-xs text-base-content/50 mt-0.5">
+                    From {new Date(loc.validFrom).toLocaleDateString()}
+                    {loc.validUpto && ` · Until ${new Date(loc.validUpto).toLocaleDateString()}`}
+                    {loc.type != null && (
+                      <span className="ml-2 badge badge-xs badge-outline">
+                        {CABINET_USER_TYPES[loc.type] ?? `Type ${loc.type}`}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <PermissionGate resource="CABINET_USER" action="ASSIGN">
                   <button className="btn btn-ghost btn-xs text-error" disabled={removing}
                     onClick={async () => {
                       try {
-                        await remove({ id: userId, locationId: loc.id }).unwrap();
+                        await remove({ id: userId, locationId: loc.locationId }).unwrap();
                         addToast({ type: 'success', message: 'Location removed' });
                       } catch { addToast({ type: 'error', message: 'Failed to remove location' }); }
                     }}>Remove</button>
@@ -209,24 +176,32 @@ function LocationsTab({ userId }: { userId: string }) {
           {available.length === 0 ? (
             <p className="text-sm text-base-content/40 italic">All active locations already assigned.</p>
           ) : (
-            <div className="flex gap-2">
-              <select className="select select-bordered select-sm flex-1" value={selectedId}
+            <div className="space-y-2">
+              <select className="select select-bordered select-sm w-full" value={selectedId}
                 onChange={(e) => setSelectedId(Number(e.target.value))}>
                 <option value={0} disabled>Select location…</option>
                 {available.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
-              <button className="btn btn-primary btn-sm"
-                disabled={!selectedId || assigning}
-                onClick={async () => {
-                  if (!selectedId) return;
-                  try {
-                    await assign({ id: userId, body: { locationId: selectedId } }).unwrap();
-                    addToast({ type: 'success', message: 'Location assigned' });
-                  } catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
-                  setSelectedId(0);
-                }}>
-                {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign'}
-              </button>
+              <div className="flex gap-2 items-end">
+                <div className="form-control flex-1">
+                  <label className="label py-0"><span className="label-text text-xs">Valid From *</span></label>
+                  <input type="date" className="input input-bordered input-sm" value={validFrom}
+                    onChange={(e) => setValidFrom(e.target.value)} />
+                </div>
+                <button className="btn btn-primary btn-sm"
+                  disabled={!selectedId || !validFrom || assigning}
+                  onClick={async () => {
+                    if (!selectedId || !validFrom) return;
+                    try {
+                      await assign({ id: userId, body: { locationId: selectedId, validFrom: `${validFrom}T00:00:00` } }).unwrap();
+                      addToast({ type: 'success', message: 'Location assigned' });
+                    } catch { addToast({ type: 'error', message: 'Failed to assign location' }); }
+                    setSelectedId(0);
+                    setValidFrom('');
+                  }}>
+                  {assigning ? <span className="loading loading-spinner loading-xs" /> : 'Assign'}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -625,90 +600,40 @@ function NewUserForm({
   onCancel: () => void;
   loading: boolean;
 }) {
-  const [userId, setUserId] = useState('');
+  const [id, setId] = useState('');
   const [name, setName] = useState('');
-  const [type, setType] = useState<number>(0);
-  const [email, setEmail] = useState('');
+  const [emailId, setEmailId] = useState('');
   const [mobileNo, setMobileNo] = useState('');
   const [division, setDivision] = useState('');
   const [designation, setDesignation] = useState('');
+  const [address, setAddress] = useState('');
 
   return (
     <form onSubmit={(e) => {
       e.preventDefault();
       onSave({
-        userId, name, type,
-        email: email || undefined,
+        id, name,
+        emailId: emailId || undefined,
         mobileNo: mobileNo || undefined,
         division: division || undefined,
         designation: designation || undefined,
+        address: address || undefined,
       });
-    }} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">User ID *</span></label>
-          <input className="input input-bordered" value={userId}
-            onChange={(e) => setUserId(e.target.value)} required maxLength={20} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Type *</span></label>
-          <select className="select select-bordered" value={type}
-            onChange={(e) => setType(Number(e.target.value))}>
-            {Object.entries(CABINET_USER_TYPES).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-control col-span-2">
-          <label className="label"><span className="label-text">Full Name *</span></label>
-          <input className="input input-bordered" value={name}
-            onChange={(e) => setName(e.target.value)} required maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Division</span></label>
-          <input className="input input-bordered" value={division}
-            onChange={(e) => setDivision(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Designation</span></label>
-          <input className="input input-bordered" value={designation}
-            onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Email</span></label>
-          <input type="email" className="input input-bordered" value={email}
-            onChange={(e) => setEmail(e.target.value)} maxLength={100} />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">Mobile No</span></label>
-          <input className="input input-bordered" value={mobileNo}
-            onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
-        </div>
-      </div>
+    }} className="space-y-4">
+      <FormGrid>
+        <FormField label="User ID" value={id} onChange={(e) => setId(e.target.value)} required maxLength={20} wrapperClassName="col-span-full" />
+        <FormField label="Full Name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={50} wrapperClassName="col-span-full" />
+        <FormField label="Division" value={division} onChange={(e) => setDivision(e.target.value)} maxLength={50} />
+        <FormField label="Designation" value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={50} />
+        <FormField type="email" label="Email" value={emailId} onChange={(e) => setEmailId(e.target.value)} maxLength={100} />
+        <FormField label="Mobile No" value={mobileNo} onChange={(e) => setMobileNo(e.target.value)} maxLength={15} />
+        <FormField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} maxLength={200} wrapperClassName="col-span-full" />
+      </FormGrid>
       <p className="text-xs text-base-content/50">
         After creating, use "Manage" to assign locations, assets, and time constraints.
       </p>
-      <div className="modal-action">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading && <span className="loading loading-spinner loading-xs" />}
-          Create User
-        </button>
-      </div>
+      <FormActions onCancel={onCancel} loading={loading} submitLabel="Create User" />
     </form>
-  );
-}
-
-// ─── Type Badge ───────────────────────────────────────────────────────────────
-
-function TypeBadge({ type }: { type: number }) {
-  const colors: Record<number, string> = {
-    0: 'badge-neutral', 1: 'badge-primary', 2: 'badge-secondary', 3: 'badge-accent',
-  };
-  return (
-    <span className={`badge badge-sm ${colors[type] ?? 'badge-neutral'}`}>
-      {CABINET_USER_TYPES[type] ?? `Type ${type}`}
-    </span>
   );
 }
 
@@ -716,14 +641,14 @@ function TypeBadge({ type }: { type: number }) {
 
 export default function CabinetUsersPage() {
   const { addToast } = useToast();
-  const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<CabinetUserResponse | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [managing, setManaging] = useState<CabinetUserResponse | null>(null);
   const [confirm, setConfirm] = useState<{ user: CabinetUserResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data, isLoading } = useListCabinetUsersQuery({ page, size: 20, includeDisabled });
+  const { data, isLoading } = useListCabinetUsersQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateCabinetUserMutation();
   const [disable, { isLoading: disabling }] = useDisableCabinetUserMutation();
   const [restore, { isLoading: restoring }] = useRestoreCabinetUserMutation();
@@ -740,6 +665,7 @@ export default function CabinetUsersPage() {
       await create(body).unwrap();
       addToast({ type: 'success', message: 'User created' });
       setCreateOpen(false);
+      setSelected(null);
     } catch { addToast({ type: 'error', message: 'Failed to create user' }); }
   };
 
@@ -749,104 +675,94 @@ export default function CabinetUsersPage() {
       if (confirm.action === 'disable') await disable(confirm.user.id).unwrap();
       else await restore(confirm.user.id).unwrap();
       addToast({ type: 'success', message: confirm.action === 'disable' ? 'User disabled' : 'User restored' });
+      setSelected(null);
     } catch { addToast({ type: 'error', message: 'Action failed' }); }
     setConfirm(null);
   };
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Cabinet Users</h1>
-        <div className="flex items-center gap-3 flex-wrap">
-          <input
-            type="search"
-            className="input input-bordered input-sm w-48"
-            placeholder="Search name or ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <label className="label cursor-pointer gap-2">
-            <span className="label-text text-sm">Show disabled</span>
-            <input type="checkbox" className="toggle toggle-sm"
-              checked={includeDisabled} onChange={(e) => setIncludeDisabled(e.target.checked)} />
-          </label>
-          <PermissionGate resource="CABINET_USER" action="CREATE">
-            <button className="btn btn-primary btn-sm" onClick={() => setCreateOpen(true)}>
-              + Add User
-            </button>
-          </PermissionGate>
-        </div>
-      </div>
+  const cols = useMemo<ColDef<CabinetUserResponse>[]>(() => [
+    { field: 'id', headerName: 'ID', width: 100 },
+    { field: 'name', headerName: 'Name', flex: 1 },
+    {
+      headerName: 'Division',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.division ?? '—',
+    },
+    {
+      headerName: 'Designation',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.designation ?? '—',
+    },
+    {
+      headerName: 'Mobile',
+      width: 120,
+      valueGetter: ({ data: d }) => d?.mobileNo ?? '—',
+    },
+    {
+      headerName: 'Status',
+      width: 90,
+      sortable: false,
+      cellRenderer: ({ data: d }: { data: CabinetUserResponse }) => (
+        d.disabled
+          ? <span className="badge badge-ghost badge-sm">Disabled</span>
+          : <span className="badge badge-success badge-sm">Active</span>
+      ),
+    },
+    {
+      headerName: 'Actions',
+      width: 80,
+      sortable: false,
+      resizable: false,
+      cellRenderer: ({ data: d }: { data: CabinetUserResponse }) => (
+        <PermissionGate resource="CABINET_USER" action="UPDATE">
+          <button className="btn btn-primary btn-xs"
+            onClick={(e) => { e.stopPropagation(); setManaging(d); }}>
+            Manage
+          </button>
+        </PermissionGate>
+      ),
+    },
+  ], []);
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-zebra">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Division / Designation</th>
-                <th>Mobile</th>
-                <th>Valid Until</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <LoadingRow colSpan={8} />}
-              {!isLoading && rows.length === 0 && (
-                <EmptyState colSpan={8} icon="🧑" title="No cabinet users found"
-                  message={search ? 'No users match your search.' : 'Cabinet users are the people who physically access key cabinets.'}
-                  action={!search ? { label: '+ Add User', onClick: () => setCreateOpen(true) } : undefined} />
-              )}
-              {rows.map((user) => (
-                <tr key={user.id}>
-                  <td className="font-mono text-sm">{user.id}</td>
-                  <td>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      {user.shortName && <p className="text-xs text-base-content/50">{user.shortName}</p>}
-                    </div>
-                  </td>
-                  <td><TypeBadge type={user.type} /></td>
-                  <td className="text-xs text-base-content/70">
-                    {[user.division, user.designation].filter(Boolean).join(' · ') || '—'}
-                  </td>
-                  <td className="font-mono text-sm">{user.mobileNo ?? '—'}</td>
-                  <td className="text-sm text-base-content/70">
-                    {user.validUpto ? new Date(user.validUpto).toLocaleDateString() : '—'}
-                  </td>
-                  <td><StatusBadge disabled={user.disabled} /></td>
-                  <td>
-                    <div className="flex gap-1">
-                      <PermissionGate resource="CABINET_USER" action="UPDATE">
-                        <button className="btn btn-primary btn-xs"
-                          onClick={() => setManaging(user)}>Manage</button>
-                      </PermissionGate>
-                      <PermissionGate resource="CABINET_USER" action={user.disabled ? 'RESTORE' : 'DELETE'}>
-                        {user.disabled ? (
-                          <button className="btn btn-ghost btn-xs text-success"
-                            onClick={() => setConfirm({ user, action: 'restore' })}>Restore</button>
-                        ) : (
-                          <button className="btn btn-ghost btn-xs text-error"
-                            onClick={() => setConfirm({ user, action: 'disable' })}>Disable</button>
-                        )}
-                      </PermissionGate>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && (
-          <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={data.totalPages}
-              totalElements={data.totalElements} size={20} onPageChange={setPage} />
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <PageHeader
+        icon={ICO_USERS}
+        title="Cabinet Users"
+        resource="CABINET_USER"
+        onAdd={() => setCreateOpen(true)}
+        onUpdate={() => selected && setManaging(selected)}
+        onRestore={() => selected && setConfirm({ user: selected, action: 'restore' })}
+        onDisable={() => selected && setConfirm({ user: selected, action: 'disable' })}
+        updateDisabled={!selected}
+        restoreDisabled={!selected || !selected.disabled}
+        disableDisabled={!selected || selected.disabled}
+        extra={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <input type="search" className="input input-bordered input-sm" style={{ width: '160px' }}
+              placeholder="Search name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+              <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>Show disabled</span>
+              <input type="checkbox" className="toggle toggle-sm" checked={includeDisabled}
+                onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }} />
+            </label>
           </div>
-        )}
-      </div>
+        }
+      />
+
+      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}><div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
+        <DataGrid
+          columnDefs={cols}
+          rowData={rows}
+          loading={isLoading}
+          getRowId={(r) => String(r.id)}
+          onRowClicked={(r) => setSelected(r)}
+          onRowDoubleClicked={(r) => { setSelected(r); setManaging(r); }}
+          exportable
+          exportFilename="cabinet-users"
+          height="100%"
+        />
+      </div></div>
 
       {/* Create modal */}
       <Modal open={createOpen} title="New Cabinet User"

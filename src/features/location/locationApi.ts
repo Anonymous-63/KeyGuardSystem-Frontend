@@ -11,9 +11,22 @@ export const locationApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Location', 'LocationOperator'],
   endpoints: (b) => ({
-    listLocations: b.query<PagedResponse<LocationResponse>, { page?: number; size?: number; includeDisabled?: boolean }>({
-      query: ({ page = 0, size = 20, includeDisabled = false } = {}) =>
-        `/locations?page=${page}&size=${size}&includeDisabled=${includeDisabled}`,
+    listLocations: b.query<PagedResponse<LocationResponse>, {
+      page?: number;
+      size?: number;
+      name?: string;
+      assetType?: string;
+      cabinetType?: string;
+      disabled?: boolean;
+    }>({
+      query: ({ page = 0, size = 20, name, assetType, cabinetType, disabled } = {}) => {
+        const p = new URLSearchParams({ page: String(page), size: String(size) });
+        if (name)        p.set('name',        name);
+        if (assetType)   p.set('assetType',   assetType);
+        if (cabinetType) p.set('cabinetType', cabinetType);
+        if (disabled != null) p.set('disabled', String(disabled));
+        return `/locations?${p.toString()}`;
+      },
       transformResponse: (r: ApiResponse<PagedResponse<LocationResponse>>) => r.data,
       providesTags: ['Location'],
     }),
@@ -61,6 +74,7 @@ export const locationApi = createApi({
 
 export const {
   useListLocationsQuery,
+  useLazyListLocationsQuery,
   useGetLocationQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,

@@ -5,6 +5,7 @@ export interface ApiResponse<T> {
   message?: string;
   data: T;
   error?: string;
+  errorCode?: string;
   timestamp: string;
 }
 
@@ -37,17 +38,43 @@ export interface RefreshRequest {
 
 // ─── Location ─────────────────────────────────────────────────────────────────
 
+export const LOCATION_ASSET_TYPES = {
+  KEYS:    'Keys',
+  TLDS:    'TLDs',
+  LOCKERS: 'Lockers',
+} as const;
+
+export type LocationAssetType = keyof typeof LOCATION_ASSET_TYPES;
+
+export const LOCATION_CABINET_TYPES = {
+  SINGLE:     'Single',
+  MULTI_SAME: 'Multi Same',
+  MULTI_DIFF: 'Multi Different',
+} as const;
+
+export type LocationCabinetType = keyof typeof LOCATION_CABINET_TYPES;
+
 export interface LocationResponse {
   id: number;
   name: string;
-  address?: string;
+  assetType: number;
+  assetTypeName?: LocationAssetType;
+  cabinetType: number;
+  cabinetTypeName?: LocationCabinetType;
+  features?: string;
   disabled: boolean;
-  mDate: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
 }
 
 export interface LocationRequest {
   name: string;
-  address?: string;
+  assetType: LocationAssetType;
+  cabinetType: LocationCabinetType;
+  features?: string;
 }
 
 // ─── Location-Operator Mapping ────────────────────────────────────────────────
@@ -57,9 +84,11 @@ export interface LocationOperatorRequest {
 }
 
 export interface LocationOperatorResponse {
-  operatorId: string;
-  operatorName: string;
   locationId: number;
+  locationName?: string;
+  operatorId: string;
+  operatorName?: string;
+  disabled: boolean;
   mDate: string;
 }
 
@@ -76,17 +105,28 @@ export const OPERATOR_TYPES: Record<number, string> = {
 export interface OperatorResponse {
   id: string;
   name: string;
-  email?: string;
+  emailId?: string;
+  mobileNo?: string;
+  mobileCountryCode?: string;
   type: number;
+  typeName?: string;
   disabled: boolean;
-  mDate: string;
+  passChangedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  updatedBy?: string;
+  version?: number;
+  photoPath?: string;
 }
 
 export interface OperatorRequest {
-  operatorId: string;
-  password: string;
+  id?: string;
+  password?: string;
   name: string;
-  email?: string;
+  emailId?: string;
+  mobileNo?: string;
+  mobileCountryCode?: string;
   type: number;
 }
 
@@ -103,14 +143,13 @@ export interface CabinetResponse {
   name: string;
   mac: string;
   ip: string;
-  subnetMask: string;
-  gateway: string;
+  subnetMask?: string;
+  gateway?: string;
   serverIp?: string;
-  serverURL?: string;
+  serverUrl?: string;
   disabled: boolean;
-  registered: number;
+  registered: boolean;
   syncStatus: number;
-  mDate: string;
 }
 
 export interface CabinetRequest {
@@ -121,7 +160,7 @@ export interface CabinetRequest {
   subnetMask: string;
   gateway: string;
   serverIp?: string;
-  serverURL?: string;
+  serverUrl?: string;
 }
 
 export interface CabinetMatrixResponse {
@@ -191,9 +230,12 @@ export interface AssetGroupRequest {
 
 // ─── Time Constraint ──────────────────────────────────────────────────────────
 
+// Backend enum: DAILY(1), WEEKLY(2), MONTHLY(3), INTERVAL(4)
 export const TIME_CONSTRAINT_TYPES: Record<number, string> = {
-  0: 'Fixed Range',
-  1: 'Weekly Schedule',
+  1: 'Daily',
+  2: 'Weekly',
+  3: 'Monthly',
+  4: 'Interval',
 };
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -202,16 +244,15 @@ export const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export interface TimeConstraintDetailRequest {
   day: number;
   name: string;
-  fromTime: string;
-  toTime: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface TimeConstraintDetailResponse {
-  id?: number;
   day: number;
   name: string;
-  fromTime: string;
-  toTime: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface TimeConstraintRequest {
@@ -237,6 +278,7 @@ export interface TimeConstraintResponse {
 
 // ─── Cabinet User ─────────────────────────────────────────────────────────────
 
+// User access type within a location assignment (stored in location_cabinet_users.type)
 export const CABINET_USER_TYPES: Record<number, string> = {
   0: 'User',
   1: 'Admin',
@@ -250,36 +292,53 @@ export interface CabinetUserResponse {
   shortId?: string;
   shortName?: string;
   cardUid?: number;
-  type: number;
-  email?: string;
+  emailId?: string;
   mobileNo?: string;
+  landlineNo?: string;
   division?: string;
   designation?: string;
-  validFrom?: string;
-  validUpto?: string;
+  address?: string;
+  fp1?: number;
+  fp2?: number;
+  fingerModuleId?: number;
   disabled: boolean;
+  passChangedAt?: string;
   mDate: string;
 }
 
 export interface CabinetUserRequest {
-  userId: string;
+  id: string;
   name: string;
   shortId?: string;
   shortName?: string;
   cardUid?: number;
   pin?: string;
-  type: number;
-  email?: string;
+  emailId?: string;
   mobileNo?: string;
+  landlineNo?: string;
   division?: string;
   designation?: string;
   address?: string;
-  validFrom?: string;
-  validUpto?: string;
 }
 
+// Location assignment for a cabinet user (from location_cabinet_users table)
+export interface LocationAssignmentResponse {
+  locationId: number;
+  userId: string;
+  validFrom: string;
+  validUpto?: string;
+  individualAccess?: number;
+  type?: number;
+  disabled: boolean;
+}
+
+// Request to assign a user to a location
 export interface AssignLocationRequest {
   locationId: number;
+  validFrom: string;
+  validUpto?: string;
+  type?: number;
+  individualAccess?: number;
 }
 
 // ─── User Assignments ─────────────────────────────────────────────────────────
@@ -378,3 +437,159 @@ export interface CabinetTransactionResponse {
   datetime: string;
   extra?: string;
 }
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface RecentActivityItem {
+  autoNo: number;
+  assetName?: string;
+  assetNumber?: number;
+  issuedToName?: string;
+  issuedAt: string;
+  returnedAt?: string;
+  expectedBefore?: string;
+  status: 'OUT' | 'RETURNED' | 'OVERDUE';
+}
+
+export interface DashboardResponse {
+  totalLocations: number;
+  totalOperators: number;
+  totalCabinets: number;
+  totalAssets: number;
+  totalCabinetUsers: number;
+  totalAssetGroups: number;
+  assetsOut: number;
+  overdueCount: number;
+  recentActivity: RecentActivityItem[];
+}
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
+export interface OperatorAuditResponse {
+  id: number;
+  operatorId: string;
+  action: string;
+  resourceType?: string;
+  resourceId?: string;
+  detail?: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+// ─── App Config ───────────────────────────────────────────────────────────────
+
+export interface CaptchaConfig {
+  enabled: boolean;
+  captchaLength: number;
+  captchaValiditySeconds: number;
+}
+
+export interface DbBackupConfigRes {
+  enabled: boolean;
+  backupTime: string;
+  retentionDays: number;
+}
+
+export interface OrgConfigRes {
+  orgName: string;
+  orgLogoUrl?: string;
+}
+
+export interface SmtpConfigRes {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSocketFactoryClass?: string;
+  smtpSocketFactoryPort?: number;
+  smtpUsername?: string;
+}
+
+export interface SmsConfigRes {
+  smppHost?: string;
+  smppPort?: number;
+  smppUserId?: string;
+  smppTon?: number;
+  smppNpi?: number;
+}
+
+export interface LdapConfigRes {
+  enabled: boolean;
+  secured: boolean;
+  url?: string;
+  userDnPath?: string;
+  authType?: string;
+  keystorePath?: string;
+}
+
+export interface OtherConfigRes {
+  captchaConfig?: CaptchaConfig;
+  twoStepAuth: boolean;
+}
+
+export interface AppConfigRes {
+  organization?: OrgConfigRes;
+  smtp?: SmtpConfigRes;
+  sms?: SmsConfigRes;
+  ldap?: LdapConfigRes;
+  other?: OtherConfigRes;
+  dbBackup?: DbBackupConfigRes;
+}
+
+export interface PublicOrgConfigRes {
+  orgName: string;
+  orgLogoUrl?: string;
+  captchaEnabled: boolean;
+  twoStepAuth: boolean;
+}
+
+// Update request types
+export interface OrgConfigUpdateReq {
+  orgName: string;
+  orgLogo?: File;
+}
+
+export interface SmtpConfigUpdateReq {
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSocketFactoryClass?: string;
+  smtpSocketFactoryPort?: number;
+  smtpUsername?: string;
+  smtpPassword?: string;
+}
+
+export interface SmsConfigUpdateReq {
+  smppHost?: string;
+  smppPort?: number;
+  smppUserId?: string;
+  smppUserPass?: string;
+  smppTon?: number;
+  smppNpi?: number;
+}
+
+export interface LdapConfigUpdateReq {
+  enabled?: boolean;
+  secured?: boolean;
+  url?: string;
+  userDnPath?: string;
+  authType?: string;
+  keystorePath?: string;
+  keystorePass?: string;
+}
+
+export interface OtherConfigUpdateReq {
+  captchaConfig?: CaptchaConfig;
+  twoStepAuth?: boolean;
+}
+
+export interface DbBackupConfigUpdateReq {
+  enabled?: boolean;
+  backupTime?: string;
+  retentionDays?: number;
+}
+
+export interface OperatorPhotoUploadResponse {
+  photoPath: string;
+}
+
+// Legacy alias kept for any remaining references — remove after full frontend migration
+export type AppConfigResponse = AppConfigRes;
+export type AppConfigUpdateRequest = SmtpConfigUpdateReq;

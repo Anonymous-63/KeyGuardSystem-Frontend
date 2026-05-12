@@ -20,12 +20,12 @@ export const transactionApi = createApi({
     }),
     listTransactionsByAsset: b.query<AssetTransactionResponse[], number>({
       query: (assetId) => `/transactions/assets/by-asset/${assetId}`,
-      transformResponse: (r: ApiResponse<AssetTransactionResponse[]>) => r.data,
+      transformResponse: (r: ApiResponse<PagedResponse<AssetTransactionResponse>>) => r.data.content,
       providesTags: ['AssetTransaction'],
     }),
     listTransactionsByUser: b.query<AssetTransactionResponse[], string>({
       query: (userId) => `/transactions/assets/by-user/${userId}`,
-      transformResponse: (r: ApiResponse<AssetTransactionResponse[]>) => r.data,
+      transformResponse: (r: ApiResponse<PagedResponse<AssetTransactionResponse>>) => r.data.content,
       providesTags: ['AssetTransaction'],
     }),
     listAssetsOut: b.query<AssetTransactionResponse[], void>({
@@ -35,7 +35,7 @@ export const transactionApi = createApi({
     }),
     listOverdueAssets: b.query<AssetTransactionResponse[], void>({
       query: () => '/transactions/assets/overdue',
-      transformResponse: (r: ApiResponse<AssetTransactionResponse[]>) => r.data,
+      transformResponse: (r: ApiResponse<PagedResponse<AssetTransactionResponse>>) => r.data.content,
       providesTags: ['AssetTransaction'],
     }),
     getTransaction: b.query<AssetTransactionResponse, number>({
@@ -56,8 +56,8 @@ export const transactionApi = createApi({
 
     // ─── Cabinet Transactions ─────────────────────────────────────────────────
     listTransactionsByDateRange: b.query<AssetTransactionResponse[], { from: string; to: string }>({
-      query: ({ from, to }) => `/transactions/assets/by-date?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-      transformResponse: (r: ApiResponse<AssetTransactionResponse[]>) => r.data,
+      query: ({ from, to }) => `/transactions/assets/by-date?from=${encodeURIComponent(from + ':00')}&to=${encodeURIComponent(to + ':00')}`,
+      transformResponse: (r: ApiResponse<PagedResponse<AssetTransactionResponse>>) => r.data.content,
       providesTags: ['AssetTransaction'],
     }),
     listCabinetTransactions: b.query<PagedResponse<CabinetTransactionResponse>, { cabinetId: number; page?: number; size?: number; from?: string; to?: string }>({

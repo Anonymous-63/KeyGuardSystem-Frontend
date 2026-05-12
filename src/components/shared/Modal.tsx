@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
+import { X } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -6,9 +7,10 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  footer?: ReactNode;
 }
 
-export default function Modal({ open, title, onClose, children, size = 'md' }: Props) {
+export default function Modal({ open, title, onClose, children, size = 'md', footer }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', handler);
@@ -21,17 +23,76 @@ export default function Modal({ open, title, onClose, children, size = 'md' }: P
 
   return (
     <div className="modal modal-open">
-      <div className={`modal-box ${widthClass} w-full`}>
-        <button
-          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-          onClick={onClose}
-        >
-          ✕
-        </button>
-        <h3 className="font-bold text-lg mb-4">{title}</h3>
-        {children}
-      </div>
       <div className="modal-backdrop" onClick={onClose} />
+      <div className={`modal-box ${widthClass} w-full p-0 overflow-hidden flex flex-col max-h-[90vh]`}>
+
+        {/* Header — dark teal chrome matching AMSWebKey */}
+        <div
+          style={{
+            background: 'var(--ent-dark)',
+            color: 'white',
+            padding: '0.375rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
+          <h3
+            style={{
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {title}
+          </h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              padding: '0.25rem 0.375rem',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '0.25rem',
+              opacity: 0.85,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.85'; }}
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {children}
+        </div>
+
+        {/* Footer — shown only when footer prop is provided */}
+        {footer && (
+          <div
+            style={{
+              borderTop: '1px solid var(--color-base-200, #e5e7eb)',
+              padding: '0.5rem 1rem',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.5rem',
+              flexShrink: 0,
+            }}
+          >
+            {footer}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

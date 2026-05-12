@@ -22,7 +22,9 @@ export type ResourceType =
   | 'TIME_CONSTRAINT'
   | 'BIOMETRIC'
   | 'SYNC'
-  | 'SYSTEM';
+  | 'SYSTEM'
+  | 'AUDIT'
+  | 'APP_CONFIG';
 
 export type PermissionAction =
   | 'READ'
@@ -114,6 +116,16 @@ export const PERMISSION_MAP: Record<ResourceType, Partial<Record<PermissionActio
   SYSTEM: {
     READ:    5,
     UPDATE:  5,
+  },
+  AUDIT: {
+    READ:   4,
+    EXPORT: 4,
+  },
+  APP_CONFIG: {
+    READ:   4,
+    CREATE: 5,
+    UPDATE: 5,
+    DELETE: 5,
   },
 };
 
