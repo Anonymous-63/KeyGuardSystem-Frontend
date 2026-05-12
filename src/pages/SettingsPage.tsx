@@ -1,197 +1,602 @@
-import { useMemo, useState } from 'react';
-import { useListConfigsQuery, useUpsertConfigMutation, useDeleteConfigMutation } from '../features/config/configApi';
-import type { AppConfigResponse, AppConfigUpdateRequest } from '../types/api';
-import PageHeader from '../components/shared/PageHeader';
-import Modal from '../components/shared/Modal';
-import ConfirmDialog from '../components/shared/ConfirmDialog';
-import PermissionGate from '../components/PermissionGate';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Building2, Mail, MessageSquare, KeyRound, SlidersHorizontal,
+  Eye, EyeOff, CheckCircle2, Circle, Server, Clock, ShieldCheck,
+} from 'lucide-react';
+import { useListConfigsQuery, useUpsertConfigMutation } from '../features/config/configApi';
 import { useToast } from '../components/shared/Toast';
-import { FormRow, FormActions } from '../components/shared/Form';
-import { DataGrid, type ColDef } from '../components/shared/DataGrid';
+import { useAppSelector } from '../app/hooks';
+import { hasPermission } from '../features/auth/permissions';
 
-const ICO_SETTINGS = [
-  'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z',
-  'M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+// ─── Config key map ───────────────────────────────────────────────────────────
+const K = {
+  ORG_NAME:           'org.name',
+  MAIL_HOST:          'mail.smtp_host',
+  MAIL_PORT:          'mail.smtp_port',
+  MAIL_EMAIL:         'mail.host_email',
+  MAIL_PASS:          'mail.host_pass',
+  MAIL_SOCK_CLASS:    'mail.socket_factory_class',
+  MAIL_SOCK_PORT:     'mail.socket_factory_port',
+  SMS_HOST:           'sms.smpp_host',
+  SMS_PORT:           'sms.smpp_port',
+  SMS_USER:           'sms.user_id',
+  SMS_PASS:           'sms.user_pass',
+  SMS_TON:            'sms.ton',
+  SMS_NPI:            'sms.npi',
+  LDAP_ENABLED:       'ldap.enabled',
+  LDAP_SECURED:       'ldap.secured',
+  LDAP_URL:           'ldap.url',
+  LDAP_USER_DN:       'ldap.user_dn_path',
+  LDAP_AUTH_TYPE:     'ldap.auth_type',
+  LDAP_KEYSTORE:      'ldap.keystore_path',
+  LDAP_KEYSTORE_PASS: 'ldap.keystore_pass',
+  FEATURE_CAPTCHA:    'feature.captcha',
+  FEATURE_2FA:        'feature.two_step_auth',
+  DB_BACKUP_TIME:     'db.auto_backup_time',
+} as const;
+
+const TON_OPTIONS = [
+  { v: '0', l: 'Unknown' }, { v: '1', l: 'International' }, { v: '2', l: 'National' },
+  { v: '3', l: 'Network Specific' }, { v: '4', l: 'Subscriber Number' },
+  { v: '5', l: 'Alphanumeric' }, { v: '6', l: 'Abbreviated' },
+];
+const NPI_OPTIONS = [
+  { v: '0', l: 'Unknown' }, { v: '1', l: 'ISDN / Telephone' }, { v: '3', l: 'Data' },
+  { v: '4', l: 'Telex' }, { v: '6', l: 'Land Mobile' }, { v: '8', l: 'National' },
+  { v: '9', l: 'Private' }, { v: '10', l: 'ERMES' }, { v: '14', l: 'Internet' },
 ];
 
-function ConfigForm({
-  initial,
-  onSave,
-  onCancel,
-  loading,
-}: {
-  initial?: AppConfigResponse;
-  onSave: (key: string, body: AppConfigUpdateRequest) => void;
-  onCancel: () => void;
-  loading: boolean;
-}) {
-  const [key, setKey] = useState(initial?.configKey ?? '');
-  const [value, setValue] = useState(initial?.configValue ?? '');
-  const [description, setDescription] = useState(initial?.description ?? '');
+type Section = 'org' | 'email' | 'sms' | 'ldap' | 'features';
 
+// ─── Password field with show / hide toggle ───────────────────────────────────
+function PwdInput({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  const [show, setShow] = useState(false);
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(key, { configValue: value, description: description || undefined });
-      }}
-      className="space-y-3"
-    >
-      <FormRow label="Key" required>
-        <input
-          className="input input-bordered w-full font-mono"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          disabled={!!initial}
-          required
-          maxLength={100}
-          placeholder="e.g. mail.smtp_host"
-        />
-      </FormRow>
-      <FormRow label="Value" required>
-        <input
-          className="input input-bordered w-full"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          required
-          maxLength={1000}
-        />
-      </FormRow>
-      <FormRow label="Description">
-        <input
-          className="input input-bordered w-full"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={300}
-        />
-      </FormRow>
-      <FormActions onCancel={onCancel} loading={loading} submitLabel={initial ? 'Update' : 'Create'} />
-    </form>
+    <div style={{ position: 'relative' }}>
+      <input
+        type={show ? 'text' : 'password'}
+        className="input input-bordered input-sm w-full"
+        style={{ paddingRight: '2.4rem' }}
+        value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder ?? '••••••••'}
+        maxLength={200}
+        autoComplete="new-password"
+      />
+      <button type="button"
+        onClick={() => setShow((s) => !s)}
+        style={{
+          position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--color-base-content)', opacity: 0.4, padding: '0.1rem',
+          display: 'flex', alignItems: 'center',
+        }}>
+        {show ? <EyeOff size={15} strokeWidth={1.5} /> : <Eye size={15} strokeWidth={1.5} />}
+      </button>
+    </div>
   );
 }
 
+// ─── Field label ──────────────────────────────────────────────────────────────
+const FL = ({ text, hint, required }: { text: string; hint?: string; required?: boolean }) => (
+  <div style={{ marginBottom: '0.3rem' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+      <span style={{
+        fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.06em',
+        textTransform: 'uppercase', color: 'var(--color-base-content)', opacity: 0.6,
+      }}>
+        {text}
+      </span>
+      {required && <span style={{ color: 'var(--color-error)', fontSize: '0.75rem' }}>*</span>}
+    </div>
+    {hint && (
+      <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', opacity: 0.4, lineHeight: 1.4 }}>{hint}</p>
+    )}
+  </div>
+);
+
+// ─── Section card ─────────────────────────────────────────────────────────────
+function Card({ title, description, children, dirty, saving, canSave, onSave }: {
+  title: string; description?: string;
+  children: React.ReactNode;
+  dirty: boolean; saving: boolean; canSave: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <div style={{
+      border: `1px solid ${dirty ? 'color-mix(in oklch, var(--color-primary) 35%, transparent)' : 'var(--color-base-300)'}`,
+      borderRadius: '0.625rem',
+      overflow: 'hidden',
+      background: 'var(--color-base-100)',
+      transition: 'border-color 0.2s',
+    }}>
+      {/* Card header */}
+      <div style={{
+        padding: '0.875rem 1.25rem',
+        borderBottom: '1px solid var(--color-base-200)',
+        background: dirty
+          ? 'color-mix(in oklch, var(--color-primary) 4%, var(--color-base-100))'
+          : 'var(--color-base-50, var(--color-base-100))',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        transition: 'background 0.2s',
+      }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-base-content)' }}>{title}</div>
+          {description && (
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '0.15rem' }}>{description}</div>
+          )}
+        </div>
+        {dirty && (
+          <span style={{
+            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+            color: 'var(--color-primary)', opacity: 0.8,
+          }}>
+            Unsaved
+          </span>
+        )}
+      </div>
+      {/* Card body */}
+      <div style={{ padding: '1.25rem' }}>
+        {children}
+      </div>
+      {/* Card footer */}
+      <div style={{
+        padding: '0.625rem 1.25rem',
+        borderTop: '1px solid var(--color-base-200)',
+        background: 'var(--color-base-50, var(--color-base-100))',
+        display: 'flex', justifyContent: 'flex-end',
+      }}>
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ minWidth: '110px', gap: '0.375rem' }}
+          onClick={onSave}
+          disabled={saving || !canSave || !dirty}>
+          {saving
+            ? <span className="loading loading-spinner loading-xs" />
+            : <></>}
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Toggle row ───────────────────────────────────────────────────────────────
+function Toggle({ label, desc, checked, onChange }: {
+  label: string; desc?: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <label style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0.75rem 0.875rem',
+      border: '1px solid var(--color-base-200)',
+      borderRadius: '0.5rem',
+      cursor: 'pointer',
+      background: checked
+        ? 'color-mix(in oklch, var(--color-primary) 5%, transparent)'
+        : 'transparent',
+      transition: 'background 0.15s',
+    }}>
+      <div>
+        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{label}</div>
+        {desc && <div style={{ fontSize: '0.74rem', opacity: 0.45, marginTop: '0.1rem' }}>{desc}</div>}
+      </div>
+      <input type="checkbox" className="toggle toggle-primary toggle-sm"
+        checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    </label>
+  );
+}
+
+// ─── Grid helpers ─────────────────────────────────────────────────────────────
+const Row2 = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>{children}</div>
+);
+const Row3 = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.875rem' }}>{children}</div>
+);
+const HostPort = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '0.875rem' }}>{children}</div>
+);
+const Stack = ({ children }: { children: React.ReactNode }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>{children}</div>
+);
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { addToast } = useToast();
-  const [selected, setSelected] = useState<AppConfigResponse | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<AppConfigResponse | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<AppConfigResponse | null>(null);
+  const operator = useAppSelector((s) => s.auth.operator);
+  const canUpdate = operator != null && hasPermission(operator.type, 'APP_CONFIG', 'UPDATE');
 
-  const { data: configs, isLoading } = useListConfigsQuery();
-  const [upsert, { isLoading: saving }] = useUpsertConfigMutation();
-  const [deleteConfig, { isLoading: deleting }] = useDeleteConfigMutation();
+  const [active,  setActive]  = useState<Section>('org');
+  const [savingSec, setSavingSec] = useState<Section | null>(null);
 
-  const openCreate = () => { setEditing(null); setModalOpen(true); };
-  const openEdit = (row: AppConfigResponse) => { setEditing(row); setModalOpen(true); };
+  // All config values in one flat map
+  const [vals,    setVals]    = useState<Record<string, string>>({});
+  // Snapshot at last load/save — used to detect dirty state per section
+  const [saved,   setSaved]   = useState<Record<string, string>>({});
 
-  const handleSave = async (key: string, body: AppConfigUpdateRequest) => {
-    try {
-      await upsert({ key, body }).unwrap();
-      addToast({ type: 'success', message: editing ? 'Config updated' : 'Config created' });
-      setModalOpen(false);
-      setSelected(null);
-    } catch {
-      addToast({ type: 'error', message: 'Failed to save config' });
+  const { data: configs = [], isLoading } = useListConfigsQuery();
+  const [upsert] = useUpsertConfigMutation();
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (configs.length > 0 && !initialized.current) {
+      initialized.current = true;
+      const map: Record<string, string> = {};
+      for (const c of configs) map[c.configKey] = c.configValue ?? '';
+      setVals(map);
+      setSaved(map);
     }
+  }, [configs]);
+
+  const v       = (key: string) => vals[key] ?? '';
+  const set     = (key: string, val: string) => setVals((p) => ({ ...p, [key]: val }));
+  const bool    = (key: string) => v(key) === 'true';
+  const setBool = (key: string, val: boolean) => set(key, val ? 'true' : 'false');
+  const inp     = 'input input-bordered input-sm w-full';
+  const sel     = 'select select-bordered select-sm w-full';
+
+  // Per-section key map
+  const SECTION_KEYS: Record<Section, string[]> = {
+    org:      [K.ORG_NAME],
+    email:    [K.MAIL_HOST, K.MAIL_PORT, K.MAIL_EMAIL, K.MAIL_PASS, K.MAIL_SOCK_CLASS, K.MAIL_SOCK_PORT],
+    sms:      [K.SMS_HOST, K.SMS_PORT, K.SMS_USER, K.SMS_PASS, K.SMS_TON, K.SMS_NPI],
+    ldap:     [K.LDAP_ENABLED, K.LDAP_SECURED, K.LDAP_URL, K.LDAP_USER_DN, K.LDAP_AUTH_TYPE, K.LDAP_KEYSTORE, K.LDAP_KEYSTORE_PASS],
+    features: [K.FEATURE_CAPTCHA, K.FEATURE_2FA, K.DB_BACKUP_TIME],
   };
 
-  const handleDelete = async () => {
-    if (!confirmDelete) return;
-    try {
-      await deleteConfig(confirmDelete.configKey).unwrap();
-      addToast({ type: 'success', message: 'Config deleted' });
-      setSelected(null);
-    } catch {
-      addToast({ type: 'error', message: 'Failed to delete config' });
-    }
-    setConfirmDelete(null);
+  const isDirty = (sec: Section) => SECTION_KEYS[sec].some((k) => vals[k] !== saved[k]);
+
+  const isConfigured = (sec: Section): boolean => {
+    if (sec === 'org')      return v(K.ORG_NAME).trim().length > 0;
+    if (sec === 'email')    return v(K.MAIL_HOST).trim().length > 0 && v(K.MAIL_EMAIL).trim().length > 0;
+    if (sec === 'sms')      return v(K.SMS_HOST).trim().length > 0;
+    if (sec === 'ldap')     return bool(K.LDAP_ENABLED) && v(K.LDAP_URL).trim().length > 0;
+    if (sec === 'features') return bool(K.FEATURE_CAPTCHA) || bool(K.FEATURE_2FA);
+    return false;
   };
 
-  const cols = useMemo<ColDef<AppConfigResponse>[]>(() => [
-    {
-      field: 'configKey',
-      headerName: 'Key',
-      width: 220,
-      cellStyle: { fontFamily: 'monospace', fontSize: '0.82rem' },
-    },
-    { field: 'configValue', headerName: 'Value', flex: 1 },
-    {
-      field: 'description',
-      headerName: 'Description',
-      flex: 1,
-      valueFormatter: ({ value }: { value: string | undefined }) => value ?? '',
-    },
-    {
-      field: 'mDate',
-      headerName: 'Last Modified',
-      width: 155,
-      valueFormatter: ({ value }: { value: string | undefined }) =>
-        value ? new Date(value).toLocaleString() : '',
-    },
-  ], []);
+  const saveSection = async (sec: Section) => {
+    if (!canUpdate) return;
+    setSavingSec(sec);
+    const keys = SECTION_KEYS[sec];
+    try {
+      await Promise.all(keys.map((k) =>
+        upsert({ key: k, body: { configValue: vals[k] ?? '' } }).unwrap(),
+      ));
+      setSaved((p) => {
+        const next = { ...p };
+        for (const k of keys) next[k] = vals[k] ?? '';
+        return next;
+      });
+      addToast({ type: 'success', message: 'Settings saved' });
+    } catch {
+      addToast({ type: 'error', message: 'Failed to save settings' });
+    }
+    setSavingSec(null);
+  };
+
+  // ─── Nav items ──────────────────────────────────────────────────────────────
+  const NAV: { id: Section; label: string; sub: string; icon: React.ReactNode }[] = [
+    { id: 'org',      label: 'Organization',  sub: 'Name & identity',     icon: <Building2    size={17} strokeWidth={1.5} /> },
+    { id: 'email',    label: 'Email / SMTP',  sub: 'Mail server settings', icon: <Mail         size={17} strokeWidth={1.5} /> },
+    { id: 'sms',      label: 'SMS / SMPP',    sub: 'SMS gateway',          icon: <MessageSquare size={17} strokeWidth={1.5} /> },
+    { id: 'ldap',     label: 'LDAP',          sub: 'Directory auth',       icon: <KeyRound     size={17} strokeWidth={1.5} /> },
+    { id: 'features', label: 'Features',      sub: 'Security & maintenance', icon: <SlidersHorizontal size={17} strokeWidth={1.5} /> },
+  ];
+
+  if (isLoading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '0.5rem' }}>
+      <span className="loading loading-spinner loading-sm" />
+      <span style={{ fontSize: '0.85rem', opacity: 0.45 }}>Loading settings…</span>
+    </div>
+  );
+
+  const saving = savingSec === active;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <PageHeader
-        icon={ICO_SETTINGS}
-        title="System Settings"
-        resource="APP_CONFIG"
-        onAdd={openCreate}
-        onUpdate={() => selected && openEdit(selected)}
-        updateDisabled={!selected}
-        extra={
-          <PermissionGate resource="APP_CONFIG" action="DELETE">
-            <button
-              className="btn btn-error btn-sm"
-              onClick={() => selected && setConfirmDelete(selected)}
-              disabled={!selected}
-              title={!selected ? 'Select a row first' : undefined}
-            >
-              Delete
-            </button>
-          </PermissionGate>
-        }
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '0.875rem' }}>
 
-      <div className="card bg-base-100 shadow" style={{ flex: 1, minHeight: 0 }}>
-        <div className="card-body p-0 overflow-hidden" style={{ flex: 1 }}>
-          <DataGrid
-            columnDefs={cols}
-            rowData={configs ?? []}
-            loading={isLoading}
-            getRowId={(r) => r.configKey}
-            onRowClicked={(r) => setSelected(r)}
-            onRowDoubleClicked={(r) => { setSelected(r); openEdit(r); }}
-            height="100%"
-            exportable
-            exportFilename="app-config"
-          />
+      {/* Page title */}
+      <h1 style={{ fontSize: '1.375rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>
+        Application Config
+      </h1>
+
+      {/* Two-panel layout */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: '1.25rem', alignItems: 'flex-start' }}>
+
+        {/* ── Left nav ──────────────────────────────────────────────────────── */}
+        <div style={{
+          width: '220px', flexShrink: 0,
+          border: '1px solid var(--color-base-300)',
+          borderRadius: '0.625rem',
+          overflow: 'hidden',
+          background: 'var(--color-base-100)',
+        }}>
+          {NAV.map(({ id, label, sub, icon }, i) => {
+            const isActive = active === id;
+            const dirty    = isDirty(id);
+            const cfgd     = isConfigured(id);
+            return (
+              <button key={id} onClick={() => setActive(id)}
+                style={{
+                  width: '100%', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  borderBottom: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
+                  background: isActive
+                    ? 'color-mix(in oklch, var(--color-primary) 8%, transparent)'
+                    : 'transparent',
+                  borderLeft: `3px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}>
+                {/* Icon */}
+                <span style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)', opacity: isActive ? 1 : 0.45, flexShrink: 0 }}>
+                  {icon}
+                </span>
+                {/* Labels */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)' }}>
+                      {label}
+                    </span>
+                    {dirty && (
+                      <span style={{
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        background: 'var(--color-warning)', flexShrink: 0,
+                      }} title="Unsaved changes" />
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.05rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sub}
+                  </div>
+                </div>
+                {/* Status dot */}
+                <span style={{ color: cfgd ? 'var(--color-success)' : 'var(--color-base-300)', flexShrink: 0 }}>
+                  {cfgd
+                    ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-success)', display: 'block' }} title="Configured" />
+                    : <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--color-base-300)', display: 'block' }} title="Not configured" />
+                  }
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Right content ─────────────────────────────────────────────────── */}
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>
+
+          {/* ── Organization ────────────────────────────────────────────── */}
+          {active === 'org' && (
+            <Card title="Organization Identity" description="Displayed in page headers, reports, and notifications."
+              dirty={isDirty('org')} saving={saving} canSave={canUpdate}
+              onSave={() => saveSection('org')}>
+              <Stack>
+                <div>
+                  <FL text="Organisation Name" required />
+                  <input className={inp} value={v(K.ORG_NAME)}
+                    onChange={(e) => set(K.ORG_NAME, e.target.value)}
+                    maxLength={50} placeholder="e.g. Senergy Systems Pvt. Ltd." />
+                </div>
+              </Stack>
+            </Card>
+          )}
+
+          {/* ── Email / SMTP ─────────────────────────────────────────────── */}
+          {active === 'email' && (
+            <Stack>
+              <Card title="SMTP Server" description="Connection settings for the outgoing mail server."
+                dirty={isDirty('email')} saving={saving} canSave={canUpdate}
+                onSave={() => saveSection('email')}>
+                <Stack>
+                  <HostPort>
+                    <div>
+                      <FL text="SMTP Host" hint="Hostname or IP of your mail server" />
+                      <input className={inp} value={v(K.MAIL_HOST)}
+                        onChange={(e) => set(K.MAIL_HOST, e.target.value)}
+                        placeholder="smtp.gmail.com" maxLength={100} />
+                    </div>
+                    <div>
+                      <FL text="Port" />
+                      <input className={inp} type="number" value={v(K.MAIL_PORT)}
+                        onChange={(e) => set(K.MAIL_PORT, e.target.value)}
+                        placeholder="587" min={1} max={65535} />
+                    </div>
+                  </HostPort>
+
+                  <div>
+                    <FL text="From Email Address" hint="Sender address shown to recipients" required />
+                    <input className={inp} type="email" value={v(K.MAIL_EMAIL)}
+                      onChange={(e) => set(K.MAIL_EMAIL, e.target.value)}
+                      placeholder="noreply@yourdomain.com" maxLength={150} />
+                  </div>
+
+                  <div>
+                    <FL text="SMTP Password" />
+                    <PwdInput value={v(K.MAIL_PASS)} onChange={(val) => set(K.MAIL_PASS, val)} />
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--color-base-200)', paddingTop: '0.875rem' }}>
+                    <FL text="SSL Socket Factory Class" hint="Optional — only needed for legacy SSL/TLS setups" />
+                    <HostPort>
+                      <input className={inp} value={v(K.MAIL_SOCK_CLASS)}
+                        onChange={(e) => set(K.MAIL_SOCK_CLASS, e.target.value)}
+                        placeholder="javax.net.ssl.SSLSocketFactory" maxLength={100} />
+                      <div>
+                        <input className={inp} type="number" value={v(K.MAIL_SOCK_PORT)}
+                          onChange={(e) => set(K.MAIL_SOCK_PORT, e.target.value)}
+                          placeholder="Port" min={1} max={65535} />
+                      </div>
+                    </HostPort>
+                  </div>
+                </Stack>
+              </Card>
+            </Stack>
+          )}
+
+          {/* ── SMS / SMPP ───────────────────────────────────────────────── */}
+          {active === 'sms' && (
+            <Stack>
+              <Card title="SMPP Gateway" description="Short Message Peer-to-Peer server for SMS delivery."
+                dirty={isDirty('sms')} saving={saving} canSave={canUpdate}
+                onSave={() => saveSection('sms')}>
+                <Stack>
+                  <HostPort>
+                    <div>
+                      <FL text="SMPP Host" hint="IP address or hostname of SMPP server" />
+                      <input className={inp} value={v(K.SMS_HOST)}
+                        onChange={(e) => set(K.SMS_HOST, e.target.value)}
+                        placeholder="192.168.1.100" maxLength={100} />
+                    </div>
+                    <div>
+                      <FL text="Port" />
+                      <input className={inp} type="number" value={v(K.SMS_PORT)}
+                        onChange={(e) => set(K.SMS_PORT, e.target.value)}
+                        placeholder="2775" min={1} max={65535} />
+                    </div>
+                  </HostPort>
+
+                  <Row2>
+                    <div>
+                      <FL text="System ID" hint="SMPP username / System ID" />
+                      <input className={inp} value={v(K.SMS_USER)}
+                        onChange={(e) => set(K.SMS_USER, e.target.value)}
+                        maxLength={50} placeholder="System ID" />
+                    </div>
+                    <div>
+                      <FL text="Password" />
+                      <PwdInput value={v(K.SMS_PASS)} onChange={(val) => set(K.SMS_PASS, val)} />
+                    </div>
+                  </Row2>
+
+                  <div style={{ borderTop: '1px solid var(--color-base-200)', paddingTop: '0.875rem' }}>
+                    <FL text="Addressing Parameters" hint="TON and NPI define how the source address is interpreted" />
+                    <Row2>
+                      <select className={sel} value={v(K.SMS_TON)} onChange={(e) => set(K.SMS_TON, e.target.value)}>
+                        {TON_OPTIONS.map((o) => <option key={o.v} value={o.v}>TON {o.v} — {o.l}</option>)}
+                      </select>
+                      <select className={sel} value={v(K.SMS_NPI)} onChange={(e) => set(K.SMS_NPI, e.target.value)}>
+                        {NPI_OPTIONS.map((o) => <option key={o.v} value={o.v}>NPI {o.v} — {o.l}</option>)}
+                      </select>
+                    </Row2>
+                  </div>
+                </Stack>
+              </Card>
+            </Stack>
+          )}
+
+          {/* ── LDAP ─────────────────────────────────────────────────────── */}
+          {active === 'ldap' && (
+            <Stack>
+              <Card title="LDAP / Directory Authentication" description="Allow users to authenticate against a corporate directory."
+                dirty={isDirty('ldap')} saving={saving} canSave={canUpdate}
+                onSave={() => saveSection('ldap')}>
+                <Stack>
+                  <Toggle
+                    label="Enable LDAP Authentication"
+                    desc="Users will be authenticated against the directory server below."
+                    checked={bool(K.LDAP_ENABLED)}
+                    onChange={(val) => setBool(K.LDAP_ENABLED, val)}
+                  />
+
+                  <div style={{ opacity: bool(K.LDAP_ENABLED) ? 1 : 0.35, pointerEvents: bool(K.LDAP_ENABLED) ? 'auto' : 'none', transition: 'opacity 0.2s' }}>
+                    <Stack>
+                      <div>
+                        <FL text="LDAP Server URL" hint='e.g. ldap://ldap.company.com:389 or ldaps://... for secured' required />
+                        <input className={inp} value={v(K.LDAP_URL)}
+                          onChange={(e) => set(K.LDAP_URL, e.target.value)}
+                          placeholder="ldap://ldap.company.com:389" maxLength={200} />
+                      </div>
+
+                      <div>
+                        <FL text="User DN Path" hint='Use ?? as the username placeholder — e.g. uid=??,ou=users,dc=company,dc=com' required />
+                        <input className={inp} value={v(K.LDAP_USER_DN)}
+                          onChange={(e) => set(K.LDAP_USER_DN, e.target.value)}
+                          placeholder="uid=??,ou=users,dc=company,dc=com" maxLength={300} />
+                      </div>
+
+                      <Row2>
+                        <div>
+                          <FL text="Authentication Type" />
+                          <input className={inp} value={v(K.LDAP_AUTH_TYPE)}
+                            onChange={(e) => set(K.LDAP_AUTH_TYPE, e.target.value)}
+                            placeholder="SIMPLE" maxLength={50} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                          <Toggle
+                            label="Secured (LDAPS)"
+                            desc="Use SSL/TLS for the connection"
+                            checked={bool(K.LDAP_SECURED)}
+                            onChange={(val) => setBool(K.LDAP_SECURED, val)}
+                          />
+                        </div>
+                      </Row2>
+
+                      {bool(K.LDAP_SECURED) && (
+                        <div style={{
+                          padding: '0.875rem', borderRadius: '0.5rem',
+                          border: '1px dashed var(--color-base-300)',
+                          background: 'var(--color-base-200)',
+                        }}>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.75rem' }}>
+                            Keystore — LDAPS only
+                          </div>
+                          <Stack>
+                            <div>
+                              <FL text="Keystore File Path" hint="Absolute path to .jks or .p12 keystore file" />
+                              <input className={inp} value={v(K.LDAP_KEYSTORE)}
+                                onChange={(e) => set(K.LDAP_KEYSTORE, e.target.value)}
+                                placeholder="/etc/ssl/certs/keystore.jks" maxLength={300} />
+                            </div>
+                            <div>
+                              <FL text="Keystore Password" />
+                              <PwdInput value={v(K.LDAP_KEYSTORE_PASS)} onChange={(val) => set(K.LDAP_KEYSTORE_PASS, val)} />
+                            </div>
+                          </Stack>
+                        </div>
+                      )}
+                    </Stack>
+                  </div>
+                </Stack>
+              </Card>
+            </Stack>
+          )}
+
+          {/* ── Features ─────────────────────────────────────────────────── */}
+          {active === 'features' && (
+            <Stack>
+              <Card title="Login Security" description="Additional verification steps for operator login."
+                dirty={isDirty('features')} saving={saving} canSave={canUpdate}
+                onSave={() => saveSection('features')}>
+                <Stack>
+                  <Toggle
+                    label="CAPTCHA on Login"
+                    desc="Display a CAPTCHA challenge on the login page to block automated attacks."
+                    checked={bool(K.FEATURE_CAPTCHA)}
+                    onChange={(val) => setBool(K.FEATURE_CAPTCHA, val)}
+                  />
+                  <Toggle
+                    label="Two-Step Authentication"
+                    desc="Require an OTP verification via email or SMS after the password step."
+                    checked={bool(K.FEATURE_2FA)}
+                    onChange={(val) => setBool(K.FEATURE_2FA, val)}
+                  />
+
+                  <div style={{ borderTop: '1px solid var(--color-base-200)', paddingTop: '0.875rem' }}>
+                    <FL text="Auto Backup Time" hint="Daily database backup schedule (24-hour clock)" />
+                    <input className={inp} type="time" value={v(K.DB_BACKUP_TIME)}
+                      onChange={(e) => set(K.DB_BACKUP_TIME, e.target.value)}
+                      style={{ maxWidth: '140px' }} />
+                  </div>
+                </Stack>
+              </Card>
+            </Stack>
+          )}
+
         </div>
       </div>
-
-      <Modal
-        open={modalOpen}
-        title={editing ? `Edit — ${editing.configKey}` : 'New Config'}
-        onClose={() => setModalOpen(false)}
-      >
-        <ConfigForm
-          initial={editing ?? undefined}
-          onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
-          loading={saving}
-        />
-      </Modal>
-
-      <ConfirmDialog
-        open={!!confirmDelete}
-        title="Delete Config"
-        message={`Delete "${confirmDelete?.configKey}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        danger
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(null)}
-      />
     </div>
   );
 }
