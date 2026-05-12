@@ -1,21 +1,27 @@
 # KeyGuard System — Full Project Progress
 
-**Last updated:** 2026-05-11
-**Frontend branch:** `feature/api-contract-fixes` (form refactor committed `c0dec1e`; enterprise redesign NEXT)
-**Backend branch:** `feature/seed-data` (Sprint 2 + all restore endpoints)
+**Last updated:** 2026-05-12
+**Frontend branch:** `feature/api-contract-fixes` — latest commit `f02d868` (App Config + Layout fix pushed)
+**Backend branch:** `feature/seed-data` — latest commit `e7248f3` (App Config restructure pushed)
 
 ---
 
 ## Resume Command (Next Session)
 
-### Current priority: Enterprise UI Redesign
-Tell Claude: **"continue enterprise redesign"** → loads full plan from memory, starts Phase 1 immediately.
+To continue: tell Claude **"Continue KeyGuard from progress file"**
 
-### After redesign is done — frontend testing:
-Tell Claude: **"Resume KeyGuard — Phase C: start frontend testing M01–M10"**
-1. Start frontend: `npm run dev` in `D:\Projects\AI KMS\KeyGuardSystem-Frontend`
-2. Open http://localhost:5174 and login with `superadmin / Admin@123`
-3. Test each UI module systematically (M01 → M10)
+**How to start backend:**
+```
+JAVA_HOME="C:\Program Files\Java\jdk-21"
+java -jar "D:\Projects\AI KMS\KeyGuardSystem-Backend\target\KeyGuardSystem-Backend-1.0.0.jar" --spring.profiles.active=dev
+```
+**How to build backend (after code changes):**
+```
+"C:\Program Files\JetBrains\IntelliJ IDEA 2023.1.3\plugins\maven\lib\maven3\bin\mvn" -f "D:\Projects\AI KMS\KeyGuardSystem-Backend\pom.xml" clean package -Dmaven.test.skip=true
+```
+**How to start frontend:** `npm run dev` in `D:\Projects\AI KMS\KeyGuardSystem-Frontend`
+**Login:** http://localhost:5173 → `superadmin / Admin@123`
+**Backend API:** http://localhost:8080/api/v1
 
 ---
 
@@ -49,26 +55,25 @@ Backend is already running on port 8080 with dev profile (PID 74868).
 
 ## Current Status Summary
 
-| Layer | Built | API Contract | Seed Data | Tested | Production Ready |
-|-------|-------|-------------|-----------|--------|-----------------|
-| Auth (Login/JWT) | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
-| Locations | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
-| Operators | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
-| Cabinets | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
-| Assets | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
-| Asset Groups | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
-| Time Constraints | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
-| Cabinet Users | ✅ | ✅ Fixed | ✅ V12 | ✅ BE | ❌ |
-| Transactions (read) | ✅ | ✅ | ✅ V12 | ✅ BE | ❌ |
-| Transactions (write) | ✅ BE done | ✅ | ✅ V12 | ✅ BE | ❌ |
-| Dashboard | ✅ | ✅ | depends | ❌ FE only | ❌ |
-| ABAC Policies | ✅ (16 seed) | N/A | ✅ V4 | ⚠️ Unit tests | ❌ |
-| Cabinet Matrix | ✅ | ✅ | ✅ V12 | ❌ | ❌ |
-| Cabinet Asset Sync | ✅ BE only | N/A | N/A | ❌ (FE not built) | ❌ |
-| Biometric UI | ❌ FE not built | N/A | N/A | ❌ | ❌ |
-| Policy Admin UI | ❌ FE not built | N/A | N/A | ❌ | ❌ |
+| Layer | BE Built | FE Built | BE Tested | FE Tested |
+|-------|----------|----------|-----------|-----------|
+| Auth (Login/JWT) | ✅ | ✅ | ✅ | ❌ |
+| Locations | ✅ | ✅ | ✅ | ❌ |
+| Operators | ✅ Refactored | ✅ Redesigned | ✅ | ❌ |
+| Cabinets | ✅ | ✅ | ✅ | ❌ |
+| Assets | ✅ | ✅ | ✅ | ❌ |
+| Asset Groups | ✅ | ✅ | ✅ | ❌ |
+| Time Constraints | ✅ | ✅ | ✅ | ❌ |
+| Cabinet Users | ✅ | ✅ | ✅ | ❌ |
+| Transactions (read+write) | ✅ | ✅ | ✅ | ❌ |
+| Dashboard | ✅ | ✅ | ❌ | ❌ |
+| **App Config / Settings** | ✅ V20 | ✅ Rewritten | ✅ 2026-05-12 | ✅ 2026-05-12 |
+| Cabinet Matrix | ✅ | ✅ | ❌ | ❌ |
+| Cabinet Asset Sync | ✅ BE only | ❌ | ❌ | ❌ |
+| Biometric UI | ❌ | ❌ | ❌ | ❌ |
+| Policy Admin UI | ❌ | ❌ | ❌ | ❌ |
 
-Legend: ✅ Done | ⚠️ Partial | ❌ Not done/tested
+Legend: ✅ Done | ❌ Not done
 
 ---
 
@@ -173,6 +178,60 @@ All mismatches between frontend types and backend DTOs are fixed:
 **Frontend:** LocationsPage (CRUD + operators panel)
 **Backend Test Results:** All CRUD + assign/remove operator tested and passing
 **Frontend test:** ❌ NOT DONE
+
+---
+
+### M11 — App Config / Settings ✅ FULLY DONE + TESTED (2026-05-12)
+**Backend commit:** `e7248f3` on `feature/seed-data` (pushed)
+**Frontend commit:** `f02d868` on `feature/api-contract-fixes` (pushed)
+
+**Backend changes:**
+- Removed: old KV-pair `app_config` table (id/configKey/configValue/description/mDate)
+- Removed: `AppConfigEntry.java` (entity) — neutralized to empty `@Deprecated` class, no `@Entity`
+- Removed: `AppConfigResponse.java` (dto) — neutralized to empty `@Deprecated` class
+- Removed: old `AppConfigController` methods (getValue/listAll/upsert)
+- New entity: `AppConfig.java` — single-row (id=1), JSON columns for each sub-config
+- New converters: `JsonAttributeConverter<T>` base + `SmtpConfigConverter`, `SmsConfigConverter`, `LdapConfigConverter`, `OtherConfigConverter`
+- New entity models: `SmtpConfig`, `SmsConfig`, `LdapConfig`, `CaptchaConfig`, `DbBackupConfig`, `OtherConfig`
+- New DTOs (response): `AppConfigRes`, `OrgConfigRes`, `SmtpConfigRes`, `SmsConfigRes`, `LdapConfigRes`, `OtherConfigRes`, `DbBackupConfigRes`, `PublicOrgConfigRes`
+- New DTOs (update req): `OrgConfigUpdateReq`, `SmtpConfigUpdateReq`, `SmsConfigUpdateReq`, `LdapConfigUpdateReq`, `OtherConfigUpdateReq`, `DbBackupConfigUpdateReq`
+- New mapper: `AppConfigMapper` (MapStruct, IGNORE_NULL for PATCH semantics; passwords excluded from Res DTOs)
+- New service: `AppConfigService` interface + `AppConfigServiceImpl` (getOrCreate helpers, `buildMailSmtpConfig()`, `getOrgName()`)
+- New controllers: `AppConfigController` (GET+PATCH per section, logo serve) + `PublicAppConfigController` (`/public/config/org`)
+- Updated: `SecurityConfig` — added `/api/v1/public/**` to PUBLIC_PATHS
+- Updated: `MailServiceImpl` — removed all `configService.getValue()` calls; uses `buildMailSmtpConfig()`
+- Updated: `MailEventListener` — `buildSmtpConfig()` returns `configService.buildMailSmtpConfig()`
+- Fixed: `Operator.java` — pre-existing typo `Stringc` → `String`
+- Migration: `V20__app_config_restructure.sql` — drops old KV table, creates structured table, seeds id=1 row
+
+**Endpoints (all tested via curl):**
+```
+GET  /api/v1/config                    → full AppConfigRes (all sections)
+GET  /api/v1/config/organization       → OrgConfigRes
+PATCH /api/v1/config/organization      → multipart/form-data (orgName + orgLogo file)
+GET  /api/v1/config/smtp               → SmtpConfigRes (no password)
+PATCH /api/v1/config/smtp              → SmtpConfigUpdateReq
+POST /api/v1/config/smtp/test-email    → sends test email
+GET  /api/v1/config/sms                → SmsConfigRes (no password)
+PATCH /api/v1/config/sms              → SmsConfigUpdateReq
+GET  /api/v1/config/ldap               → LdapConfigRes (no keystorePass)
+PATCH /api/v1/config/ldap             → LdapConfigUpdateReq
+GET  /api/v1/config/other              → OtherConfigRes (captcha + twoStepAuth)
+PATCH /api/v1/config/other            → OtherConfigUpdateReq
+GET  /api/v1/config/db                 → DbBackupConfigRes
+PATCH /api/v1/config/db               → DbBackupConfigUpdateReq
+GET  /api/v1/config/logo               → serves logo file (no auth)
+GET  /api/v1/public/config/org         → PublicOrgConfigRes (no auth — for login page/sidebar)
+```
+
+**Frontend changes:**
+- Removed: old `useListConfigsQuery`, `useUpsertConfigMutation`, `useUploadLogoMutation` hooks
+- `configApi.ts` — complete rewrite; per-section RTK Query endpoints
+- `types/api.ts` — added all config types; legacy aliases kept
+- `SettingsPage.tsx` — complete rewrite; `useGetAppConfigQuery` loads all sections once; per-section local state + dirty detection; passwords never pre-filled; section-level saves
+- `Layout.tsx` — fixed: replaced `useListConfigsQuery` with `useGetPublicOrgQuery` for sidebar org name + logo
+
+**Tested:** All 6 PATCH endpoints persist data; GET /config shows updated values; public endpoint works without auth; passwords absent from all GET responses.
 
 ---
 
@@ -361,6 +420,8 @@ All mismatches between frontend types and backend DTOs are fixed:
 
 | Date | What Changed | Branch |
 |------|--------------|--------|
+| 2026-05-12 | **App Config restructure** — BE: V20 migration, single-row JSON entity, 4 converters, 10 DTOs, MapStruct mapper, service, 2 controllers; FE: configApi rewrite, SettingsPage rewrite, Layout sidebar fix. Pushed both repos. | feature/seed-data + feature/api-contract-fixes |
+| 2026-05-12 | Fixed MapStruct mapper: removed invalid `@Mapping(target="smtpPassword", ignore=true)` (field absent from Res DTO). Fixed `Operator.java` `Stringc` typo. Backend built with Java 21 + IntelliJ Maven. | feature/seed-data |
 | 2026-05-11 | Operator module enterprise refactor — backend (V16 migration, MapStruct, specs, caching) + frontend (form redesign, location chips/picker, modal view toggle, column fixes) | feature/api-contract-fixes |
 | 2026-05-11 | LocationsPage: proper DaisyUI join pagination, numbered pages, clear-filter button, PAGE_SIZE=20 | feature/api-contract-fixes |
 | 2026-05-11 | Backend: @EnableCaching, LocationServiceImpl + OperatorServiceImpl caching, OpenApiConfig | feature/seed-data |
