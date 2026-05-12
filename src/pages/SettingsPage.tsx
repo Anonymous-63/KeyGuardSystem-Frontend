@@ -369,8 +369,8 @@ export default function SettingsPage() {
                   }}>
                     {SHORT}
                   </span>
-                  {/* Top-right dot: orange=unsaved, green=configured (only on inactive) */}
-                  {!isActive && (dirty || cfgd) && (
+                  {/* Top-right dot: orange=unsaved changes, green=section has saved data */}
+                  {(dirty || cfgd) && (
                     <span style={{
                       position: 'absolute', top: '5px', right: '6px',
                       width: '5px', height: '5px', borderRadius: '50%',
