@@ -195,13 +195,13 @@ function Toggle({ label, desc, checked, onChange }: {
 
 // ─── Grid helpers — auto-collapse below their minmax threshold ────────────────
 const Row2 = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.875rem', alignItems: 'end' }}>{children}</div>
 );
 const Row3 = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.875rem', alignItems: 'end' }}>{children}</div>
 );
 const HostPort = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem' }}>{children}</div>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem', alignItems: 'end' }}>{children}</div>
 );
 const Stack = ({ children }: { children: React.ReactNode }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>{children}</div>
@@ -494,15 +494,18 @@ export default function SettingsPage() {
                   </div>
 
                   <div style={{ borderTop: '1px solid var(--color-base-200)', paddingTop: '0.875rem' }}>
-                    <FL text="SSL Socket Factory Class" hint="Optional — only needed for legacy SSL/TLS setups" />
                     <HostPort>
-                      <input className={inp} value={v(K.MAIL_SOCK_CLASS)}
-                        onChange={(e) => set(K.MAIL_SOCK_CLASS, e.target.value)}
-                        placeholder="javax.net.ssl.SSLSocketFactory" maxLength={100} />
                       <div>
+                        <FL text="SSL Socket Factory Class" hint="Optional — only needed for legacy SSL/TLS setups" />
+                        <input className={inp} value={v(K.MAIL_SOCK_CLASS)}
+                          onChange={(e) => set(K.MAIL_SOCK_CLASS, e.target.value)}
+                          placeholder="javax.net.ssl.SSLSocketFactory" maxLength={100} />
+                      </div>
+                      <div>
+                        <FL text="Socket Port" hint="SSL socket factory port (optional)" />
                         <input className={inp} type="number" value={v(K.MAIL_SOCK_PORT)}
                           onChange={(e) => set(K.MAIL_SOCK_PORT, e.target.value)}
-                          placeholder="Port" min={1} max={65535} />
+                          placeholder="e.g. 465" min={1} max={65535} />
                       </div>
                     </HostPort>
                   </div>
@@ -599,7 +602,7 @@ export default function SettingsPage() {
                             onChange={(e) => set(K.LDAP_AUTH_TYPE, e.target.value)}
                             placeholder="SIMPLE" maxLength={50} />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <div>
                           <Toggle
                             label="Secured (LDAPS)"
                             desc="Use SSL/TLS for the connection"
