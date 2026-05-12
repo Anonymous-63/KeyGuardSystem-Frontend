@@ -77,8 +77,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const operator = useAppSelector((s) => s.auth.operator);
   const { data: configs } = useListConfigsQuery();
-  const orgName = configs?.find((c) => c.key === 'org.name')?.value?.trim() ?? '';
-  const hasLogo = configs?.some((c) => c.key === 'org.logo' && c.value?.trim());
+  const orgName = configs?.find((c) => c.configKey === 'org.name')?.configValue?.trim() ?? '';
+  const hasLogo = configs?.some((c) => c.configKey === 'org.logo' && c.configValue?.trim());
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Building2, Mail, MessageSquare, KeyRound, SlidersHorizontal,
   Eye, EyeOff, CheckCircle2, Circle, Server, Clock, ShieldCheck,
+  UploadCloud, ImageIcon, Trash2,
 } from 'lucide-react';
 import { useListConfigsQuery, useUpsertConfigMutation, useUploadLogoMutation } from '../features/config/configApi';
 import { useToast } from '../components/shared/Toast';
@@ -236,7 +237,9 @@ export default function SettingsPage() {
   const [upsert] = useUpsertConfigMutation();
   const [uploadLogo, { isLoading: uploadingLogo }] = useUploadLogoMutation();
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const hasLogo = configs.some((c) => c.key === 'org.logo' && c.value?.trim());
+  const [logoHover, setLogoHover] = useState(false);
+  const logoPath = configs.find((c) => c.configKey === 'org.logo')?.configValue?.trim() ?? '';
+  const hasLogo = logoPath.length > 0;
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -477,26 +480,114 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              <Card title="Organisation Logo" description="Shown in the sidebar and on reports. JPG, PNG or WebP, max 2 MB."
+              <Card title="Organisation Logo" description="Displayed in the sidebar and on printed reports."
                 dirty={false} saving={false} canSave={false} onSave={() => {}} noFooter>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                  <div style={{ width: '4rem', height: '4rem', borderRadius: '0.5rem', border: '1px solid var(--color-base-300)', background: 'var(--color-base-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {hasLogo
-                      ? <img src="/api/v1/config/logo" alt="org logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      : <span style={{ fontSize: '0.65rem', color: 'var(--color-base-content)', opacity: 0.35 }}>No logo</span>
-                    }
+                <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoFile} />
+
+                {hasLogo ? (
+                  /* ── Filled state ── */
+                  <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Preview */}
+                    <div
+                      style={{
+                        position: 'relative', width: '7rem', height: '5rem', flexShrink: 0,
+                        border: '1px solid var(--color-base-300)', borderRadius: '0.625rem',
+                        background: 'var(--color-base-200)', overflow: 'hidden',
+                        cursor: canUpdate ? 'pointer' : 'default',
+                      }}
+                      onClick={() => canUpdate && logoInputRef.current?.click()}
+                      onMouseEnter={() => setLogoHover(true)}
+                      onMouseLeave={() => setLogoHover(false)}
+                    >
+                      <img src={`/api/v1/config/logo?v=${encodeURIComponent(logoPath)}`} alt="org logo"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                      {canUpdate && logoHover && (
+                        <div style={{
+                          position: 'absolute', inset: 0,
+                          background: 'rgba(0,0,0,0.52)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: '0.25rem',
+                        }}>
+                          <UploadCloud size={18} color="white" strokeWidth={1.75} />
+                          <span style={{ color: 'white', fontSize: '0.68rem', fontWeight: 600 }}>Replace</span>
+                        </div>
+                      )}
+                      {uploadingLogo && (
+                        <div style={{
+                          position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span className="loading loading-spinner loading-sm" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info + actions */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <ImageIcon size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Logo configured</span>
+                      </div>
+                      <p style={{ fontSize: '0.72rem', opacity: 0.5, margin: 0, lineHeight: 1.4 }}>
+                        JPG, PNG or WebP · max 2 MB
+                      </p>
+                      {canUpdate && (
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                          <button className="btn btn-sm btn-outline" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                            <UploadCloud size={13} strokeWidth={1.75} />
+                            {uploadingLogo ? 'Uploading…' : 'Replace Logo'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoFile} />
-                    {canUpdate && (
-                      <button className="btn btn-sm btn-outline" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
-                        {uploadingLogo && <span className="loading loading-spinner loading-xs" />}
-                        {uploadingLogo ? 'Uploading…' : hasLogo ? 'Replace Logo' : 'Upload Logo'}
-                      </button>
+                ) : (
+                  /* ── Empty / drop zone ── */
+                  <div
+                    onClick={() => canUpdate && logoInputRef.current?.click()}
+                    onMouseEnter={() => setLogoHover(true)}
+                    onMouseLeave={() => setLogoHover(false)}
+                    style={{
+                      border: `2px dashed ${logoHover && canUpdate ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+                      borderRadius: '0.75rem',
+                      padding: '2rem 1.5rem',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: '0.625rem',
+                      cursor: canUpdate ? 'pointer' : 'default',
+                      background: logoHover && canUpdate
+                        ? 'color-mix(in oklch, var(--color-primary) 5%, var(--color-base-100))'
+                        : 'var(--color-base-200)',
+                      transition: 'border-color 0.15s, background 0.15s',
+                      textAlign: 'center',
+                      minHeight: '130px',
+                      position: 'relative',
+                    }}
+                  >
+                    {uploadingLogo ? (
+                      <span className="loading loading-spinner loading-md" style={{ opacity: 0.5 }} />
+                    ) : (
+                      <>
+                        <div style={{
+                          width: '2.75rem', height: '2.75rem', borderRadius: '50%',
+                          background: 'var(--color-base-300)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <UploadCloud size={22} strokeWidth={1.5} style={{ opacity: 0.55 }} />
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-base-content)' }}>
+                            {canUpdate ? 'Click to upload logo' : 'No logo set'}
+                          </p>
+                          {canUpdate && (
+                            <p style={{ margin: '0.2rem 0 0', fontSize: '0.72rem', opacity: 0.45 }}>
+                              JPG, PNG or WebP · max 2 MB
+                            </p>
+                          )}
+                        </div>
+                      </>
                     )}
-                    {hasLogo && <span style={{ fontSize: '0.7rem', color: 'var(--color-base-content)', opacity: 0.5 }}>Logo configured</span>}
                   </div>
-                </div>
+                )}
               </Card>
             </Stack>
           )}
