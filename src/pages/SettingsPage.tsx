@@ -145,18 +145,23 @@ function Card({ title, description, children, dirty, saving, canSave, onSave }: 
         padding: '0.625rem 1.25rem',
         borderTop: '1px solid var(--color-base-200)',
         background: 'var(--color-base-50, var(--color-base-100))',
-        display: 'flex', justifyContent: 'flex-end',
+        display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem',
       }}>
-        <button
-          className="btn btn-primary btn-sm"
-          style={{ minWidth: '110px', gap: '0.375rem' }}
-          onClick={onSave}
-          disabled={saving || !canSave || !dirty}>
-          {saving
-            ? <span className="loading loading-spinner loading-xs" />
-            : <></>}
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
+        {!canSave && (
+          <span style={{ fontSize: '0.72rem', opacity: 0.45, fontStyle: 'italic' }}>
+            Read-only — insufficient permissions
+          </span>
+        )}
+        {canSave && (
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ minWidth: '110px', gap: '0.375rem' }}
+            onClick={onSave}
+            disabled={saving || !dirty}>
+            {saving && <span className="loading loading-spinner loading-xs" />}
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -321,46 +326,50 @@ export default function SettingsPage() {
 
         {/* ── Nav ───────────────────────────────────────────────────────────── */}
         {isMobile ? (
-          /* Mobile: horizontal scrolling tab strip */
+          /* Mobile: 5-segment bar — all tabs always visible, no scroll */
           <div style={{
-            display: 'flex', overflowX: 'auto', gap: '0.25rem',
-            padding: '0.375rem',
+            display: 'flex',
             border: '1px solid var(--color-base-300)',
             borderRadius: '0.625rem',
+            overflow: 'hidden',
             background: 'var(--color-base-100)',
             flexShrink: 0, width: '100%',
-            scrollbarWidth: 'none',
           }}>
-            {NAV.map(({ id, label, icon }) => {
+            {NAV.map(({ id, icon }, i) => {
               const isActive = active === id;
               const dirty    = isDirty(id);
               const cfgd     = isConfigured(id);
+              const SHORT    = ({ org: 'Org', email: 'Email', sms: 'SMS', ldap: 'LDAP', features: 'Features' } as Record<string,string>)[id];
               return (
                 <button key={id} onClick={() => setActive(id)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '0.375rem',
-                    padding: '0.45rem 0.75rem', borderRadius: '0.375rem', flexShrink: 0,
-                    background: isActive ? 'var(--color-primary)' : 'transparent',
+                    flex: 1, minWidth: 0,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    gap: '0.22rem', padding: '0.6rem 0.2rem 0.5rem',
+                    background: isActive
+                      ? 'var(--color-primary)'
+                      : 'transparent',
                     color: isActive ? 'var(--color-primary-content)' : 'var(--color-base-content)',
-                    border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
-                    fontSize: '0.8rem', fontWeight: isActive ? 600 : 400,
-                    position: 'relative', transition: 'background 0.15s',
-                    opacity: isActive ? 1 : 0.7,
+                    border: 'none',
+                    borderRight: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
+                    cursor: 'pointer', position: 'relative',
+                    transition: 'background 0.15s, color 0.15s',
+                    opacity: isActive ? 1 : 0.5,
                   }}>
-                  {icon}
-                  {label}
-                  {dirty && (
+                  <span style={{ lineHeight: 1, display: 'flex' }}>{icon}</span>
+                  <span style={{
+                    fontSize: '0.6rem', fontWeight: isActive ? 700 : 500,
+                    lineHeight: 1, whiteSpace: 'nowrap',
+                  }}>
+                    {SHORT}
+                  </span>
+                  {/* Dot: warning=unsaved, success=configured */}
+                  {(dirty || cfgd) && (
                     <span style={{
-                      width: '6px', height: '6px', borderRadius: '50%',
-                      background: 'var(--color-warning)',
-                      position: 'absolute', top: '4px', right: '4px',
-                    }} />
-                  )}
-                  {cfgd && !isActive && (
-                    <span style={{
-                      width: '6px', height: '6px', borderRadius: '50%',
-                      background: 'var(--color-success)',
-                      position: 'absolute', top: '4px', right: dirty ? '12px' : '4px',
+                      position: 'absolute', top: '5px', right: '6px',
+                      width: '5px', height: '5px', borderRadius: '50%',
+                      background: dirty ? 'var(--color-warning)' : 'var(--color-success)',
                     }} />
                   )}
                 </button>
@@ -423,7 +432,11 @@ export default function SettingsPage() {
         )}
 
         {/* ── Right content ─────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', width: isMobile ? '100%' : undefined }}>
+        <div style={{
+          flex: 1, minWidth: 0, overflowY: 'auto',
+          width: isMobile ? '100%' : undefined,
+          minHeight: isMobile ? '360px' : undefined,
+        }}>
 
           {/* ── Organization ────────────────────────────────────────────── */}
           {active === 'org' && (
