@@ -11,6 +11,7 @@ import {
   Layers, Clock, ArrowLeftRight, Settings, Sun, Moon, Menu,
   LogOut, Lock, ClipboardList, Search, Bell, X,
 } from 'lucide-react';
+import { useListConfigsQuery } from '../features/config/configApi';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,9 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const operator = useAppSelector((s) => s.auth.operator);
+  const { data: configs } = useListConfigsQuery();
+  const orgName = configs?.find((c) => c.key === 'org.name')?.value?.trim() ?? '';
+  const hasLogo = configs?.some((c) => c.key === 'org.logo' && c.value?.trim());
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
@@ -90,14 +94,24 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Brand */}
       <div style={{ padding: '0.875rem 1rem 0.75rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <div style={{ width: '1.75rem', height: '1.75rem', borderRadius: '0.375rem', background: 'var(--ent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'white' }}>
-          <Lock size={14} strokeWidth={1.5} />
+        <div style={{ width: '2rem', height: '2rem', borderRadius: '0.375rem', background: 'var(--ent-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'white', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '-0.02em', overflow: 'hidden' }}>
+          {hasLogo
+            ? <img src="/api/v1/config/logo" alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : orgName ? orgName.slice(0, 2).toUpperCase() : <Lock size={13} strokeWidth={1.5} />
+          }
         </div>
-        <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-base-content)', letterSpacing: '-0.01em' }}>
-          KeyGuard
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+          <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-base-content)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+            KeyGuard
+          </span>
+          {orgName && (
+            <span style={{ fontSize: '0.65rem', color: 'var(--sb-text-muted)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {orgName}
+            </span>
+          )}
+        </div>
         {onClose && (
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sb-text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', marginLeft: 'auto' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--sb-text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex', flexShrink: 0 }}>
             <X size={16} strokeWidth={1.5} />
           </button>
         )}

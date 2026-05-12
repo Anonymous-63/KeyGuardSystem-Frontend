@@ -21,7 +21,12 @@ export const configApi = createApi({
       query: (key) => ({ url: `/config/${key}`, method: 'DELETE' }),
       invalidatesTags: ['Config'],
     }),
+    uploadLogo: b.mutation<AppConfigResponse, FormData>({
+      query: (body) => ({ url: '/config/logo', method: 'POST', body }),
+      transformResponse: (r: ApiResponse<AppConfigResponse>) => r.data,
+      invalidatesTags: ['Config'],
+    }),
   }),
 });
 
-export const { useListConfigsQuery, useUpsertConfigMutation, useDeleteConfigMutation } = configApi;
+export const { useListConfigsQuery, useUpsertConfigMutation, useDeleteConfigMutation, useUploadLogoMutation } = configApi;

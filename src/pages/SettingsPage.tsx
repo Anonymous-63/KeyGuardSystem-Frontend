@@ -3,7 +3,7 @@ import {
   Building2, Mail, MessageSquare, KeyRound, SlidersHorizontal,
   Eye, EyeOff, CheckCircle2, Circle, Server, Clock, ShieldCheck,
 } from 'lucide-react';
-import { useListConfigsQuery, useUpsertConfigMutation } from '../features/config/configApi';
+import { useListConfigsQuery, useUpsertConfigMutation, useUploadLogoMutation } from '../features/config/configApi';
 import { useToast } from '../components/shared/Toast';
 import { useAppSelector } from '../app/hooks';
 import { hasPermission } from '../features/auth/permissions';
@@ -97,11 +97,12 @@ const FL = ({ text, hint, required }: { text: string; hint?: string; required?: 
 );
 
 // ─── Section card ─────────────────────────────────────────────────────────────
-function Card({ title, description, children, dirty, saving, canSave, onSave }: {
+function Card({ title, description, children, dirty, saving, canSave, onSave, noFooter }: {
   title: string; description?: string;
   children: React.ReactNode;
   dirty: boolean; saving: boolean; canSave: boolean;
   onSave: () => void;
+  noFooter?: boolean;
 }) {
   return (
     <div style={{
@@ -141,28 +142,30 @@ function Card({ title, description, children, dirty, saving, canSave, onSave }: 
         {children}
       </div>
       {/* Card footer */}
-      <div style={{
-        padding: '0.625rem 1.25rem',
-        borderTop: '1px solid var(--color-base-200)',
-        background: 'var(--color-base-50, var(--color-base-100))',
-        display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem',
-      }}>
-        {!canSave && (
-          <span style={{ fontSize: '0.72rem', opacity: 0.45, fontStyle: 'italic' }}>
-            Read-only — insufficient permissions
-          </span>
-        )}
-        {canSave && (
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ minWidth: '110px', gap: '0.375rem' }}
-            onClick={onSave}
-            disabled={saving || !dirty}>
-            {saving && <span className="loading loading-spinner loading-xs" />}
-            {saving ? 'Saving…' : 'Save Changes'}
-          </button>
-        )}
-      </div>
+      {!noFooter && (
+        <div style={{
+          padding: '0.625rem 1.25rem',
+          borderTop: '1px solid var(--color-base-200)',
+          background: 'var(--color-base-50, var(--color-base-100))',
+          display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem',
+        }}>
+          {!canSave && (
+            <span style={{ fontSize: '0.72rem', opacity: 0.45, fontStyle: 'italic' }}>
+              Read-only — insufficient permissions
+            </span>
+          )}
+          {canSave && (
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ minWidth: '110px', gap: '0.375rem' }}
+              onClick={onSave}
+              disabled={saving || !dirty}>
+              {saving && <span className="loading loading-spinner loading-xs" />}
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -231,6 +234,9 @@ export default function SettingsPage() {
 
   const { data: configs = [], isLoading } = useListConfigsQuery();
   const [upsert] = useUpsertConfigMutation();
+  const [uploadLogo, { isLoading: uploadingLogo }] = useUploadLogoMutation();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const hasLogo = configs.some((c) => c.key === 'org.logo' && c.value?.trim());
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -288,6 +294,20 @@ export default function SettingsPage() {
       addToast({ type: 'error', message: 'Failed to save settings' });
     }
     setSavingSec(null);
+  };
+
+  const handleLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await uploadLogo(fd).unwrap();
+      addToast({ type: 'success', message: 'Logo uploaded' });
+    } catch {
+      addToast({ type: 'error', message: 'Logo upload failed' });
+    }
+    e.target.value = '';
   };
 
   // ─── Nav items ──────────────────────────────────────────────────────────────
@@ -445,18 +465,40 @@ export default function SettingsPage() {
 
           {/* ── Organization ────────────────────────────────────────────── */}
           {active === 'org' && (
-            <Card title="Organization Identity" description="Displayed in page headers, reports, and notifications."
-              dirty={isDirty('org')} saving={saving} canSave={canUpdate}
-              onSave={() => saveSection('org')}>
-              <Stack>
+            <Stack>
+              <Card title="Organization Identity" description="Displayed in page headers, reports, and notifications."
+                dirty={isDirty('org')} saving={saving} canSave={canUpdate}
+                onSave={() => saveSection('org')}>
                 <div>
                   <FL text="Organisation Name" required />
                   <input className={inp} value={v(K.ORG_NAME)}
                     onChange={(e) => set(K.ORG_NAME, e.target.value)}
                     maxLength={50} placeholder="e.g. Senergy Systems Pvt. Ltd." />
                 </div>
-              </Stack>
-            </Card>
+              </Card>
+
+              <Card title="Organisation Logo" description="Shown in the sidebar and on reports. JPG, PNG or WebP, max 2 MB."
+                dirty={false} saving={false} canSave={false} onSave={() => {}} noFooter>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ width: '4rem', height: '4rem', borderRadius: '0.5rem', border: '1px solid var(--color-base-300)', background: 'var(--color-base-200)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                    {hasLogo
+                      ? <img src="/api/v1/config/logo" alt="org logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      : <span style={{ fontSize: '0.65rem', color: 'var(--color-base-content)', opacity: 0.35 }}>No logo</span>
+                    }
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoFile} />
+                    {canUpdate && (
+                      <button className="btn btn-sm btn-outline" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                        {uploadingLogo && <span className="loading loading-spinner loading-xs" />}
+                        {uploadingLogo ? 'Uploading…' : hasLogo ? 'Replace Logo' : 'Upload Logo'}
+                      </button>
+                    )}
+                    {hasLogo && <span style={{ fontSize: '0.7rem', color: 'var(--color-base-content)', opacity: 0.5 }}>Logo configured</span>}
+                  </div>
+                </div>
+              </Card>
+            </Stack>
           )}
 
           {/* ── Email / SMTP ─────────────────────────────────────────────── */}
