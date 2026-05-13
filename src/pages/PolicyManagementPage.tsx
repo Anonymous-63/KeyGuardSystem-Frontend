@@ -443,74 +443,110 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
     setMode('visual');
   };
 
-  const logicPill = (active: boolean): React.CSSProperties => ({
-    padding: '0.08rem 0.45rem', borderRadius: '9999px', fontSize: '0.64rem', fontWeight: 700,
+  const col: React.CSSProperties = { fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.4, marginBottom: '0.2rem' };
+
+  const logicBadge = (active: boolean): React.CSSProperties => ({
+    padding: '0.12rem 0.55rem', borderRadius: '0.25rem', fontSize: '0.65rem', fontWeight: 700,
     border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
-    background: active ? 'var(--color-primary)' : 'transparent',
+    background: active ? 'var(--color-primary)' : 'var(--color-base-100)',
     color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
-    cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em',
+    cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase',
+    transition: 'background 0.12s, color 0.12s, border-color 0.12s',
   });
+
   const modePill = (active: boolean): React.CSSProperties => ({
-    padding: '0.15rem 0.65rem', borderRadius: '9999px', fontSize: '0.74rem', fontWeight: 600,
+    padding: '0.22rem 0.9rem', borderRadius: '9999px', fontSize: '0.78rem', fontWeight: 600,
     border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
     background: active ? 'var(--color-primary)' : 'transparent',
-    color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
-    cursor: 'pointer',
+    color: active ? 'var(--color-primary-content)' : 'var(--color-base-content)',
+    cursor: 'pointer', transition: 'background 0.12s, color 0.12s',
   });
+
+  const preview = mode === 'visual' ? compileToSpel(bs) : '';
 
   return (
     <div>
       {/* Mode toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.625rem' }}>
-        <button type="button" style={modePill(mode === 'visual')} onClick={mode === 'raw' ? switchToVisual : undefined}>Visual</button>
-        <button type="button" style={modePill(mode === 'raw')}    onClick={mode === 'visual' ? switchToRaw  : undefined}>Raw SpEL</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
+        <button type="button" style={modePill(mode === 'visual')} onClick={mode === 'raw' ? switchToVisual : undefined}>
+          Visual Builder
+        </button>
+        <button type="button" style={modePill(mode === 'raw')} onClick={mode === 'visual' ? switchToRaw : undefined}>
+          Raw SpEL
+        </button>
         {mode === 'raw' && startRaw && (
-          <span style={{ fontSize: '0.67rem', opacity: 0.4, marginLeft: '0.15rem' }}>Switching to Visual resets the builder</span>
+          <span style={{ fontSize: '0.68rem', opacity: 0.38, marginLeft: '0.25rem' }}>
+            Visual Builder starts fresh — existing SpEL preserved in Raw mode
+          </span>
         )}
       </div>
 
       {mode === 'raw' ? (
         <textarea
           className="textarea textarea-bordered w-full"
-          rows={4}
-          style={{ fontFamily: 'monospace', fontSize: '0.825rem', resize: 'vertical', lineHeight: 1.6 }}
+          rows={5}
+          style={{ fontFamily: 'monospace', fontSize: '0.825rem', resize: 'vertical', lineHeight: 1.65 }}
           value={rawVal}
           placeholder="subject.clearanceLevel >= 4 and subject.mfaVerified == true"
           onChange={e => { setRawVal(e.target.value); onChange(e.target.value); }}
         />
       ) : (
-        <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.375rem', overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden', overflowX: 'auto' }}>
           {bs.groups.map((group, gi) => (
             <div key={group.id}>
+
+              {/* Between-group connector bar */}
               {gi > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.2rem 0.75rem', background: 'var(--color-base-300)' }}>
-                  <span style={{ fontSize: '0.64rem', opacity: 0.5 }}>Between groups:</span>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.3rem 1rem', background: 'var(--color-base-300)',
+                }}>
+                  <div style={{ height: '1px', flex: 1, background: 'var(--color-base-content)', opacity: 0.12 }} />
+                  <span style={{ fontSize: '0.62rem', opacity: 0.45, letterSpacing: '0.06em', textTransform: 'uppercase' }}>group connector</span>
                   {(['and', 'or'] as const).map(l => (
-                    <button key={l} type="button" style={logicPill(bs.groupLogic === l)} onClick={() => setOuterLogic(l)}>{l}</button>
+                    <button key={l} type="button" style={logicBadge(bs.groupLogic === l)} onClick={() => setOuterLogic(l)}>{l}</button>
                   ))}
+                  <div style={{ height: '1px', flex: 1, background: 'var(--color-base-content)', opacity: 0.12 }} />
                 </div>
               )}
-              <div style={{ padding: '0.625rem 0.75rem', background: gi % 2 === 0 ? 'var(--color-base-100)' : 'color-mix(in oklch, var(--color-base-200) 70%, transparent)' }}>
+
+              {/* Group body */}
+              <div style={{ padding: '0.875rem 1rem', background: gi % 2 === 0 ? 'var(--color-base-100)' : 'color-mix(in oklch, var(--color-base-200) 60%, var(--color-base-100))' }}>
+
+                {/* Column headers — only on first group's first row */}
+                {gi === 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px 130px 32px', gap: '0.5rem', marginBottom: '0.25rem', minWidth: '480px' }}>
+                    <div style={col}>Attribute</div>
+                    <div style={col}>Operator</div>
+                    <div style={col}>Value</div>
+                    <div />
+                  </div>
+                )}
+
                 {group.rows.map((row, ri) => {
                   const attrDef = ATTR_DEFS.find(a => a.path === row.attr) ?? ATTR_DEFS[2];
                   const ops     = OPS_FOR[attrDef.type];
                   const opDef   = ops.find(o => o.key === row.op) ?? ops[0];
                   return (
                     <div key={row.id}>
+                      {/* Within-group logic connector */}
                       {ri > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', margin: '0.25rem 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0', minWidth: '480px' }}>
                           {(['and', 'or'] as const).map(l => (
-                            <button key={l} type="button" style={logicPill(group.logic === l)} onClick={() => setInnerLogic(group.id, l)}>{l}</button>
+                            <button key={l} type="button" style={logicBadge(group.logic === l)} onClick={() => setInnerLogic(group.id, l)}>{l}</button>
                           ))}
+                          <div style={{ height: '1px', flex: 1, background: 'var(--color-base-content)', opacity: 0.08 }} />
                         </div>
                       )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.15rem' }}>
+
+                      {/* Condition row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px 130px 32px', gap: '0.5rem', alignItems: 'center', minWidth: '480px' }}>
                         {/* Attribute */}
-                        <select className="select select-bordered select-xs"
-                          style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.73rem', minWidth: 0 }}
+                        <select className="select select-bordered select-sm"
+                          style={{ fontFamily: 'monospace', fontSize: '0.77rem', width: '100%' }}
                           value={row.attr}
                           onChange={e => {
-                            const nd = ATTR_DEFS.find(a => a.path === e.target.value) ?? ATTR_DEFS[2];
+                            const nd   = ATTR_DEFS.find(a => a.path === e.target.value) ?? ATTR_DEFS[2];
                             const ops2 = OPS_FOR[nd.type];
                             const validOp = ops2.find(o => o.key === row.op) ? row.op : defaultOp(nd.type);
                             patchRow(group.id, row.id, { attr: e.target.value, op: validOp, value: defaultVal(nd) });
@@ -523,66 +559,84 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                             </optgroup>
                           ))}
                         </select>
+
                         {/* Operator */}
-                        <select className="select select-bordered select-xs"
-                          style={{ width: '140px', fontSize: '0.73rem', flexShrink: 0 }}
+                        <select className="select select-bordered select-sm"
+                          style={{ fontSize: '0.77rem', width: '100%' }}
                           value={row.op}
                           onChange={e => patchRow(group.id, row.id, { op: e.target.value as OpKey })}>
                           {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
                         </select>
+
                         {/* Value */}
                         {opDef.hasValue ? (
                           attrDef.type === 'StringEnum' ? (
-                            <select className="select select-bordered select-xs"
-                              style={{ width: '115px', fontSize: '0.73rem', flexShrink: 0 }}
+                            <select className="select select-bordered select-sm"
+                              style={{ fontSize: '0.77rem', width: '100%' }}
                               value={row.value}
                               onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
                               {(attrDef.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
                           ) : (
-                            <input className="input input-bordered input-xs"
-                              style={{ width: '90px', fontFamily: 'monospace', fontSize: '0.73rem', flexShrink: 0 }}
+                            <input className="input input-bordered input-sm"
+                              style={{ fontFamily: 'monospace', fontSize: '0.77rem', width: '100%' }}
                               type={attrDef.type === 'int' || attrDef.type === 'SetInt' ? 'number' : 'text'}
                               value={row.value}
                               onChange={e => patchRow(group.id, row.id, { value: e.target.value })} />
                           )
                         ) : (
-                          <div style={{ width: '90px', flexShrink: 0 }} />
+                          <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            height: '2rem', borderRadius: '0.375rem',
+                            background: 'var(--color-base-200)', fontSize: '0.7rem', opacity: 0.4,
+                          }}>
+                            —
+                          </div>
                         )}
-                        {/* Remove row */}
-                        <button type="button" className="btn btn-ghost btn-xs btn-square text-error"
+
+                        {/* Remove */}
+                        <button type="button" className="btn btn-ghost btn-sm btn-square text-error"
+                          style={{ opacity: bs.groups.length === 1 && group.rows.length === 1 ? 0.25 : 0.65 }}
                           disabled={bs.groups.length === 1 && group.rows.length === 1}
                           onClick={() => removeRow(group.id, row.id)}>
-                          <X size={12} />
+                          <X size={14} />
                         </button>
                       </div>
                     </div>
                   );
                 })}
-                <button type="button" className="btn btn-ghost btn-xs gap-1" style={{ marginTop: '0.3rem', fontSize: '0.72rem' }}
+
+                {/* Add condition */}
+                <button type="button" className="btn btn-ghost btn-sm gap-1.5"
+                  style={{ marginTop: '0.625rem', fontSize: '0.78rem', opacity: 0.7 }}
                   onClick={() => addRow(group.id)}>
-                  <Plus size={11} /> Add Condition
+                  <Plus size={13} /> Add Condition
                 </button>
               </div>
             </div>
           ))}
-          <div style={{ borderTop: '1px solid var(--color-base-300)', padding: '0.375rem 0.75rem', background: 'var(--color-base-200)' }}>
-            <button type="button" className="btn btn-ghost btn-xs gap-1" style={{ fontSize: '0.72rem' }} onClick={addGroup}>
-              <Plus size={11} /> Add Condition Group
+
+          {/* Add group */}
+          <div style={{ borderTop: '1px solid var(--color-base-300)', padding: '0.5rem 1rem', background: 'var(--color-base-200)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button type="button" className="btn btn-outline btn-sm gap-1.5" style={{ fontSize: '0.78rem' }} onClick={addGroup}>
+              <Plus size={13} /> Add Condition Group
             </button>
+            <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>Groups allow complex nested AND/OR logic</span>
           </div>
         </div>
       )}
 
-      {/* SpEL preview beneath visual builder */}
-      {mode === 'visual' && compileToSpel(bs) && (
+      {/* SpEL preview */}
+      {mode === 'visual' && preview && (
         <div style={{
-          marginTop: '0.4rem', fontFamily: 'monospace', fontSize: '0.7rem',
-          padding: '0.3rem 0.55rem', background: 'var(--color-base-200)',
-          borderRadius: '0.25rem', borderLeft: '3px solid var(--color-primary)',
-          wordBreak: 'break-all', opacity: 0.65, lineHeight: 1.4,
+          marginTop: '0.5rem', fontFamily: 'monospace', fontSize: '0.72rem',
+          padding: '0.4rem 0.7rem', background: 'var(--color-base-200)',
+          borderRadius: '0.375rem', borderLeft: '3px solid var(--color-primary)',
+          wordBreak: 'break-all', opacity: 0.7, lineHeight: 1.5,
+          display: 'flex', gap: '0.5rem', alignItems: 'flex-start',
         }}>
-          {compileToSpel(bs)}
+          <span style={{ opacity: 0.45, flexShrink: 0, fontSize: '0.65rem', paddingTop: '0.1rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>SpEL</span>
+          <span>{preview}</span>
         </div>
       )}
     </div>
@@ -649,8 +703,11 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
     }
   };
 
+  const hint: React.CSSProperties = { fontSize: '0.7rem', opacity: 0.45, marginTop: '0.25rem' };
+  const err:  React.CSSProperties = { color: 'var(--color-error)', fontSize: '0.72rem', marginTop: '0.2rem' };
+
   return (
-    <Modal open title={isEdit ? `Edit Policy — ${policy!.name}` : 'New Policy'} onClose={onClose} size="lg"
+    <Modal open title={isEdit ? `Edit — ${policy!.name}` : 'New Policy'} onClose={onClose} size="xl"
       footer={
         <>
           <button className="btn btn-sm btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
@@ -660,73 +717,95 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.125rem' }}>
+
+        {/* Name + Description row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div>
             <FL text="Name" required />
             <input className={`input input-bordered w-full${errors.name ? ' input-error' : ''}`}
               value={form.name} placeholder="e.g. account_status_gate"
               onChange={e => set('name', e.target.value)} />
-            {errors.name && <p style={{ color: 'var(--color-error)', fontSize: '0.72rem', marginTop: '0.2rem' }}>{errors.name}</p>}
+            {errors.name ? <p style={err}>{errors.name}</p> : <p style={hint}>Unique identifier for this policy</p>}
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div>
             <FL text="Description" />
             <input className="input input-bordered w-full" value={form.description ?? ''}
-              placeholder="Brief human-readable description"
+              placeholder="Human-readable description"
               onChange={e => set('description', e.target.value)} />
+            <p style={hint}>Optional. Shown in the policy list.</p>
           </div>
+        </div>
 
-          {/* Effect selector — large radio cards */}
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FL text="Effect" required />
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              {(['PERMIT', 'DENY'] as const).map(eff => {
-                const selected = form.effect === eff;
-                const isPermit = eff === 'PERMIT';
-                return (
-                  <label key={eff} style={{
-                    flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    padding: '0.625rem 1rem', borderRadius: '0.375rem', cursor: 'pointer',
-                    border: `2px solid ${selected ? (isPermit ? '#16a34a' : '#dc2626') : 'var(--color-base-300)'}`,
-                    background: selected ? (isPermit ? '#f0fdf4' : '#fef2f2') : 'var(--color-base-100)',
-                    transition: 'all 0.15s ease',
-                  }}>
-                    <input type="radio" className="radio radio-sm" checked={selected} onChange={() => set('effect', eff)} style={{ display: 'none' }} />
-                    <EffectBadge effect={eff} size="md" />
-                    <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                      {isPermit ? 'Allow matching requests' : 'Block matching requests'}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+        {/* Effect selector */}
+        <div>
+          <FL text="Effect" required />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            {(['PERMIT', 'DENY'] as const).map(eff => {
+              const selected = form.effect === eff;
+              const isPermit = eff === 'PERMIT';
+              return (
+                <label key={eff} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.875rem',
+                  padding: '0.75rem 1rem', borderRadius: '0.5rem', cursor: 'pointer',
+                  border: `2px solid ${selected ? (isPermit ? '#16a34a' : '#dc2626') : 'var(--color-base-300)'}`,
+                  background: selected ? (isPermit ? '#f0fdf4' : '#fef2f2') : 'var(--color-base-100)',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}>
+                  <input type="radio" checked={selected} onChange={() => set('effect', eff)} style={{ display: 'none' }} />
+                  <EffectBadge effect={eff} size="md" />
+                  <div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                      {isPermit ? 'Permit' : 'Deny'}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', opacity: 0.55, marginTop: '0.1rem' }}>
+                      {isPermit ? 'Allow matching requests' : 'Block — overrides any PERMIT'}
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
           </div>
+        </div>
 
+        {/* Priority / Resource Type / Action — 3 cols, wraps on narrow */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
           <div>
             <FL text="Priority" required />
             <input className={`input input-bordered w-full${errors.priority ? ' input-error' : ''}`}
               type="number" min={1} max={9999}
               value={form.priority} onChange={e => set('priority', Number(e.target.value))} />
             {errors.priority
-              ? <p style={{ color: 'var(--color-error)', fontSize: '0.72rem', marginTop: '0.2rem' }}>{errors.priority}</p>
-              : <p style={{ opacity: 0.5, fontSize: '0.7rem', marginTop: '0.2rem' }}>Lower number = evaluated first. DENY overrides at same priority.</p>
-            }
+              ? <p style={err}>{errors.priority}</p>
+              : <p style={hint}>Lower = first. DENY wins at same level.</p>}
           </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            <div>
-              <FL text="Resource Type" />
-              <input className="input input-bordered w-full" value={form.resourceType ?? ''}
-                placeholder="OPERATOR… (blank = any)" onChange={e => set('resourceType', e.target.value)} />
-            </div>
-            <div>
-              <FL text="Action" />
-              <input className="input input-bordered w-full" value={form.action ?? ''}
-                placeholder="READ… (blank = any)" onChange={e => set('action', e.target.value)} />
-            </div>
+          <div>
+            <FL text="Resource Type" />
+            <input list="fm-rt-list" className="input input-bordered w-full"
+              value={form.resourceType ?? ''}
+              placeholder="OPERATOR… (blank = any)"
+              onChange={e => set('resourceType', e.target.value)} />
+            <datalist id="fm-rt-list">
+              {['OPERATOR','LOCATION','CABINET','ASSET','CABINET_USER','TRANSACTION','ASSET_GROUP'].map(r =>
+                <option key={r} value={r} />)}
+            </datalist>
+            <p style={hint}>Leave blank to match any resource type.</p>
+          </div>
+          <div>
+            <FL text="Action" />
+            <input list="fm-action-list" className="input input-bordered w-full"
+              value={form.action ?? ''}
+              placeholder="READ… (blank = any)"
+              onChange={e => set('action', e.target.value)} />
+            <datalist id="fm-action-list">
+              {['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'].map(a =>
+                <option key={a} value={a} />)}
+            </datalist>
+            <p style={hint}>Leave blank to match any action.</p>
           </div>
         </div>
 
+        {/* Condition expression */}
         <div>
           <FL text="Condition Expression" required />
           <ConditionBuilder
@@ -734,14 +813,16 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
             onChange={v => set('conditionExpr', v)}
             startRaw={isEdit}
           />
-          {errors.conditionExpr && <p style={{ color: 'var(--color-error)', fontSize: '0.72rem', marginTop: '0.2rem' }}>{errors.conditionExpr}</p>}
+          {errors.conditionExpr && <p style={err}>{errors.conditionExpr}</p>}
         </div>
 
+        {/* Change reason (edit only) */}
         {isEdit && (
           <div>
             <FL text="Change Reason" />
             <input className="input input-bordered w-full" value={form.changeReason ?? ''}
-              placeholder="Why are you making this change?" onChange={e => set('changeReason', e.target.value)} />
+              placeholder="Why are you making this change? (saved in version history)"
+              onChange={e => set('changeReason', e.target.value)} />
           </div>
         )}
       </div>
