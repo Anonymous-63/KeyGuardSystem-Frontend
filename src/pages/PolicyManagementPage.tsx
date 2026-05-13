@@ -302,6 +302,293 @@ function VersionHistoryDrawer({ policy, onClose }: { policy: PolicyResponse; onC
   );
 }
 
+// ─── Condition builder ─────────────────────────────────────────────────────────
+
+type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt';
+type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse' | 'contains' | 'notContains';
+
+interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[] }
+interface OpDef   { key: OpKey; label: string; hasValue: boolean }
+interface CRow    { id: string; attr: string; op: OpKey; value: string }
+interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
+interface BuilderState { groups: CGroup[]; groupLogic: 'and' | 'or' }
+
+const ATTR_DEFS: AttrDef[] = [
+  { path: 'subject.operatorId',        group: 'Subject',  label: 'subject.operatorId',        type: 'String' },
+  { path: 'subject.operatorType',      group: 'Subject',  label: 'subject.operatorType',      type: 'int' },
+  { path: 'subject.clearanceLevel',    group: 'Subject',  label: 'subject.clearanceLevel',    type: 'int' },
+  { path: 'subject.locationIds',       group: 'Subject',  label: 'subject.locationIds',       type: 'SetInt' },
+  { path: 'subject.accountStatus',     group: 'Subject',  label: 'subject.accountStatus',     type: 'StringEnum', options: ['ACTIVE', 'DISABLED', 'LOCKED'] },
+  { path: 'subject.mfaVerified',       group: 'Subject',  label: 'subject.mfaVerified',       type: 'boolean' },
+  { path: 'subject.employmentType',    group: 'Subject',  label: 'subject.employmentType',    type: 'StringEnum', options: ['FULL_TIME', 'CONTRACTOR', 'TEMP'] },
+  { path: 'subject.riskCategory',      group: 'Subject',  label: 'subject.riskCategory',      type: 'StringEnum', options: ['LOW', 'MEDIUM', 'HIGH'] },
+  { path: 'subject.passwordExpired',   group: 'Subject',  label: 'subject.passwordExpired',   type: 'boolean' },
+  { path: 'resource.resourceType',     group: 'Resource', label: 'resource.resourceType',     type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION'] },
+  { path: 'resource.resourceId',       group: 'Resource', label: 'resource.resourceId',       type: 'String' },
+  { path: 'resource.locationId',       group: 'Resource', label: 'resource.locationId',       type: 'int' },
+  { path: 'resource.isGlobal',         group: 'Resource', label: 'resource.isGlobal',         type: 'boolean' },
+  { path: 'resource.sensitivityLevel', group: 'Resource', label: 'resource.sensitivityLevel', type: 'int' },
+  { path: 'resource.ownerType',        group: 'Resource', label: 'resource.ownerType',        type: 'int' },
+  { path: 'env.riskScore',             group: 'Env',      label: 'env.riskScore',             type: 'int' },
+  { path: 'env.businessHours',         group: 'Env',      label: 'env.businessHours',         type: 'boolean' },
+  { path: 'env.clientIp',              group: 'Env',      label: 'env.clientIp',              type: 'String' },
+  { path: 'env.dayOfWeek',             group: 'Env',      label: 'env.dayOfWeek',             type: 'StringEnum', options: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] },
+  { path: 'action.name',               group: 'Action',   label: 'action.name',               type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'IMPORT', 'ASSIGN', 'APPROVE'] },
+  { path: 'action.mutation',           group: 'Action',   label: 'action.mutation',           type: 'boolean' },
+];
+
+const OPS_FOR: Record<AttrType, OpDef[]> = {
+  int:       [{ key: 'gte', label: '≥ at least', hasValue: true }, { key: 'gt', label: '> greater than', hasValue: true }, { key: 'lte', label: '≤ at most', hasValue: true }, { key: 'lt', label: '< less than', hasValue: true }, { key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
+  boolean:   [{ key: 'isTrue', label: 'is true', hasValue: false }, { key: 'isFalse', label: 'is false', hasValue: false }],
+  String:    [{ key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
+  StringEnum:[{ key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
+  SetInt:    [{ key: 'contains', label: 'contains', hasValue: true }, { key: 'notContains', label: 'not contains', hasValue: true }],
+};
+
+function defaultOp(type: AttrType): OpKey {
+  if (type === 'boolean') return 'isTrue';
+  if (type === 'SetInt')  return 'contains';
+  if (type === 'int')     return 'gte';
+  return 'eq';
+}
+function defaultVal(a: AttrDef): string {
+  if (a.type === 'boolean')    return '';
+  if (a.type === 'StringEnum') return a.options?.[0] ?? '';
+  if (a.type === 'int')        return '1';
+  if (a.type === 'SetInt')     return '1';
+  return '';
+}
+
+let _uid = 0;
+const uid = () => `${++_uid}`;
+function newRow(attrPath = 'subject.clearanceLevel'): CRow {
+  const a = ATTR_DEFS.find(x => x.path === attrPath) ?? ATTR_DEFS[2];
+  return { id: uid(), attr: a.path, op: defaultOp(a.type), value: defaultVal(a) };
+}
+function newGroup(): CGroup { return { id: uid(), logic: 'and', rows: [newRow()] }; }
+
+function compileRow(row: CRow): string {
+  const a = ATTR_DEFS.find(x => x.path === row.attr);
+  if (!a) return '';
+  const ref = `#${row.attr}`;
+  switch (row.op) {
+    case 'eq':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
+    case 'ne':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} != '${row.value}'` : `${ref} != ${row.value}`;
+    case 'gt':  return `${ref} > ${row.value}`;
+    case 'gte': return `${ref} >= ${row.value}`;
+    case 'lt':  return `${ref} < ${row.value}`;
+    case 'lte': return `${ref} <= ${row.value}`;
+    case 'isTrue':      return `${ref} == true`;
+    case 'isFalse':     return `${ref} == false`;
+    case 'contains':    return `${ref}.contains(${row.value})`;
+    case 'notContains': return `!${ref}.contains(${row.value})`;
+    default: return '';
+  }
+}
+function compileGroup(g: CGroup): string {
+  const parts = g.rows.map(compileRow).filter(Boolean);
+  if (parts.length === 0) return '';
+  return parts.length === 1 ? parts[0] : `(${parts.join(` ${g.logic} `)})`;
+}
+function compileToSpel(s: BuilderState): string {
+  const parts = s.groups.map(compileGroup).filter(Boolean);
+  if (parts.length === 0) return '';
+  return parts.length === 1 ? parts[0] : parts.join(` ${s.groupLogic} `);
+}
+
+const ATTR_GROUPS = ['Subject', 'Resource', 'Env', 'Action'] as const;
+
+function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChange: (v: string) => void; startRaw: boolean }) {
+  const [mode, setMode] = useState<'visual' | 'raw'>(startRaw ? 'raw' : 'visual');
+  const [bs, setBs]     = useState<BuilderState>(() => ({ groups: [newGroup()], groupLogic: 'and' }));
+  const [rawVal, setRawVal] = useState(value);
+
+  const applyBs = (next: BuilderState) => { setBs(next); onChange(compileToSpel(next)); };
+
+  const patchRow = (gid: string, rid: string, patch: Partial<CRow>) =>
+    applyBs({ ...bs, groups: bs.groups.map(g =>
+      g.id !== gid ? g : { ...g, rows: g.rows.map(r => r.id !== rid ? r : { ...r, ...patch }) }) });
+
+  const addRow = (gid: string) =>
+    applyBs({ ...bs, groups: bs.groups.map(g =>
+      g.id !== gid ? g : { ...g, rows: [...g.rows, newRow()] }) });
+
+  const removeRow = (gid: string, rid: string) => {
+    const g = bs.groups.find(x => x.id === gid)!;
+    if (g.rows.length === 1) {
+      if (bs.groups.length === 1) return;
+      applyBs({ ...bs, groups: bs.groups.filter(x => x.id !== gid) });
+    } else {
+      applyBs({ ...bs, groups: bs.groups.map(x =>
+        x.id !== gid ? x : { ...x, rows: x.rows.filter(r => r.id !== rid) }) });
+    }
+  };
+
+  const setInnerLogic = (gid: string, l: 'and' | 'or') =>
+    applyBs({ ...bs, groups: bs.groups.map(g => g.id !== gid ? g : { ...g, logic: l }) });
+
+  const addGroup      = () => applyBs({ ...bs, groups: [...bs.groups, newGroup()] });
+  const setOuterLogic = (l: 'and' | 'or') => applyBs({ ...bs, groupLogic: l });
+
+  const switchToRaw = () => {
+    const spel = compileToSpel(bs);
+    setRawVal(spel);
+    onChange(spel);
+    setMode('raw');
+  };
+  const switchToVisual = () => {
+    const init: BuilderState = { groups: [newGroup()], groupLogic: 'and' };
+    setBs(init);
+    onChange(compileToSpel(init));
+    setMode('visual');
+  };
+
+  const logicPill = (active: boolean): React.CSSProperties => ({
+    padding: '0.08rem 0.45rem', borderRadius: '9999px', fontSize: '0.64rem', fontWeight: 700,
+    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+    background: active ? 'var(--color-primary)' : 'transparent',
+    color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
+    cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em',
+  });
+  const modePill = (active: boolean): React.CSSProperties => ({
+    padding: '0.15rem 0.65rem', borderRadius: '9999px', fontSize: '0.74rem', fontWeight: 600,
+    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+    background: active ? 'var(--color-primary)' : 'transparent',
+    color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
+    cursor: 'pointer',
+  });
+
+  return (
+    <div>
+      {/* Mode toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.625rem' }}>
+        <button type="button" style={modePill(mode === 'visual')} onClick={mode === 'raw' ? switchToVisual : undefined}>Visual</button>
+        <button type="button" style={modePill(mode === 'raw')}    onClick={mode === 'visual' ? switchToRaw  : undefined}>Raw SpEL</button>
+        {mode === 'raw' && startRaw && (
+          <span style={{ fontSize: '0.67rem', opacity: 0.4, marginLeft: '0.15rem' }}>Switching to Visual resets the builder</span>
+        )}
+      </div>
+
+      {mode === 'raw' ? (
+        <textarea
+          className="textarea textarea-bordered w-full"
+          rows={4}
+          style={{ fontFamily: 'monospace', fontSize: '0.825rem', resize: 'vertical', lineHeight: 1.6 }}
+          value={rawVal}
+          placeholder="subject.clearanceLevel >= 4 and subject.mfaVerified == true"
+          onChange={e => { setRawVal(e.target.value); onChange(e.target.value); }}
+        />
+      ) : (
+        <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.375rem', overflow: 'hidden' }}>
+          {bs.groups.map((group, gi) => (
+            <div key={group.id}>
+              {gi > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.2rem 0.75rem', background: 'var(--color-base-300)' }}>
+                  <span style={{ fontSize: '0.64rem', opacity: 0.5 }}>Between groups:</span>
+                  {(['and', 'or'] as const).map(l => (
+                    <button key={l} type="button" style={logicPill(bs.groupLogic === l)} onClick={() => setOuterLogic(l)}>{l}</button>
+                  ))}
+                </div>
+              )}
+              <div style={{ padding: '0.625rem 0.75rem', background: gi % 2 === 0 ? 'var(--color-base-100)' : 'color-mix(in oklch, var(--color-base-200) 70%, transparent)' }}>
+                {group.rows.map((row, ri) => {
+                  const attrDef = ATTR_DEFS.find(a => a.path === row.attr) ?? ATTR_DEFS[2];
+                  const ops     = OPS_FOR[attrDef.type];
+                  const opDef   = ops.find(o => o.key === row.op) ?? ops[0];
+                  return (
+                    <div key={row.id}>
+                      {ri > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', margin: '0.25rem 0' }}>
+                          {(['and', 'or'] as const).map(l => (
+                            <button key={l} type="button" style={logicPill(group.logic === l)} onClick={() => setInnerLogic(group.id, l)}>{l}</button>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.15rem' }}>
+                        {/* Attribute */}
+                        <select className="select select-bordered select-xs"
+                          style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.73rem', minWidth: 0 }}
+                          value={row.attr}
+                          onChange={e => {
+                            const nd = ATTR_DEFS.find(a => a.path === e.target.value) ?? ATTR_DEFS[2];
+                            const ops2 = OPS_FOR[nd.type];
+                            const validOp = ops2.find(o => o.key === row.op) ? row.op : defaultOp(nd.type);
+                            patchRow(group.id, row.id, { attr: e.target.value, op: validOp, value: defaultVal(nd) });
+                          }}>
+                          {ATTR_GROUPS.map(grp => (
+                            <optgroup key={grp} label={grp}>
+                              {ATTR_DEFS.filter(a => a.group === grp).map(a => (
+                                <option key={a.path} value={a.path}>{a.label}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                        {/* Operator */}
+                        <select className="select select-bordered select-xs"
+                          style={{ width: '140px', fontSize: '0.73rem', flexShrink: 0 }}
+                          value={row.op}
+                          onChange={e => patchRow(group.id, row.id, { op: e.target.value as OpKey })}>
+                          {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                        </select>
+                        {/* Value */}
+                        {opDef.hasValue ? (
+                          attrDef.type === 'StringEnum' ? (
+                            <select className="select select-bordered select-xs"
+                              style={{ width: '115px', fontSize: '0.73rem', flexShrink: 0 }}
+                              value={row.value}
+                              onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
+                              {(attrDef.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input className="input input-bordered input-xs"
+                              style={{ width: '90px', fontFamily: 'monospace', fontSize: '0.73rem', flexShrink: 0 }}
+                              type={attrDef.type === 'int' || attrDef.type === 'SetInt' ? 'number' : 'text'}
+                              value={row.value}
+                              onChange={e => patchRow(group.id, row.id, { value: e.target.value })} />
+                          )
+                        ) : (
+                          <div style={{ width: '90px', flexShrink: 0 }} />
+                        )}
+                        {/* Remove row */}
+                        <button type="button" className="btn btn-ghost btn-xs btn-square text-error"
+                          disabled={bs.groups.length === 1 && group.rows.length === 1}
+                          onClick={() => removeRow(group.id, row.id)}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button type="button" className="btn btn-ghost btn-xs gap-1" style={{ marginTop: '0.3rem', fontSize: '0.72rem' }}
+                  onClick={() => addRow(group.id)}>
+                  <Plus size={11} /> Add Condition
+                </button>
+              </div>
+            </div>
+          ))}
+          <div style={{ borderTop: '1px solid var(--color-base-300)', padding: '0.375rem 0.75rem', background: 'var(--color-base-200)' }}>
+            <button type="button" className="btn btn-ghost btn-xs gap-1" style={{ fontSize: '0.72rem' }} onClick={addGroup}>
+              <Plus size={11} /> Add Condition Group
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SpEL preview beneath visual builder */}
+      {mode === 'visual' && compileToSpel(bs) && (
+        <div style={{
+          marginTop: '0.4rem', fontFamily: 'monospace', fontSize: '0.7rem',
+          padding: '0.3rem 0.55rem', background: 'var(--color-base-200)',
+          borderRadius: '0.25rem', borderLeft: '3px solid var(--color-primary)',
+          wordBreak: 'break-all', opacity: 0.65, lineHeight: 1.4,
+        }}>
+          {compileToSpel(bs)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Policy form modal ─────────────────────────────────────────────────────────
 
 const emptyForm = (): PolicyRequest => ({
@@ -442,12 +729,11 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
 
         <div>
           <FL text="Condition Expression" required />
-          <textarea
-            className={`textarea textarea-bordered w-full${errors.conditionExpr ? ' textarea-error' : ''}`}
-            rows={4} style={{ fontFamily: 'monospace', fontSize: '0.825rem', resize: 'vertical', lineHeight: 1.6 }}
+          <ConditionBuilder
             value={form.conditionExpr}
-            placeholder="subject.clearanceLevel >= 4 and subject.mfaVerified == true"
-            onChange={e => set('conditionExpr', e.target.value)} />
+            onChange={v => set('conditionExpr', v)}
+            startRaw={isEdit}
+          />
           {errors.conditionExpr && <p style={{ color: 'var(--color-error)', fontSize: '0.72rem', marginTop: '0.2rem' }}>{errors.conditionExpr}</p>}
         </div>
 
