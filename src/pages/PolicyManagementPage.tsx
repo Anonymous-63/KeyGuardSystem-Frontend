@@ -68,11 +68,12 @@ function PriorityBadge({ value }: { value: number }) {
 }
 
 // ─── Scope cell ───────────────────────────────────────────────────────────────
-// Two-line stacked: resource type (primary) above action (muted)
+// Two-line stacked: resource type (primary) above action badge(s) (muted)
 
 function ScopeCell({ resource, action }: { resource?: string; action?: string }) {
+  const actions = action ? action.split(',').map(a => a.trim()).filter(Boolean) : [];
   return (
-    <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+    <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: '0.2rem' }}>
       <span style={{
         fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.03em',
         color: resource ? 'var(--color-primary)' : 'var(--sb-text-muted)',
@@ -80,13 +81,20 @@ function ScopeCell({ resource, action }: { resource?: string; action?: string })
       }}>
         {resource ?? 'Any resource'}
       </span>
-      <span style={{
-        fontSize: '0.68rem', fontWeight: 500, marginTop: '0.1rem',
-        color: 'var(--sb-text-muted)',
-        fontStyle: action ? 'normal' : 'italic',
-      }}>
-        {action ?? 'any action'}
-      </span>
+      {actions.length === 0 ? (
+        <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--sb-text-muted)', fontStyle: 'italic' }}>
+          any action
+        </span>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.18rem' }}>
+          {actions.map(a => (
+            <span key={a} className="badge badge-ghost badge-xs"
+              style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0 0.3rem', cursor: 'default' }}>
+              {a}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -631,6 +639,8 @@ const emptyForm = (): PolicyRequest => ({
   effect: 'PERMIT', priority: 100, conditionExpr: '', changeReason: '',
 });
 
+const ALL_ACTIONS = ['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'];
+
 function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; onClose: () => void }) {
   const toast = useToast();
   const [form, setForm] = useState<PolicyRequest>(() =>
@@ -640,6 +650,9 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
       effect: policy.effect, priority: policy.priority,
       conditionExpr: policy.conditionExpr, changeReason: '',
     } : emptyForm()
+  );
+  const [selectedActions, setSelectedActions] = useState<string[]>(() =>
+    policy?.action ? policy.action.split(',').map(a => a.trim()).filter(Boolean) : []
   );
   const [errors, setErrors] = useState<Partial<Record<keyof PolicyRequest, string>>>({});
   const [createPolicy, { isLoading: creating }] = useCreatePolicyMutation();
@@ -651,6 +664,11 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
     setForm(f => ({ ...f, [k]: v }));
     setErrors(e => ({ ...e, [k]: undefined }));
   };
+
+  const addAction = (a: string) => {
+    if (a && !selectedActions.includes(a)) setSelectedActions(prev => [...prev, a]);
+  };
+  const removeAction = (a: string) => setSelectedActions(prev => prev.filter(x => x !== a));
 
   const validate = () => {
     const e: Partial<Record<keyof PolicyRequest, string>> = {};
@@ -665,10 +683,10 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
     if (!validate()) return;
     const body: PolicyRequest = {
       ...form,
-      resourceType: form.resourceType?.trim()  || undefined,
-      action:       form.action?.trim()         || undefined,
-      description:  form.description?.trim()   || undefined,
-      changeReason: form.changeReason?.trim()  || undefined,
+      resourceType: form.resourceType?.trim()              || undefined,
+      action:       selectedActions.length > 0 ? selectedActions.join(',') : undefined,
+      description:  form.description?.trim()               || undefined,
+      changeReason: form.changeReason?.trim()              || undefined,
     };
     try {
       if (isEdit) {
@@ -774,15 +792,38 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
             <p style={hint}>Leave blank to match any resource type.</p>
           </div>
           <div>
-            <FL text="Action" />
-            <select className="select select-bordered w-full"
-              value={form.action ?? ''}
-              onChange={e => set('action', e.target.value)}>
-              <option value="">Any action</option>
-              {['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'].map(a =>
+            <FL text="Actions" />
+            <div style={{
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.3rem',
+              minHeight: '2.5rem', padding: '0.375rem 0.5rem',
+              border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
+              background: 'var(--color-base-100)', marginBottom: '0.375rem',
+            }}>
+              {selectedActions.length === 0 && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontStyle: 'italic', userSelect: 'none' }}>
+                  Any action
+                </span>
+              )}
+              {selectedActions.map(a => (
+                <span key={a} className="badge badge-soft badge-neutral gap-1"
+                  style={{ fontSize: '0.72rem', fontWeight: 600, paddingRight: '0.2rem' }}>
+                  {a}
+                  <button type="button"
+                    style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', background: 'none', border: 'none', padding: 0, color: 'inherit', opacity: 0.7 }}
+                    onClick={() => removeAction(a)}>
+                    <X size={11} strokeWidth={2.5} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <select className="select select-bordered select-sm w-full"
+              value=""
+              onChange={e => { addAction(e.target.value); e.currentTarget.value = ''; }}>
+              <option value="">+ Add action…</option>
+              {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).map(a =>
                 <option key={a} value={a}>{a}</option>)}
             </select>
-            <p style={hint}>Leave blank to match any action.</p>
+            <p style={hint}>Leave empty to match any action. Select multiple.</p>
           </div>
         </div>
 
