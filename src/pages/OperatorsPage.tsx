@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useListOperatorsQuery,
   useLazyListOperatorsQuery,
@@ -10,6 +10,7 @@ import {
   useListLocationsForOperatorQuery,
   useAssignLocationToOperatorMutation,
   useRemoveLocationFromOperatorMutation,
+  useUploadOperatorPhotoMutation,
 } from '../features/operator/operatorApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import type { OperatorResponse, OperatorRequest } from '../types/api';
@@ -20,7 +21,7 @@ import { useToast } from '../components/shared/Toast';
 import { DataGrid, type ColDef } from '../components/shared/DataGrid';
 import { useAppSelector } from '../app/hooks';
 import { hasPermission } from '../features/auth/permissions';
-import { Search, Pencil, Ban, RefreshCw, MapPin, Download } from 'lucide-react';
+import { Search, Pencil, Ban, RefreshCw, MapPin, Download, Camera, User } from 'lucide-react';
 
 const PAGE_SIZE = 20;
 const DEFAULT_PASSWORD = 'Admin@123';
@@ -349,6 +350,33 @@ function OperatorForm({
   const [countryCode, setCountryCode] = useState(initial?.mobileCountryCode ?? '91');
   const [pendingLocs, setPendingLocs] = useState<number[]>([]);
 
+  const photoFileRef = useRef<HTMLInputElement>(null);
+  const [uploadPhoto, { isLoading: uploadingPhoto }] = useUploadOperatorPhotoMutation();
+  const [localPhotoUrl, setLocalPhotoUrl] = useState<string | null>(null);
+  const [photoHover, setPhotoHover] = useState(false);
+
+  const currentPhotoSrc = localPhotoUrl
+    ?? (isEdit && initial?.photoPath
+      ? `/api/v1/operators/${initial.id}/photo?v=${encodeURIComponent(initial.photoPath)}`
+      : null);
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !initial?.id) return;
+    if (!/\.(png|jpg|jpeg)$/i.test(file.name)) { e.target.value = ''; return; }
+    if (file.size > 5 * 1024 * 1024) { e.target.value = ''; return; }
+    const preview = URL.createObjectURL(file);
+    setLocalPhotoUrl(preview);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await uploadPhoto({ id: initial.id, file: fd }).unwrap();
+    } catch {
+      setLocalPhotoUrl(null);
+    }
+    e.target.value = '';
+  };
+
   const needsLocation = type === 4 || type === 5;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -367,6 +395,97 @@ function OperatorForm({
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* ── Profile Photo (edit mode only) ────────────────────────────── */}
+      {isEdit && (
+        <>
+          <input ref={photoFileRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handlePhotoSelect} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.625rem', paddingBottom: '1.125rem', borderBottom: '1px solid var(--color-base-200)' }}>
+
+            {/* Avatar + camera badge */}
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <div
+                onClick={() => !uploadingPhoto && photoFileRef.current?.click()}
+                onMouseEnter={() => setPhotoHover(true)}
+                onMouseLeave={() => setPhotoHover(false)}
+                style={{
+                  width: '5.5rem', height: '5.5rem', borderRadius: '50%',
+                  background: currentPhotoSrc
+                    ? 'var(--color-base-200)'
+                    : 'var(--ent-dark)',
+                  border: currentPhotoSrc
+                    ? '3px solid var(--color-primary)'
+                    : `3px dashed ${photoHover ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+                  cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+                  overflow: 'hidden', position: 'relative',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'border-color 0.2s, box-shadow 0.2s',
+                  boxShadow: currentPhotoSrc
+                    ? '0 0 0 4px color-mix(in oklch, var(--color-primary) 15%, transparent)'
+                    : photoHover
+                      ? '0 0 0 4px color-mix(in oklch, var(--color-primary) 10%, transparent)'
+                      : 'none',
+                }}
+              >
+                {currentPhotoSrc
+                  ? <img src={currentPhotoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <User size={32} strokeWidth={1.25} style={{ color: 'white', opacity: 0.7 }} />
+                }
+                {/* Hover overlay on existing photo */}
+                {photoHover && !uploadingPhoto && currentPhotoSrc && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.38)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Camera size={22} color="white" strokeWidth={1.75} />
+                  </div>
+                )}
+                {uploadingPhoto && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span className="loading loading-spinner loading-sm" style={{ color: 'white' }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Camera badge */}
+              <button
+                type="button"
+                disabled={uploadingPhoto}
+                onClick={() => photoFileRef.current?.click()}
+                style={{
+                  position: 'absolute', bottom: '3px', right: '3px',
+                  width: '1.625rem', height: '1.625rem', borderRadius: '50%',
+                  background: uploadingPhoto ? 'var(--color-base-300)' : 'var(--color-primary)',
+                  border: '2.5px solid var(--color-base-100)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+                  transition: 'background 0.15s',
+                  padding: 0,
+                }}
+              >
+                <Camera size={11} color="white" strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Status / hint */}
+            <div style={{ textAlign: 'center' }}>
+              {currentPhotoSrc ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-success)', fontWeight: 600 }}>✓ Photo set</span>
+                  <span style={{ fontSize: '0.65rem', opacity: 0.3 }}>·</span>
+                  <button type="button"
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.72rem', color: 'var(--color-primary)', cursor: 'pointer', opacity: 0.75 }}
+                    onClick={() => photoFileRef.current?.click()} disabled={uploadingPhoto}>
+                    Replace
+                  </button>
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--sb-text-muted)', opacity: 0.55 }}>
+                  Click avatar to upload · PNG or JPG · max 5 MB
+                </p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Operator Type — dropdown ──────────────────────────────────── */}
       <div>
@@ -722,6 +841,28 @@ export default function OperatorsPage() {
 
   const cols = useMemo<ColDef<OperatorResponse>[]>(() => [
     {
+      headerName: '', width: 52, minWidth: 52, sortable: false, resizable: false, suppressMovable: true,
+      cellRenderer: ({ data: d }: { data: OperatorResponse }) => {
+        const photoSrc = d.photoPath
+          ? `/api/v1/operators/${d.id}/photo?v=${encodeURIComponent(d.photoPath)}`
+          : null;
+        return (
+          <div style={{
+            width: '2rem', height: '2rem', borderRadius: '50%',
+            background: photoSrc ? 'var(--color-base-200)' : 'var(--color-base-300)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0,
+            border: photoSrc ? '1.5px solid var(--color-primary)' : '1.5px solid var(--color-base-300)',
+          }}>
+            {photoSrc
+              ? <img src={photoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              : <User size={14} strokeWidth={1.5} style={{ color: 'var(--color-base-content)', opacity: 0.4 }} />
+            }
+          </div>
+        );
+      },
+    },
+    {
       field: 'id', headerName: 'Operator ID',
       width: 130, minWidth: 90,
     },
@@ -731,11 +872,11 @@ export default function OperatorsPage() {
     },
     {
       field: 'emailId', headerName: 'Email',
-      width: 210, minWidth: 150, hide: isMobile,
+      width: 210, minWidth: 150,
       valueFormatter: ({ value }) => (value as string | undefined) ?? '—',
     },
     {
-      headerName: 'Type', width: 150, minWidth: 110, hide: isMobile,
+      headerName: 'Type', width: 150, minWidth: 110,
       valueGetter: ({ data: d }) => d ? (OPERATOR_TYPES[d.type] ?? `Type ${d.type}`) : '',
     },
     {
@@ -748,8 +889,7 @@ export default function OperatorsPage() {
     },
     {
       headerName: 'Actions',
-      width: isMobile ? 62 : 165,
-      minWidth: isMobile ? 56 : 155,
+      width: 165, minWidth: 155,
       sortable: false, resizable: false, suppressMovable: true, pinned: 'right',
       cellRenderer: ({ data: d }: { data: OperatorResponse }) => {
         const isSuperAdminRow  = d.type === 1;
@@ -758,41 +898,29 @@ export default function OperatorsPage() {
         const canEdit          = can('UPDATE') && !restricted;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
-            {canEdit && (isMobile
-              ? <button className="btn btn-ghost btn-xs btn-square" title="Edit"
-                  onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
-                  <Pencil size={16} strokeWidth={1.5} />
-                </button>
-              : <button className="btn btn-outline btn-xs gap-1"
-                  onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
-                  <Pencil size={14} strokeWidth={1.5} /> Edit
-                </button>
+            {canEdit && (
+              <button className="btn btn-outline btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); openEdit(d); }}>
+                <Pencil size={14} strokeWidth={1.5} /> Edit
+              </button>
             )}
-            {!d.disabled && can('DELETE') && !restricted && (isMobile
-              ? <button className="btn btn-ghost btn-xs btn-square text-error" title="Disable"
-                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
-                  <Ban size={16} strokeWidth={1.5} />
-                </button>
-              : <button className="btn btn-outline btn-error btn-xs gap-1"
-                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
-                  <Ban size={14} strokeWidth={1.5} /> Disable
-                </button>
+            {!d.disabled && can('DELETE') && !restricted && (
+              <button className="btn btn-outline btn-error btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'disable' }); }}>
+                <Ban size={14} strokeWidth={1.5} /> Disable
+              </button>
             )}
-            {d.disabled && can('RESTORE') && !restricted && (isMobile
-              ? <button className="btn btn-ghost btn-xs btn-square text-info" title="Restore"
-                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
-                  <RefreshCw size={16} strokeWidth={1.5} />
-                </button>
-              : <button className="btn btn-outline btn-info btn-xs gap-1"
-                  onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
-                  <RefreshCw size={14} strokeWidth={1.5} /> Restore
-                </button>
+            {d.disabled && can('RESTORE') && !restricted && (
+              <button className="btn btn-outline btn-info btn-xs gap-1"
+                onClick={(e) => { e.stopPropagation(); setConfirmState({ op: d, action: 'restore' }); }}>
+                <RefreshCw size={14} strokeWidth={1.5} /> Restore
+              </button>
             )}
           </div>
         );
       },
     },
-  ], [can, isMobile]);
+  ], [can]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '0.875rem' }}>
