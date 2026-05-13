@@ -42,53 +42,29 @@ const FL = ({ text, required }: { text: string; required?: boolean }) => (
   </div>
 );
 
-// ─── Effect badge ─────────────────────────────────────────────────────────────
-// soft=true → light pill for table rows; soft=false (default) → solid for form cards
+// ─── Effect badge — DaisyUI badge-soft ───────────────────────────────────────
 
-function EffectBadge({ effect, size = 'sm', soft = false }: { effect: 'PERMIT' | 'DENY'; size?: 'sm' | 'md'; soft?: boolean }) {
+function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
   const isPermit = effect === 'PERMIT';
-  const iconSz = size === 'md' ? 13 : 11;
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '0.28rem', flexShrink: 0,
-      padding: size === 'md' ? '0.3rem 0.75rem' : '0.2rem 0.55rem',
-      borderRadius: soft ? '9999px' : '0.3rem',
-      fontSize: size === 'md' ? '0.8rem' : '0.71rem', fontWeight: 700, letterSpacing: '0.02em',
-      background: soft
-        ? (isPermit ? '#dcfce7' : '#fee2e2')
-        : (isPermit ? '#16a34a' : '#dc2626'),
-      color: soft
-        ? (isPermit ? '#166534' : '#991b1b')
-        : '#fff',
-      border: soft ? `1px solid ${isPermit ? '#86efac' : '#fca5a5'}` : 'none',
-    }}>
+    <span className={`badge badge-soft ${isPermit ? 'badge-success' : 'badge-error'} gap-1`}
+      style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
       {isPermit
-        ? <ShieldCheck size={iconSz} strokeWidth={2.5} />
-        : <ShieldX    size={iconSz} strokeWidth={2.5} />}
+        ? <ShieldCheck size={10} strokeWidth={2.5} />
+        : <ShieldX    size={10} strokeWidth={2.5} />}
       {effect}
     </span>
   );
 }
 
-// ─── Priority badge ───────────────────────────────────────────────────────────
-// Left-stripe chip: stripe color = tier, number in tabular monospace
+// ─── Priority badge — neutral numbered badge ──────────────────────────────────
+// No color encoding: priority is a plain rank number, lower = evaluated first.
 
 function PriorityBadge({ value }: { value: number }) {
-  const stripe =
-    value <= 10  ? '#ef4444' :   // critical — top 10
-    value <= 50  ? '#f59e0b' :   // high     — top 50
-    value <= 100 ? '#3b82f6' :   // normal
-                   '#94a3b8';    // low
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', overflow: 'hidden',
-      background: 'var(--color-base-200)', border: '1px solid var(--color-base-300)',
-      borderRadius: '0.3rem',
-    }}>
-      <span style={{ width: '3px', alignSelf: 'stretch', background: stripe, flexShrink: 0 }} />
-      <span style={{ padding: '0.18rem 0.45rem', fontWeight: 700, fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
-        {value}
-      </span>
+    <span className="badge badge-ghost badge-sm"
+      style={{ fontWeight: 700, fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums', minWidth: '2.25rem', justifyContent: 'center' }}>
+      {value}
     </span>
   );
 }
@@ -1162,7 +1138,7 @@ export default function PolicyManagementPage() {
     {
       headerName: 'Effect', field: 'effect', width: 115, sortable: true,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
-        d ? <EffectBadge effect={d.effect} soft /> : null,
+        d ? <EffectBadge effect={d.effect} /> : null,
     },
     {
       headerName: 'Scope', width: 170,
@@ -1184,55 +1160,51 @@ export default function PolicyManagementPage() {
     },
     {
       headerName: 'Status', field: 'active', width: 90,
-      cellRenderer: ({ data: d }: { data: PolicyResponse }) => (
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-          padding: '0.18rem 0.5rem', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 600,
-          background: d?.active ? '#dcfce7' : '#f3f4f6',
-          color: d?.active ? '#166534' : 'var(--sb-text-muted)',
-          border: `1px solid ${d?.active ? '#86efac' : 'var(--color-base-300)'}`,
-        }}>
-          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: d?.active ? '#22c55e' : '#94a3b8', flexShrink: 0 }} />
-          {d?.active ? 'Active' : 'Inactive'}
-        </span>
-      ),
+      cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
+        d?.active
+          ? <span className="badge badge-soft badge-success badge-sm" style={{ cursor: 'default' }}>Active</span>
+          : <span className="badge badge-soft badge-error badge-sm"   style={{ cursor: 'default' }}>Inactive</span>,
     },
     {
-      headerName: '', width: 112, sortable: false, resizable: false,
+      headerName: 'Actions', width: 148, sortable: false, resizable: false,
       suppressMovable: true, pinned: 'right',
       cellRenderer: ({ data: d }: { data: PolicyResponse }) => {
         if (!d) return null;
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', height: '100%', paddingLeft: '0.25rem' }}>
-            <button className="btn btn-ghost btn-xs btn-square" title="Version history"
-              style={{ opacity: 0.6 }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', height: '100%' }}>
+            {/* History — neutral */}
+            <button
+              className="btn btn-xs btn-outline gap-1"
+              title="Version history"
               onClick={e => { e.stopPropagation(); setHistoryPol(d); }}>
-              <History size={14} strokeWidth={1.5} />
+              <History size={12} strokeWidth={1.5} />
             </button>
-            {can('UPDATE') && (
-              <button className="btn btn-ghost btn-xs btn-square" title="Edit"
-                style={{ opacity: 0.6 }}
-                onClick={e => { e.stopPropagation(); setEditPolicy(d); setShowForm(true); }}>
-                <Pencil size={14} strokeWidth={1.5} />
-              </button>
-            )}
+            {/* Edit — primary */}
             {can('UPDATE') && (
               <button
-                className="btn btn-ghost btn-xs btn-square"
-                style={{ color: d.active ? '#f59e0b' : '#22c55e' }}
-                title={d.active ? 'Deactivate' : 'Activate'}
-                onClick={e => { e.stopPropagation(); handleToggle(d); }}
-                disabled={toggling}
-              >
-                <Power size={14} strokeWidth={1.5} />
+                className="btn btn-xs btn-outline btn-primary gap-1"
+                title="Edit policy"
+                onClick={e => { e.stopPropagation(); setEditPolicy(d); setShowForm(true); }}>
+                <Pencil size={12} strokeWidth={1.5} />
               </button>
             )}
+            {/* Toggle — warning (deactivate) or success (activate) */}
+            {can('UPDATE') && (
+              <button
+                className={`btn btn-xs btn-outline gap-1 ${d.active ? 'btn-warning' : 'btn-success'}`}
+                title={d.active ? 'Deactivate' : 'Activate'}
+                onClick={e => { e.stopPropagation(); handleToggle(d); }}
+                disabled={toggling}>
+                <Power size={12} strokeWidth={1.5} />
+              </button>
+            )}
+            {/* Delete — error */}
             {can('DELETE') && (
-              <button className="btn btn-ghost btn-xs btn-square"
-                style={{ color: 'var(--color-error)', opacity: 0.65 }}
-                title="Delete"
+              <button
+                className="btn btn-xs btn-outline btn-error gap-1"
+                title="Delete policy"
                 onClick={e => { e.stopPropagation(); setDeleteTarget(d); }}>
-                <Trash2 size={14} strokeWidth={1.5} />
+                <Trash2 size={12} strokeWidth={1.5} />
               </button>
             )}
           </div>
