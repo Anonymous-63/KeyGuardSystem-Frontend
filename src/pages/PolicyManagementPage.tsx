@@ -718,20 +718,29 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
         </div>
 
-        {/* Effect selector */}
+        {/* Effect selector — radio */}
         <div>
           <FL text="Effect" required />
-          <div className="join w-full">
+          <div style={{ display: 'flex', gap: '2rem' }}>
             {(['PERMIT', 'DENY'] as const).map(eff => {
               const selected = form.effect === eff;
               const isPermit = eff === 'PERMIT';
               return (
-                <button key={eff} type="button"
-                  className={`btn join-item flex-1 gap-2 ${selected ? (isPermit ? 'btn-success' : 'btn-error') : 'btn-ghost'}`}
-                  onClick={() => set('effect', eff)}>
-                  {isPermit ? <ShieldCheck size={15} strokeWidth={2} /> : <ShieldX size={15} strokeWidth={2} />}
-                  {eff}
-                </button>
+                <label key={eff} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    className={`radio radio-sm ${isPermit ? 'radio-success' : 'radio-error'}`}
+                    checked={selected}
+                    onChange={() => set('effect', eff)}
+                  />
+                  <span className={`badge badge-outline ${isPermit ? 'badge-success' : 'badge-error'}`}>
+                    {isPermit ? <ShieldCheck size={11} strokeWidth={2.5} /> : <ShieldX size={11} strokeWidth={2.5} />}
+                    {eff}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--sb-text-muted)' }}>
+                    {isPermit ? 'Allow matching requests' : 'Block — overrides any PERMIT'}
+                  </span>
+                </label>
               );
             })}
           </div>
