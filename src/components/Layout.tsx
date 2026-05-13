@@ -9,7 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, MapPin, User, Users, Monitor, KeyRound,
   Layers, Clock, ArrowLeftRight, Settings, Sun, Moon, Menu,
-  LogOut, Lock, ClipboardList, Search, Bell, X, ShieldCheck,
+  LogOut, Lock, ClipboardList, Search, Bell, X, ShieldCheck, ChevronDown,
 } from 'lucide-react';
 import { useGetPublicOrgQuery } from '../features/config/configApi';
 import { useGetMeQuery } from '../features/operator/operatorApi';
@@ -147,7 +147,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
               {group.title}
             </p>
             {group.items.map(({ to, icon: NavIcon, label, badge }) => (
-              <NavLink key={to} to={to} className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
+              <NavLink key={to} to={to} onClick={onClose} className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
                 <NavIcon size={15} strokeWidth={1.5} />
                 <span style={{ flex: 1 }}>{label}</span>
                 {badge === 'live' && (
@@ -161,7 +161,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         ))}
         <div style={{ marginBottom: '0.25rem' }}>
           <p style={{ padding: '0.5rem 0.75rem 0.2rem', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08rem', color: 'var(--sb-text-muted)', margin: 0 }}>Account</p>
-          <NavLink to="/profile" className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
+          <NavLink to="/profile" onClick={onClose} className={({ isActive }) => `ent-nav-link${isActive ? ' ent-nav-active' : ''}`}>
             <User size={15} strokeWidth={1.5} />
             My Profile
           </NavLink>
@@ -170,6 +170,21 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
     </aside>
   );
+}
+
+// ─── Role colours ────────────────────────────────────────────────────────────
+
+const ROLE_COLORS: Record<number, string> = {
+  1: '#ef4444',
+  2: '#f97316',
+  3: '#8b5cf6',
+  4: '#3b82f6',
+  5: '#10b981',
+};
+
+function hexRgba(hex: string, alpha: number) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -304,22 +319,46 @@ export default function Layout() {
               {dark ? <Sun size={17} strokeWidth={1.5} /> : <Moon size={17} strokeWidth={1.5} />}
             </button>
             <div style={{ position: 'relative' }} onMouseEnter={openMenu} onMouseLeave={closeMenu}>
-              <button
-                title={operator?.name ?? operator?.id ?? 'Profile'}
-                style={{
-                  width: '2rem', height: '2rem', borderRadius: '50%',
-                  background: avatarPhotoSrc ? 'transparent' : 'var(--ent-dark)', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.7rem', fontWeight: 700,
-                  border: 'none', cursor: 'pointer', flexShrink: 0,
-                  overflow: 'hidden', padding: 0,
-                }}
-              >
-                {avatarPhotoSrc
-                  ? <img src={avatarPhotoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <User size={15} strokeWidth={1.5} style={{ color: 'white', opacity: 0.85 }} />
-                }
-              </button>
+              {(() => {
+                const roleColor = operator ? (ROLE_COLORS[operator.type] ?? '#6366f1') : '#6366f1';
+                return (
+                  <button
+                    title={operator?.name ?? operator?.id ?? 'Profile'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.45rem',
+                      background: hexRgba(roleColor, 0.07),
+                      border: `1px solid ${hexRgba(roleColor, 0.22)}`,
+                      borderLeft: `3px solid ${roleColor}`,
+                      borderRadius: '2rem',
+                      padding: '0.2rem 0.5rem 0.2rem 0.28rem',
+                      cursor: 'pointer', flexShrink: 0,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                    }}
+                  >
+                    <div style={{
+                      width: '2rem', height: '2rem', borderRadius: '50%',
+                      background: avatarPhotoSrc ? 'transparent' : roleColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      overflow: 'hidden', flexShrink: 0,
+                    }}>
+                      {avatarPhotoSrc
+                        ? <img src={avatarPhotoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : <User size={14} strokeWidth={1.5} style={{ color: 'white', opacity: 0.9 }} />
+                      }
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25 }}>
+                      <span style={{ fontSize: '0.775rem', fontWeight: 700, color: 'var(--color-base-content)', whiteSpace: 'nowrap', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {operator?.name ?? operator?.id ?? 'Me'}
+                      </span>
+                      <span style={{ fontSize: '0.64rem', color: roleColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {operator ? (OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                      </span>
+                    </div>
+                    <ChevronDown size={12} strokeWidth={2.5} style={{ color: hexRgba(roleColor, 0.6), marginLeft: '0.05rem', flexShrink: 0 }} />
+                  </button>
+                );
+              })()}
+
               {avatarMenuOpen && (
                 <div
                   onMouseEnter={openMenu}
@@ -442,6 +481,13 @@ export default function Layout() {
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-base-content)', textAlign: 'left' }}
                     >
                       <User size={14} strokeWidth={1.5} /> My Profile
+                    </button>
+                    <button
+                      onClick={() => { toggle(); setMobileUserMenuOpen(false); }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8125rem', color: 'var(--color-base-content)', textAlign: 'left' }}
+                    >
+                      {dark ? <Sun size={14} strokeWidth={1.5} /> : <Moon size={14} strokeWidth={1.5} />}
+                      {dark ? 'Light Mode' : 'Dark Mode'}
                     </button>
                     <button
                       onClick={() => { handleLogout(); setMobileUserMenuOpen(false); }}
