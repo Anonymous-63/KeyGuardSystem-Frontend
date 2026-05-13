@@ -42,71 +42,78 @@ const FL = ({ text, required }: { text: string; required?: boolean }) => (
   </div>
 );
 
-// ─── Effect badge — solid, high contrast ──────────────────────────────────────
-// Permit DENY get solid colored backgrounds, not washed-out pastels
+// ─── Effect badge ─────────────────────────────────────────────────────────────
+// soft=true → light pill for table rows; soft=false (default) → solid for form cards
 
-function EffectBadge({ effect, size = 'sm' }: { effect: 'PERMIT' | 'DENY'; size?: 'sm' | 'md' }) {
+function EffectBadge({ effect, size = 'sm', soft = false }: { effect: 'PERMIT' | 'DENY'; size?: 'sm' | 'md'; soft?: boolean }) {
   const isPermit = effect === 'PERMIT';
-  const iconSize = size === 'md' ? 13 : 11;
-  const fontSize = size === 'md' ? '0.8rem' : '0.7rem';
-  const pad      = size === 'md' ? '0.25rem 0.65rem' : '0.18rem 0.55rem';
+  const iconSz = size === 'md' ? 13 : 11;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-      padding: pad, borderRadius: '0.25rem', fontSize, fontWeight: 700,
-      letterSpacing: '0.03em',
-      background: isPermit ? '#16a34a' : '#dc2626',
-      color: '#fff',
-      flexShrink: 0,
+      display: 'inline-flex', alignItems: 'center', gap: '0.28rem', flexShrink: 0,
+      padding: size === 'md' ? '0.3rem 0.75rem' : '0.2rem 0.55rem',
+      borderRadius: soft ? '9999px' : '0.3rem',
+      fontSize: size === 'md' ? '0.8rem' : '0.71rem', fontWeight: 700, letterSpacing: '0.02em',
+      background: soft
+        ? (isPermit ? '#dcfce7' : '#fee2e2')
+        : (isPermit ? '#16a34a' : '#dc2626'),
+      color: soft
+        ? (isPermit ? '#166534' : '#991b1b')
+        : '#fff',
+      border: soft ? `1px solid ${isPermit ? '#86efac' : '#fca5a5'}` : 'none',
     }}>
       {isPermit
-        ? <ShieldCheck size={iconSize} strokeWidth={2.5} />
-        : <ShieldX    size={iconSize} strokeWidth={2.5} />}
+        ? <ShieldCheck size={iconSz} strokeWidth={2.5} />
+        : <ShieldX    size={iconSz} strokeWidth={2.5} />}
       {effect}
     </span>
   );
 }
 
-// ─── Priority chip ────────────────────────────────────────────────────────────
-// Shows numeric rank with color gradient: low priority (1–25) = urgent red, high = grey
+// ─── Priority badge ───────────────────────────────────────────────────────────
+// Left-stripe chip: stripe color = tier, number in tabular monospace
 
-function PriorityChip({ value }: { value: number }) {
-  const color =
-    value <= 25  ? { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' } :
-    value <= 75  ? { bg: '#fef3c7', text: '#92400e', border: '#fcd34d' } :
-                   { bg: 'var(--color-base-200)', text: 'var(--color-base-content)', border: 'var(--color-base-300)' };
+function PriorityBadge({ value }: { value: number }) {
+  const stripe =
+    value <= 10  ? '#ef4444' :   // critical — top 10
+    value <= 50  ? '#f59e0b' :   // high     — top 50
+    value <= 100 ? '#3b82f6' :   // normal
+                   '#94a3b8';    // low
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      minWidth: '2.25rem', padding: '0.15rem 0.5rem',
-      borderRadius: '0.25rem', fontSize: '0.78rem', fontWeight: 700,
-      background: color.bg, color: color.text, border: `1px solid ${color.border}`,
+      display: 'inline-flex', alignItems: 'center', overflow: 'hidden',
+      background: 'var(--color-base-200)', border: '1px solid var(--color-base-300)',
+      borderRadius: '0.3rem',
     }}>
-      {value}
+      <span style={{ width: '3px', alignSelf: 'stretch', background: stripe, flexShrink: 0 }} />
+      <span style={{ padding: '0.18rem 0.45rem', fontWeight: 700, fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </span>
     </span>
   );
 }
 
-// ─── Resource / Action chip ───────────────────────────────────────────────────
+// ─── Scope cell ───────────────────────────────────────────────────────────────
+// Two-line stacked: resource type (primary) above action (muted)
 
-function ResourceChip({ resource, action }: { resource?: string; action?: string }) {
+function ScopeCell({ resource, action }: { resource?: string; action?: string }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontFamily: 'monospace', fontSize: '0.78rem' }}>
+    <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
       <span style={{
-        padding: '0.1rem 0.35rem', borderRadius: '0.2rem', fontSize: '0.72rem', fontWeight: 600,
-        background: 'color-mix(in oklch, var(--color-primary) 10%, transparent)',
-        color: 'var(--color-primary)',
+        fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.03em',
+        color: resource ? 'var(--color-primary)' : 'var(--sb-text-muted)',
+        fontStyle: resource ? 'normal' : 'italic',
       }}>
-        {resource ?? '*'}
+        {resource ?? 'Any resource'}
       </span>
-      <span style={{ opacity: 0.35 }}>/</span>
       <span style={{
-        padding: '0.1rem 0.35rem', borderRadius: '0.2rem', fontSize: '0.72rem', fontWeight: 600,
-        background: 'var(--color-base-200)', color: 'var(--color-base-content)', opacity: 0.75,
+        fontSize: '0.68rem', fontWeight: 500, marginTop: '0.1rem',
+        color: 'var(--sb-text-muted)',
+        fontStyle: action ? 'normal' : 'italic',
       }}>
-        {action ?? '*'}
+        {action ?? 'any action'}
       </span>
-    </span>
+    </div>
   );
 }
 
@@ -737,31 +744,59 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
         </div>
 
-        {/* Effect selector */}
+        {/* Effect selector — segmented control with icon circle */}
         <div>
           <FL text="Effect" required />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            {(['PERMIT', 'DENY'] as const).map(eff => {
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr',
+            border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden',
+          }}>
+            {(['PERMIT', 'DENY'] as const).map((eff, i) => {
               const selected = form.effect === eff;
               const isPermit = eff === 'PERMIT';
+              const accent   = isPermit ? '#16a34a' : '#dc2626';
+              const accentBg = isPermit ? '#f0fdf4' : '#fef2f2';
               return (
                 <label key={eff} style={{
                   display: 'flex', alignItems: 'center', gap: '0.875rem',
-                  padding: '0.75rem 1rem', borderRadius: '0.5rem', cursor: 'pointer',
-                  border: `2px solid ${selected ? (isPermit ? '#16a34a' : '#dc2626') : 'var(--color-base-300)'}`,
-                  background: selected ? (isPermit ? '#f0fdf4' : '#fef2f2') : 'var(--color-base-100)',
-                  transition: 'border-color 0.15s, background 0.15s',
+                  padding: '0.875rem 1.125rem', cursor: 'pointer',
+                  background: selected ? accentBg : 'var(--color-base-100)',
+                  borderLeft: i === 1 ? '1px solid var(--color-base-300)' : 'none',
+                  transition: 'background 0.15s',
+                  position: 'relative',
                 }}>
                   <input type="radio" checked={selected} onChange={() => set('effect', eff)} style={{ display: 'none' }} />
-                  <EffectBadge effect={eff} size="md" />
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>
-                      {isPermit ? 'Permit' : 'Deny'}
+                  {/* Icon circle */}
+                  <span style={{
+                    width: '2.25rem', height: '2.25rem', borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: selected ? accent : 'var(--color-base-200)',
+                    transition: 'background 0.15s',
+                  }}>
+                    {isPermit
+                      ? <ShieldCheck size={18} strokeWidth={2} color={selected ? '#fff' : 'var(--sb-text-muted)'} />
+                      : <ShieldX    size={18} strokeWidth={2} color={selected ? '#fff' : 'var(--sb-text-muted)'} />}
+                  </span>
+                  {/* Text */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: selected ? accent : 'var(--color-base-content)' }}>
+                      {eff}
                     </div>
-                    <div style={{ fontSize: '0.72rem', opacity: 0.55, marginTop: '0.1rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--sb-text-muted)', marginTop: '0.15rem' }}>
                       {isPermit ? 'Allow matching requests' : 'Block — overrides any PERMIT'}
                     </div>
                   </div>
+                  {/* Selected checkmark */}
+                  {selected && (
+                    <span style={{
+                      width: '18px', height: '18px', borderRadius: '50%', background: accent,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <path d="M1 4l2.5 2.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </span>
+                  )}
                 </label>
               );
             })}
@@ -1105,17 +1140,19 @@ export default function PolicyManagementPage() {
 
   const cols = useMemo<ColDef<PolicyResponse>[]>(() => [
     {
-      headerName: '#', field: 'priority', width: 72, sortable: true,
+      headerName: 'Priority', field: 'priority', width: 90, sortable: true,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
-        d ? <PriorityChip value={d.priority} /> : null,
+        d ? <PriorityBadge value={d.priority} /> : null,
     },
     {
-      headerName: 'Name', field: 'name', flex: 1, minWidth: 180,
+      headerName: 'Policy Name', field: 'name', flex: 2, minWidth: 180,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) => (
-        <div style={{ lineHeight: 1.3 }}>
-          <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{d?.name}</div>
+        <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+          <div style={{ fontWeight: 600, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {d?.name}
+          </div>
           {d?.description && (
-            <div style={{ fontSize: '0.71rem', opacity: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '0.71rem', color: 'var(--sb-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.1rem' }}>
               {d.description}
             </div>
           )}
@@ -1123,53 +1160,66 @@ export default function PolicyManagementPage() {
       ),
     },
     {
-      headerName: 'Effect', field: 'effect', width: 105, sortable: true,
+      headerName: 'Effect', field: 'effect', width: 115, sortable: true,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
-        d ? <EffectBadge effect={d.effect} /> : null,
+        d ? <EffectBadge effect={d.effect} soft /> : null,
     },
     {
-      headerName: 'Scope', width: 200,
+      headerName: 'Scope', width: 170,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
-        d ? <ResourceChip resource={d.resourceType ?? undefined} action={d.action ?? undefined} /> : null,
+        d ? <ScopeCell resource={d.resourceType ?? undefined} action={d.action ?? undefined} /> : null,
     },
     {
-      headerName: 'Condition', flex: 1, minWidth: 160,
+      headerName: 'Condition', flex: 1, minWidth: 150,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) => (
         <span style={{
-          fontFamily: 'monospace', fontSize: '0.72rem', opacity: 0.65,
+          fontFamily: 'ui-monospace, monospace', fontSize: '0.72rem',
+          color: 'var(--sb-text-muted)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block',
+          lineHeight: 1.4,
         }}>
           {d?.conditionExpr}
         </span>
       ),
     },
     {
-      headerName: 'Status', field: 'active', width: 88,
-      cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
-        d?.active
-          ? <span className="badge badge-soft badge-success badge-sm" style={{ cursor: 'default' }}>Active</span>
-          : <span className="badge badge-soft badge-error badge-sm"   style={{ cursor: 'default' }}>Inactive</span>,
+      headerName: 'Status', field: 'active', width: 90,
+      cellRenderer: ({ data: d }: { data: PolicyResponse }) => (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+          padding: '0.18rem 0.5rem', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 600,
+          background: d?.active ? '#dcfce7' : '#f3f4f6',
+          color: d?.active ? '#166534' : 'var(--sb-text-muted)',
+          border: `1px solid ${d?.active ? '#86efac' : 'var(--color-base-300)'}`,
+        }}>
+          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: d?.active ? '#22c55e' : '#94a3b8', flexShrink: 0 }} />
+          {d?.active ? 'Active' : 'Inactive'}
+        </span>
+      ),
     },
     {
-      headerName: '', width: 116, sortable: false, resizable: false,
+      headerName: '', width: 112, sortable: false, resizable: false,
       suppressMovable: true, pinned: 'right',
       cellRenderer: ({ data: d }: { data: PolicyResponse }) => {
         if (!d) return null;
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem', height: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', height: '100%', paddingLeft: '0.25rem' }}>
             <button className="btn btn-ghost btn-xs btn-square" title="Version history"
+              style={{ opacity: 0.6 }}
               onClick={e => { e.stopPropagation(); setHistoryPol(d); }}>
               <History size={14} strokeWidth={1.5} />
             </button>
             {can('UPDATE') && (
               <button className="btn btn-ghost btn-xs btn-square" title="Edit"
+                style={{ opacity: 0.6 }}
                 onClick={e => { e.stopPropagation(); setEditPolicy(d); setShowForm(true); }}>
                 <Pencil size={14} strokeWidth={1.5} />
               </button>
             )}
             {can('UPDATE') && (
               <button
-                className={`btn btn-ghost btn-xs btn-square${d.active ? ' text-warning' : ' text-success'}`}
+                className="btn btn-ghost btn-xs btn-square"
+                style={{ color: d.active ? '#f59e0b' : '#22c55e' }}
                 title={d.active ? 'Deactivate' : 'Activate'}
                 onClick={e => { e.stopPropagation(); handleToggle(d); }}
                 disabled={toggling}
@@ -1178,7 +1228,9 @@ export default function PolicyManagementPage() {
               </button>
             )}
             {can('DELETE') && (
-              <button className="btn btn-ghost btn-xs btn-square text-error" title="Delete"
+              <button className="btn btn-ghost btn-xs btn-square"
+                style={{ color: 'var(--color-error)', opacity: 0.65 }}
+                title="Delete"
                 onClick={e => { e.stopPropagation(); setDeleteTarget(d); }}>
                 <Trash2 size={14} strokeWidth={1.5} />
               </button>
@@ -1273,31 +1325,61 @@ export default function PolicyManagementPage() {
 
         {/* Filter strip */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap',
-          padding: '0.45rem 0.875rem', borderBottom: '1px solid var(--sb-border)',
+          display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
+          padding: '0.5rem 0.875rem', borderBottom: '1px solid var(--sb-border)',
           background: 'var(--color-base-200)', flexShrink: 0,
         }}>
           {/* Search */}
           <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span style={{ position: 'absolute', left: '0.55rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
+            <span style={{ position: 'absolute', left: '0.6rem', display: 'flex', pointerEvents: 'none', color: 'var(--sb-text-muted)' }}>
               <Search size={13} strokeWidth={1.5} />
             </span>
             <input className="input input-bordered input-sm"
-              style={{ paddingLeft: '1.8rem', width: '180px' }}
-              placeholder="Search name…"
+              style={{ paddingLeft: '1.85rem', width: '200px' }}
+              placeholder="Search policies…"
               value={filterName}
               onChange={e => { setFilterName(e.target.value); setCurrentPage(0); }} />
           </label>
 
-          {/* Effect dropdown */}
-          <select className="select select-bordered select-sm" style={{ width: '130px' }}
-            value={filterEffect} onChange={e => { setFilterEffect(e.target.value); setCurrentPage(0); }}>
-            <option value="">All Effects</option>
-            <option value="PERMIT">PERMIT</option>
-            <option value="DENY">DENY</option>
-          </select>
+          {/* Divider */}
+          <div style={{ width: '1px', height: '20px', background: 'var(--color-base-300)', flexShrink: 0 }} />
 
-          {/* Resource type quick-filter chips */}
+          {/* Effect pill toggles */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            {(['', 'PERMIT', 'DENY'] as const).map(eff => {
+              const active = filterEffect === eff;
+              const isPermit = eff === 'PERMIT';
+              const isDeny   = eff === 'DENY';
+              return (
+                <button key={eff}
+                  onClick={() => { setFilterEffect(eff); setCurrentPage(0); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                    padding: '0.2rem 0.65rem', borderRadius: '9999px',
+                    fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.12s ease',
+                    border: active
+                      ? `1px solid ${isPermit ? '#86efac' : isDeny ? '#fca5a5' : 'var(--color-primary)'}`
+                      : '1px solid var(--color-base-300)',
+                    background: active
+                      ? (isPermit ? '#dcfce7' : isDeny ? '#fee2e2' : 'var(--color-primary)')
+                      : 'var(--color-base-100)',
+                    color: active
+                      ? (isPermit ? '#166534' : isDeny ? '#991b1b' : 'var(--color-primary-content)')
+                      : 'var(--sb-text-muted)',
+                  }}>
+                  {isPermit && <ShieldCheck size={11} strokeWidth={2.5} />}
+                  {isDeny   && <ShieldX    size={11} strokeWidth={2.5} />}
+                  {eff === '' ? 'All' : eff}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Divider */}
+          <div style={{ width: '1px', height: '20px', background: 'var(--color-base-300)', flexShrink: 0 }} />
+
+          {/* Resource type chips */}
           <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {RESOURCE_CHIPS.map(r => {
               const active = filterResource === r;
@@ -1305,9 +1387,10 @@ export default function PolicyManagementPage() {
                 <button key={r}
                   onClick={() => { setFilterResource(active ? '' : r); setCurrentPage(0); }}
                   style={{
-                    padding: '0.15rem 0.6rem', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 600,
+                    padding: '0.18rem 0.6rem', borderRadius: '0.3rem',
+                    fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.03em',
                     border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
-                    background: active ? 'var(--color-primary)' : 'transparent',
+                    background: active ? 'var(--color-primary)' : 'var(--color-base-100)',
                     color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
                     cursor: 'pointer', transition: 'all 0.12s ease',
                   }}>
@@ -1318,8 +1401,8 @@ export default function PolicyManagementPage() {
           </div>
 
           {hasFilters && (
-            <button className="btn btn-xs btn-ghost gap-1" onClick={clearFilters} style={{ marginLeft: 'auto' }}>
-              ✕ Clear
+            <button className="btn btn-xs btn-ghost gap-1" onClick={clearFilters} style={{ marginLeft: 'auto', color: 'var(--color-error)' }}>
+              <X size={11} /> Clear filters
             </button>
           )}
         </div>
