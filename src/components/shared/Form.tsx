@@ -21,7 +21,7 @@ interface FieldWrapProps {
 function FieldWrap({ label, id, required, error, hint, wrapperClassName, children }: FieldWrapProps) {
   return (
     <div className={`flex flex-col gap-1.5 ${wrapperClassName ?? ''}`}>
-      <label htmlFor={id} className="text-sm font-medium text-base-content/75 leading-none select-none">
+      <label htmlFor={id} className="text-sm text-base-content/80 leading-none select-none" style={{ fontWeight: 600 }}>
         {label}
         {required && <span aria-hidden="true" className="text-error ml-0.5">*</span>}
       </label>
@@ -32,7 +32,7 @@ function FieldWrap({ label, id, required, error, hint, wrapperClassName, childre
         </p>
       )}
       {hint && !error && (
-        <p id={`${id}-hint`} className="text-xs text-base-content/45 leading-tight">
+        <p id={`${id}-hint`} className="text-xs text-base-content/60 leading-tight">
           {hint}
         </p>
       )}
@@ -213,7 +213,7 @@ export function FormSection({
     <div className="space-y-4">
       {title && (
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold uppercase tracking-widest text-base-content/35 whitespace-nowrap">
+          <span className="text-xs font-semibold uppercase tracking-widest text-base-content/55 whitespace-nowrap">
             {title}
           </span>
           <div className="flex-1 h-px bg-base-200" />

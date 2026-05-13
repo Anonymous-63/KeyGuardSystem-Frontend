@@ -25,6 +25,12 @@ export const baseQueryWithReauth: BaseQueryFn<
 > = async (args, api, extra) => {
   let result = await rawBase(args, api, extra);
 
+  if (result.error?.status === 'FETCH_ERROR') {
+    const hasToken = !!localStorage.getItem(ACCESS_KEY);
+    if (hasToken) api.dispatch(logout());
+    return result;
+  }
+
   if (result.error?.status === 401) {
     const refreshToken = localStorage.getItem(REFRESH_KEY);
     if (refreshToken) {

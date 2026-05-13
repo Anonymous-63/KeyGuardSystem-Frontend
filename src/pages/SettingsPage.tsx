@@ -61,12 +61,12 @@ function PwdInput({ value, onChange, placeholder }: {
 const FL = ({ text, hint, required }: { text: string; hint?: string; required?: boolean }) => (
   <div style={{ marginBottom: '0.3rem' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-      <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-base-content)', opacity: 0.6 }}>
+      <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-base-content)', opacity: 0.8 }}>
         {text}
       </span>
       {required && <span style={{ color: 'var(--color-error)', fontSize: '0.75rem' }}>*</span>}
     </div>
-    {hint && <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', opacity: 0.4, lineHeight: 1.4 }}>{hint}</p>}
+    {hint && <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', opacity: 0.6, lineHeight: 1.4 }}>{hint}</p>}
   </div>
 );
 
@@ -221,14 +221,14 @@ export default function SettingsPage() {
     setSmtpUsername(smtp?.smtpUsername ?? '');
     setSmtpSockClass(smtp?.smtpSocketFactoryClass ?? '');
     setSmtpSockPort(smtp?.smtpSocketFactoryPort ?? '');
-    setSavedSmtp(JSON.stringify({ host: smtp?.smtpHost, port: smtp?.smtpPort, user: smtp?.smtpUsername, sc: smtp?.smtpSocketFactoryClass, sp: smtp?.smtpSocketFactoryPort }));
+    setSavedSmtp(JSON.stringify({ host: smtp?.smtpHost ?? '', port: smtp?.smtpPort ?? 587, user: smtp?.smtpUsername ?? '', sc: smtp?.smtpSocketFactoryClass ?? '', sp: smtp?.smtpSocketFactoryPort ?? '' }));
 
     setSmppHost(sms?.smppHost ?? '');
     setSmppPort(sms?.smppPort ?? 2775);
     setSmppUser(sms?.smppUserId ?? '');
     setSmppTon(sms?.smppTon ?? 1);
     setSmppNpi(sms?.smppNpi ?? 1);
-    setSavedSms(JSON.stringify({ host: sms?.smppHost, port: sms?.smppPort, user: sms?.smppUserId, ton: sms?.smppTon, npi: sms?.smppNpi }));
+    setSavedSms(JSON.stringify({ host: sms?.smppHost ?? '', port: sms?.smppPort ?? 2775, user: sms?.smppUserId ?? '', ton: sms?.smppTon ?? 1, npi: sms?.smppNpi ?? 1 }));
 
     setLdapEnabled(ldap?.enabled ?? false);
     setLdapSecured(ldap?.secured ?? false);
@@ -236,16 +236,17 @@ export default function SettingsPage() {
     setLdapDn(ldap?.userDnPath ?? '');
     setLdapAuth(ldap?.authType ?? 'SIMPLE');
     setLdapKeystore(ldap?.keystorePath ?? '');
-    setSavedLdap(JSON.stringify({ en: ldap?.enabled, sec: ldap?.secured, url: ldap?.url, dn: ldap?.userDnPath, auth: ldap?.authType, ks: ldap?.keystorePath }));
+    setSavedLdap(JSON.stringify({ en: ldap?.enabled ?? false, sec: ldap?.secured ?? false, url: ldap?.url ?? '', dn: ldap?.userDnPath ?? '', auth: ldap?.authType ?? 'SIMPLE', ks: ldap?.keystorePath ?? '' }));
 
-    setCaptchaEnabled(other?.captchaConfig?.enabled ?? false);
-    setCaptchaLen(other?.captchaConfig?.captchaLength ?? 6);
-    setCaptchaValidity(other?.captchaConfig?.captchaValiditySeconds ?? 120);
+    const capCfg = other?.captchaConfig ?? { enabled: false, captchaLength: 6, captchaValiditySeconds: 120 };
+    setCaptchaEnabled(capCfg.enabled);
+    setCaptchaLen(capCfg.captchaLength);
+    setCaptchaValidity(capCfg.captchaValiditySeconds);
     setTwoStepAuth(other?.twoStepAuth ?? false);
     setBackupEnabled(db?.enabled ?? true);
     setBackupTime(db?.backupTime ?? '02:00');
     setRetentionDays(db?.retentionDays ?? 7);
-    setSavedFeatures(JSON.stringify({ cap: other?.captchaConfig, tsa: other?.twoStepAuth, be: db?.enabled, bt: db?.backupTime, rd: db?.retentionDays }));
+    setSavedFeatures(JSON.stringify({ cap: capCfg, tsa: other?.twoStepAuth ?? false, be: db?.enabled ?? true, bt: db?.backupTime ?? '02:00', rd: db?.retentionDays ?? 7 }));
   }, [config]);
 
   const smtpSnapshot = () => JSON.stringify({ host: smtpHost, port: smtpPort, user: smtpUsername, sc: smtpSockClass, sp: smtpSockPort });
@@ -396,75 +397,55 @@ export default function SettingsPage() {
   const saving = savingSec === active;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '0.875rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '1rem' }}>
       <h1 style={{ fontSize: '1.375rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Application Config</h1>
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, minHeight: 0, gap: '1.25rem', alignItems: 'flex-start' }}>
+      {/* ── Horizontal Tab Bar ── */}
+      <div style={{
+        display: 'flex', background: 'var(--color-base-100)',
+        border: '1px solid var(--color-base-300)', borderRadius: '0.625rem', overflow: 'hidden', flexShrink: 0,
+      }}>
+        {NAV.map(({ id, label, sub, icon }, i) => {
+          const isActive = active === id;
+          const dirty = isDirty(id);
+          const cfgd = isConfigured(id);
+          return (
+            <button key={id} onClick={() => setActive(id)} style={{
+              flex: 1, minWidth: 0, position: 'relative',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: isMobile ? '0.2rem' : '0.3rem',
+              padding: isMobile ? '0.55rem 0.25rem' : '0.75rem 0.5rem',
+              background: isActive
+                ? 'color-mix(in oklch, var(--color-primary) 8%, var(--color-base-100))'
+                : 'transparent',
+              border: 'none',
+              borderBottom: `2px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
+              borderRight: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
+              cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
+              color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)',
+              opacity: isActive ? 1 : 0.6,
+            }}>
+              {/* Status dots — top-right corner */}
+              {dirty && (
+                <span style={{ position: 'absolute', top: '6px', right: '8px', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warning)', flexShrink: 0 }} />
+              )}
+              {!dirty && cfgd && (
+                <span style={{ position: 'absolute', top: '6px', right: '8px', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-success)', flexShrink: 0 }} />
+              )}
+              <span style={{ display: 'flex', lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: isMobile ? '0.62rem' : '0.8rem', fontWeight: isActive ? 600 : 500, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {isMobile ? label.split(' ')[0] : label}
+              </span>
+              {!isMobile && (
+                <span style={{ fontSize: '0.68rem', opacity: 0.45, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{sub}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* ── Nav ── */}
-        {isMobile ? (
-          <div style={{ display: 'flex', border: '1px solid var(--color-base-300)', borderRadius: '0.625rem', overflow: 'hidden', background: 'var(--color-base-100)', flexShrink: 0, width: '100%' }}>
-            {NAV.map(({ id, icon }, i) => {
-              const isActive = active === id;
-              const dirty = isDirty(id);
-              const cfgd = isConfigured(id);
-              const SHORT: Record<Section, string> = { org: 'Org', email: 'Email', sms: 'SMS', ldap: 'LDAP', features: 'Features' };
-              return (
-                <button key={id} onClick={() => setActive(id)} style={{
-                  flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  gap: '0.22rem', paddingTop: '0.6rem', paddingBottom: isActive ? 'calc(0.5rem - 3px)' : '0.5rem',
-                  paddingLeft: '0.2rem', paddingRight: '0.2rem',
-                  background: isActive ? 'color-mix(in oklch, var(--color-primary) 10%, var(--color-base-100))' : 'transparent',
-                  color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)',
-                  border: 'none', borderRight: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
-                  borderBottom: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
-                  cursor: 'pointer', position: 'relative', transition: 'background 0.15s, color 0.15s, border-color 0.15s', opacity: isActive ? 1 : 0.55,
-                }}>
-                  <span style={{ lineHeight: 1, display: 'flex' }}>{icon}</span>
-                  <span style={{ fontSize: '0.6rem', fontWeight: isActive ? 700 : 500, lineHeight: 1, whiteSpace: 'nowrap' }}>{SHORT[id]}</span>
-                  {(dirty || cfgd) && (
-                    <span style={{ position: 'absolute', top: '5px', right: '6px', width: '5px', height: '5px', borderRadius: '50%', background: dirty ? 'var(--color-warning)' : 'var(--color-success)' }} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={{ width: '220px', flexShrink: 0, border: '1px solid var(--color-base-300)', borderRadius: '0.625rem', overflow: 'hidden', background: 'var(--color-base-100)' }}>
-            {NAV.map(({ id, label, sub, icon }, i) => {
-              const isActive = active === id;
-              const dirty = isDirty(id);
-              const cfgd = isConfigured(id);
-              return (
-                <button key={id} onClick={() => setActive(id)} style={{
-                  width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem',
-                  borderBottom: i < NAV.length - 1 ? '1px solid var(--color-base-200)' : 'none',
-                  background: isActive ? 'color-mix(in oklch, var(--color-primary) 8%, transparent)' : 'transparent',
-                  borderLeft: `3px solid ${isActive ? 'var(--color-primary)' : 'transparent'}`,
-                  cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s',
-                }}>
-                  <span style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)', opacity: isActive ? 1 : 0.45, flexShrink: 0 }}>{icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: isActive ? 600 : 500, color: isActive ? 'var(--color-primary)' : 'var(--color-base-content)' }}>{label}</span>
-                      {dirty && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warning)', flexShrink: 0 }} />}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.05rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div>
-                  </div>
-                  <span>
-                    {cfgd
-                      ? <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-success)', display: 'block' }} />
-                      : <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: '2px solid var(--color-base-300)', display: 'block' }} />
-                    }
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Content ── */}
-        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', width: isMobile ? '100%' : undefined, minHeight: isMobile ? '360px' : undefined }}>
+      {/* ── Content ── */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
           {/* ── Organization ── */}
           {active === 'org' && (
@@ -735,7 +716,6 @@ export default function SettingsPage() {
             </Stack>
           )}
 
-        </div>
       </div>
     </div>
   );
