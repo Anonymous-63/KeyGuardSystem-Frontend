@@ -47,7 +47,7 @@ const FL = ({ text, required }: { text: string; required?: boolean }) => (
 function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
   const isPermit = effect === 'PERMIT';
   return (
-    <span className={`badge badge-soft ${isPermit ? 'badge-success' : 'badge-error'} badge-sm`}
+    <span className={`badge badge-outline ${isPermit ? 'badge-success' : 'badge-error'} badge-sm`}
       style={{ cursor: 'default' }}>
       {effect}
     </span>
@@ -59,7 +59,7 @@ function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
 
 function PriorityBadge({ value }: { value: number }) {
   return (
-    <span className="badge badge-soft badge-neutral badge-sm"
+    <span className="badge badge-outline badge-neutral badge-sm"
       style={{ cursor: 'default', fontVariantNumeric: 'tabular-nums', minWidth: '2rem', justifyContent: 'center' }}>
       {value}
     </span>
