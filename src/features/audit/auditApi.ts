@@ -1,5 +1,5 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { baseQuery } from '../../api/baseQuery';
+import { baseQueryWithReauth } from '../../api/baseQuery';
 import type {
   ApiResponse, PagedResponse,
   AuditActivityRecord, AccessAuditRecord, AuditStats,
@@ -8,7 +8,7 @@ import type {
 
 export const auditApi = createApi({
   reducerPath: 'auditApi',
-  baseQuery,
+  baseQuery: baseQueryWithReauth,
   endpoints: (build) => ({
 
     listActivity: build.query<PagedResponse<AuditActivityRecord>, AuditActivityParams>({
