@@ -851,34 +851,28 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
         <div>
           <FL text="Actions" />
           <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-            {/* Selected action rows */}
-            {selectedActions.length === 0 ? (
-              <div style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', opacity: 0.35, textAlign: 'center', fontStyle: 'italic' }}>
-                No actions selected — policy applies to any action
-              </div>
-            ) : (
-              <div>
-                {selectedActions.map(a => (
-                  <div key={a} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    padding: '0.38rem 0.75rem',
-                    borderBottom: '1px solid color-mix(in oklch, var(--color-primary) 12%, transparent)',
-                    background: 'color-mix(in oklch, var(--color-primary) 6%, transparent)',
-                    fontSize: '0.82rem',
-                  }}>
-                    <Play size={11} strokeWidth={1.5} style={{ color: 'var(--color-primary)', opacity: 0.5, flexShrink: 0 }} />
-                    <span style={{ flex: 1, fontWeight: 500, color: 'var(--color-primary)' }}>{a}</span>
-                    <button type="button"
-                      className="btn btn-ghost btn-xs btn-square"
-                      style={{ flexShrink: 0, color: 'var(--color-primary)', opacity: 0.55 }}
-                      title="Remove"
-                      onClick={() => removeAction(a)}>
-                      <X size={13} strokeWidth={2} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Selected action badges */}
+            <div style={{
+              display: 'flex', flexWrap: 'wrap', gap: '0.35rem',
+              padding: selectedActions.length > 0 ? '0.5rem 0.625rem' : '0.65rem 0.75rem',
+              minHeight: '2.5rem', alignItems: 'center',
+            }}>
+              {selectedActions.length === 0 ? (
+                <span style={{ fontSize: '0.78rem', opacity: 0.35, fontStyle: 'italic' }}>
+                  No actions selected — policy applies to any action
+                </span>
+              ) : selectedActions.map(a => (
+                <span key={a} className="badge badge-soft badge-primary"
+                  style={{ fontSize: '0.75rem', fontWeight: 600, gap: '0.25rem', paddingRight: '0.3rem' }}>
+                  {a}
+                  <button type="button"
+                    style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}
+                    onClick={() => removeAction(a)}>
+                    <X size={11} strokeWidth={2.5} />
+                  </button>
+                </span>
+              ))}
+            </div>
             {/* Add action picker */}
             {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length > 0 && (
               <div style={{ borderTop: selectedActions.length > 0 ? '1px solid var(--color-base-300)' : 'none', background: 'var(--color-base-200)', padding: '0.4rem 0.625rem' }}>
