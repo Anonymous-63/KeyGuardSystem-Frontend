@@ -793,37 +793,43 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
           <div>
             <FL text="Actions" />
+            {/* Unified tag-input: chips + inline add select in one bordered container */}
             <div style={{
               display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.3rem',
-              minHeight: '2.5rem', padding: '0.375rem 0.5rem',
+              padding: '0.3rem 0.45rem',
               border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
-              background: 'var(--color-base-100)', marginBottom: '0.375rem',
+              background: 'var(--color-base-100)',
+              minHeight: '2.75rem',
             }}>
-              {selectedActions.length === 0 && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', fontStyle: 'italic', userSelect: 'none' }}>
-                  Any action
-                </span>
-              )}
+              {selectedActions.length === 0 && ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length === 0 ? null : null}
               {selectedActions.map(a => (
-                <span key={a} className="badge badge-soft badge-neutral gap-1"
-                  style={{ fontSize: '0.72rem', fontWeight: 600, paddingRight: '0.2rem' }}>
+                <span key={a} className="badge badge-soft badge-primary gap-0.5"
+                  style={{ fontSize: '0.72rem', fontWeight: 600, paddingLeft: '0.5rem', paddingRight: '0.25rem', height: '1.6rem' }}>
                   {a}
                   <button type="button"
-                    style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', background: 'none', border: 'none', padding: 0, color: 'inherit', opacity: 0.7 }}
+                    style={{ display: 'flex', alignItems: 'center', marginLeft: '0.15rem', cursor: 'pointer', background: 'none', border: 'none', padding: '0.1rem', color: 'inherit', opacity: 0.65, borderRadius: '50%' }}
                     onClick={() => removeAction(a)}>
-                    <X size={11} strokeWidth={2.5} />
+                    <X size={10} strokeWidth={2.5} />
                   </button>
                 </span>
               ))}
+              {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length > 0 && (
+                <select
+                  style={{
+                    border: 'none', outline: 'none', background: 'transparent',
+                    fontSize: '0.78rem', color: 'var(--sb-text-muted)',
+                    cursor: 'pointer', padding: '0.1rem 0.2rem', minWidth: '8rem',
+                    fontFamily: 'inherit',
+                  }}
+                  value=""
+                  onChange={e => { addAction(e.target.value); e.currentTarget.value = ''; }}>
+                  <option value="">＋ Add action…</option>
+                  {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).map(a =>
+                    <option key={a} value={a}>{a}</option>)}
+                </select>
+              )}
             </div>
-            <select className="select select-bordered select-sm w-full"
-              value=""
-              onChange={e => { addAction(e.target.value); e.currentTarget.value = ''; }}>
-              <option value="">+ Add action…</option>
-              {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).map(a =>
-                <option key={a} value={a}>{a}</option>)}
-            </select>
-            <p style={hint}>Leave empty to match any action. Select multiple.</p>
+            <p style={hint}>Leave empty to match any action. Click × to remove.</p>
           </div>
         </div>
 
