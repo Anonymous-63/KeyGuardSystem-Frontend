@@ -47,11 +47,8 @@ const FL = ({ text, required }: { text: string; required?: boolean }) => (
 function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
   const isPermit = effect === 'PERMIT';
   return (
-    <span className={`badge badge-soft ${isPermit ? 'badge-success' : 'badge-error'} gap-1`}
-      style={{ fontWeight: 700, letterSpacing: '0.02em' }}>
-      {isPermit
-        ? <ShieldCheck size={10} strokeWidth={2.5} />
-        : <ShieldX    size={10} strokeWidth={2.5} />}
+    <span className={`badge badge-soft ${isPermit ? 'badge-success' : 'badge-error'} badge-sm`}
+      style={{ cursor: 'default' }}>
       {effect}
     </span>
   );
@@ -62,8 +59,8 @@ function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
 
 function PriorityBadge({ value }: { value: number }) {
   return (
-    <span className="badge badge-ghost badge-sm"
-      style={{ fontWeight: 700, fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums', minWidth: '2.25rem', justifyContent: 'center' }}>
+    <span className="badge badge-soft badge-neutral badge-sm"
+      style={{ cursor: 'default', fontVariantNumeric: 'tabular-nums', minWidth: '2rem', justifyContent: 'center' }}>
       {value}
     </span>
   );
