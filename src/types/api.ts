@@ -593,3 +593,84 @@ export interface OperatorPhotoUploadResponse {
 // Legacy alias kept for any remaining references — remove after full frontend migration
 export type AppConfigResponse = AppConfigRes;
 export type AppConfigUpdateRequest = SmtpConfigUpdateReq;
+
+// ─── ABAC Policy ──────────────────────────────────────────────────────────────
+
+export type PolicyEffect = 'PERMIT' | 'DENY';
+
+export interface PolicyResponse {
+  id: string;
+  name: string;
+  description?: string;
+  resourceType?: string;   // null = any
+  action?: string;         // null = any
+  effect: PolicyEffect;
+  priority: number;
+  version: number;
+  active: boolean;
+  conditionExpr: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyRequest {
+  name: string;
+  description?: string;
+  resourceType?: string;
+  action?: string;
+  effect: PolicyEffect;
+  priority: number;
+  conditionExpr: string;
+  changeReason?: string;
+}
+
+export interface PolicyVersionResponse {
+  id: string;
+  policyId: string;
+  version: number;
+  conditionExpr: string;
+  effect: PolicyEffect;
+  active: boolean;
+  changedBy?: string;
+  changeReason?: string;
+  createdAt: string;
+}
+
+export interface EvaluateRequest {
+  resourceType: string;
+  resourceId?: string;
+  action: string;
+  subjectOperatorType?: number;
+  subjectClearanceLevel?: number;
+  subjectLocationIds?: number[];
+  subjectAccountStatus?: string;
+  subjectMfaVerified?: boolean;
+  subjectEmploymentType?: string;
+  subjectRiskCategory?: string;
+  resourceLocationId?: number;
+  resourceIsGlobal?: boolean;
+  resourceSensitivityLevel?: number;
+  resourceOwnerType?: number;
+  envRiskScore?: number;
+  envBusinessHours?: boolean;
+}
+
+export interface EvaluateResult {
+  decision: 'PERMIT' | 'DENY' | 'INDETERMINATE';
+  matchedPolicy?: string;
+  reason?: string;
+  resourceType: string;
+  action: string;
+  effectiveClearanceLevel?: number;
+  isDeny: boolean;
+}
+
+export interface PolicyListParams {
+  resourceType?: string;
+  action?: string;
+  effect?: string;
+  active?: boolean;
+  page?: number;
+  size?: number;
+}

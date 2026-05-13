@@ -24,7 +24,8 @@ export type ResourceType =
   | 'SYNC'
   | 'SYSTEM'
   | 'AUDIT'
-  | 'APP_CONFIG';
+  | 'APP_CONFIG'
+  | 'ABAC_POLICY';
 
 export type PermissionAction =
   | 'READ'
@@ -122,6 +123,12 @@ export const PERMISSION_MAP: Record<ResourceType, Partial<Record<PermissionActio
     EXPORT: 4,
   },
   APP_CONFIG: {
+    READ:   4,
+    CREATE: 5,
+    UPDATE: 5,
+    DELETE: 5,
+  },
+  ABAC_POLICY: {
     READ:   4,
     CREATE: 5,
     UPDATE: 5,

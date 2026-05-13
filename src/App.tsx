@@ -19,6 +19,7 @@ import CabinetDetailPage from './pages/CabinetDetailPage';
 import AssetDetailPage from './pages/AssetDetailPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 import SettingsPage from './pages/SettingsPage';
+import PolicyManagementPage from './pages/PolicyManagementPage';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/profile"          element={<ProfilePage />} />
           <Route path="/audit"            element={<AuditTrailPage />} />
           <Route path="/settings"         element={<SettingsPage />} />
+          <Route path="/policies"         element={<PolicyManagementPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

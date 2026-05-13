@@ -9,7 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, MapPin, User, Users, Monitor, KeyRound,
   Layers, Clock, ArrowLeftRight, Settings, Sun, Moon, Menu,
-  LogOut, Lock, ClipboardList, Search, Bell, X,
+  LogOut, Lock, ClipboardList, Search, Bell, X, ShieldCheck,
 } from 'lucide-react';
 import { useGetPublicOrgQuery } from '../features/config/configApi';
 import { useGetMeQuery } from '../features/operator/operatorApi';
@@ -68,7 +68,8 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'System',
     items: [
-      { to: '/settings', icon: Settings, label: 'Settings', resource: 'APP_CONFIG' },
+      { to: '/policies', icon: ShieldCheck, label: 'Access Policies', resource: 'ABAC_POLICY' },
+      { to: '/settings', icon: Settings,    label: 'Settings',        resource: 'APP_CONFIG' },
     ],
   },
 ];
