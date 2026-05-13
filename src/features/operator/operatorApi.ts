@@ -9,8 +9,14 @@ import type {
 export const operatorApi = createApi({
   reducerPath: 'operatorApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Operator', 'OperatorLocations'],
+  tagTypes: ['Operator', 'OperatorLocations', 'Me'],
   endpoints: (b) => ({
+
+    getMe: b.query<OperatorResponse, void>({
+      query: () => '/auth/me',
+      transformResponse: (r: ApiResponse<OperatorResponse>) => r.data,
+      providesTags: ['Me'],
+    }),
 
     listOperators: b.query<PagedResponse<OperatorResponse>, {
       page?: number; size?: number;
@@ -83,10 +89,17 @@ export const operatorApi = createApi({
       }),
       invalidatesTags: (_r, _e, { operatorId }) => [{ type: 'OperatorLocations', id: operatorId }],
     }),
+
+    uploadOperatorPhoto: b.mutation<OperatorResponse, { id: string; file: FormData }>({
+      query: ({ id, file }) => ({ url: `/operators/${id}/photo`, method: 'POST', body: file }),
+      transformResponse: (r: ApiResponse<OperatorResponse>) => r.data,
+      invalidatesTags: ['Operator', 'Me'],
+    }),
   }),
 });
 
 export const {
+  useGetMeQuery,
   useListOperatorsQuery,
   useLazyListOperatorsQuery,
   useGetOperatorQuery,
@@ -98,4 +111,5 @@ export const {
   useListLocationsForOperatorQuery,
   useAssignLocationToOperatorMutation,
   useRemoveLocationFromOperatorMutation,
+  useUploadOperatorPhotoMutation,
 } = operatorApi;
