@@ -718,60 +718,20 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
         </div>
 
-        {/* Effect selector — segmented control with icon circle */}
+        {/* Effect selector */}
         <div>
           <FL text="Effect" required />
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden',
-          }}>
-            {(['PERMIT', 'DENY'] as const).map((eff, i) => {
+          <div className="join w-full">
+            {(['PERMIT', 'DENY'] as const).map(eff => {
               const selected = form.effect === eff;
               const isPermit = eff === 'PERMIT';
-              const accent   = isPermit ? '#16a34a' : '#dc2626';
-              const accentBg = isPermit ? '#f0fdf4' : '#fef2f2';
               return (
-                <label key={eff} style={{
-                  display: 'flex', alignItems: 'center', gap: '0.875rem',
-                  padding: '0.875rem 1.125rem', cursor: 'pointer',
-                  background: selected ? accentBg : 'var(--color-base-100)',
-                  borderLeft: i === 1 ? '1px solid var(--color-base-300)' : 'none',
-                  transition: 'background 0.15s',
-                  position: 'relative',
-                }}>
-                  <input type="radio" checked={selected} onChange={() => set('effect', eff)} style={{ display: 'none' }} />
-                  {/* Icon circle */}
-                  <span style={{
-                    width: '2.25rem', height: '2.25rem', borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: selected ? accent : 'var(--color-base-200)',
-                    transition: 'background 0.15s',
-                  }}>
-                    {isPermit
-                      ? <ShieldCheck size={18} strokeWidth={2} color={selected ? '#fff' : 'var(--sb-text-muted)'} />
-                      : <ShieldX    size={18} strokeWidth={2} color={selected ? '#fff' : 'var(--sb-text-muted)'} />}
-                  </span>
-                  {/* Text */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: selected ? accent : 'var(--color-base-content)' }}>
-                      {eff}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--sb-text-muted)', marginTop: '0.15rem' }}>
-                      {isPermit ? 'Allow matching requests' : 'Block — overrides any PERMIT'}
-                    </div>
-                  </div>
-                  {/* Selected checkmark */}
-                  {selected && (
-                    <span style={{
-                      width: '18px', height: '18px', borderRadius: '50%', background: accent,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4l2.5 2.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
-                  )}
-                </label>
+                <button key={eff} type="button"
+                  className={`btn join-item flex-1 gap-2 ${selected ? (isPermit ? 'btn-success' : 'btn-error') : 'btn-ghost'}`}
+                  onClick={() => set('effect', eff)}>
+                  {isPermit ? <ShieldCheck size={15} strokeWidth={2} /> : <ShieldX size={15} strokeWidth={2} />}
+                  {eff}
+                </button>
               );
             })}
           </div>
