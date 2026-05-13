@@ -674,3 +674,78 @@ export interface PolicyListParams {
   page?: number;
   size?: number;
 }
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
+export type AuditOutcome  = 'SUCCESS' | 'FAILURE' | 'ERROR';
+export type AuditSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+export type AuditCategory = 'AUTH' | 'DATA' | 'SECURITY' | 'CONFIG' | 'SYSTEM';
+export type AccessDecision = 'PERMIT' | 'DENY' | 'INDETERMINATE';
+
+export interface AuditActivityRecord {
+  id: number;
+  operatorId: string;
+  action: string;
+  resourceType?: string;
+  resourceId?: string;
+  detail?: string;
+  outcome: AuditOutcome;
+  severity: AuditSeverity;
+  category: AuditCategory;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export interface AccessAuditRecord {
+  id: string;
+  operatorId?: string;
+  resourceType?: string;
+  resourceId?: string;
+  action: string;
+  decision: AccessDecision;
+  policyId?: string;
+  policyName?: string;
+  denyReason?: string;
+  locationId?: number;
+  clientIp?: string;
+  sessionId?: string;
+  riskScore?: number;
+  createdAt: string;
+}
+
+export interface AuditStats {
+  totalActivity: number;
+  totalAccess: number;
+  todayActivity: number;
+  todayAccess: number;
+  failureCount: number;
+  errorCount: number;
+  criticalCount: number;
+  deniedCount: number;
+  uniqueActors: number;
+}
+
+export interface AuditActivityParams {
+  operatorId?: string;
+  action?: string;
+  resourceType?: string;
+  outcome?: string;
+  severity?: string;
+  category?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface AccessAuditParams {
+  operatorId?: string;
+  decision?: string;
+  resourceType?: string;
+  action?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+

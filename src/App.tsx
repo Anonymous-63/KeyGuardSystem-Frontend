@@ -17,7 +17,7 @@ import TimeConstraintsPage from './pages/TimeConstraintsPage';
 import ProfilePage from './pages/ProfilePage';
 import CabinetDetailPage from './pages/CabinetDetailPage';
 import AssetDetailPage from './pages/AssetDetailPage';
-import AuditTrailPage from './pages/AuditTrailPage';
+import AuditLogPage from './pages/AuditLogPage';
 import SettingsPage from './pages/SettingsPage';
 import PolicyManagementPage from './pages/PolicyManagementPage';
 
@@ -48,7 +48,7 @@ export default function App() {
           <Route path="/asset-groups"     element={<AssetGroupsPage />} />
           <Route path="/time-constraints" element={<TimeConstraintsPage />} />
           <Route path="/profile"          element={<ProfilePage />} />
-          <Route path="/audit"            element={<AuditTrailPage />} />
+          <Route path="/audit"            element={<AuditLogPage />} />
           <Route path="/settings"         element={<SettingsPage />} />
           <Route path="/policies"         element={<PolicyManagementPage />} />
         </Route>

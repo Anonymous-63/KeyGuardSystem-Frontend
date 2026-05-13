@@ -11,6 +11,7 @@ import { timeConstraintApi } from '../features/timeConstraint/timeConstraintApi'
 import { dashboardApi } from '../features/dashboard/dashboardApi';
 import { configApi } from '../features/config/configApi';
 import { abacApi } from '../features/abac/abacApi';
+import { auditApi } from '../features/audit/auditApi';
 
 export const store = configureStore({
   reducer: {
@@ -26,6 +27,7 @@ export const store = configureStore({
     [dashboardApi.reducerPath]: dashboardApi.reducer,
     [configApi.reducerPath]: configApi.reducer,
     [abacApi.reducerPath]: abacApi.reducer,
+    [auditApi.reducerPath]: auditApi.reducer,
   },
   middleware: (gDM) =>
     gDM()
@@ -39,7 +41,8 @@ export const store = configureStore({
       .concat(timeConstraintApi.middleware)
       .concat(dashboardApi.middleware)
       .concat(configApi.middleware)
-      .concat(abacApi.middleware),
+      .concat(abacApi.middleware)
+      .concat(auditApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;
