@@ -643,7 +643,7 @@ const ALL_ACTIONS = ['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN
 
 // ─── Action dropdown — mirrors LocationDropdown pattern ────────────────────────
 
-function ActionDropdown({ available, onAdd }: { available: string[]; onAdd: (a: string) => void }) {
+function ActionDropdown({ available, onAdd, autoClose = false }: { available: string[]; onAdd: (a: string) => void; autoClose?: boolean }) {
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -677,7 +677,7 @@ function ActionDropdown({ available, onAdd }: { available: string[]; onAdd: (a: 
       </div>
       {available.map(a => (
         <button key={a} type="button"
-          onClick={() => { onAdd(a); setOpen(false); }}
+          onClick={() => { onAdd(a); if (autoClose) setOpen(false); }}
           style={{
             display: 'flex', alignItems: 'center', gap: '0.4rem',
             width: '100%', padding: '0.35rem 0.625rem',
@@ -879,6 +879,7 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
                 <ActionDropdown
                   available={ALL_ACTIONS.filter(a => !selectedActions.includes(a))}
                   onAdd={addAction}
+                  autoClose={ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length === 1}
                 />
               </div>
             )}
