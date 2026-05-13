@@ -149,7 +149,7 @@ export default function SettingsPage() {
   const [active, setActive] = useState<Section>('org');
   const [savingSec, setSavingSec] = useState<Section | null>(null);
 
-  const { data: config, isLoading } = useGetAppConfigQuery();
+  const { data: config, isLoading, fulfilledTimeStamp: configTs } = useGetAppConfigQuery();
 
   // ── Org state ──
   const [orgName, setOrgName] = useState('');
@@ -465,7 +465,7 @@ export default function SettingsPage() {
                   <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ position: 'relative', width: '7rem', height: '5rem', flexShrink: 0, border: '1px solid var(--color-base-300)', borderRadius: '0.625rem', background: 'var(--color-base-200)', overflow: 'hidden', cursor: canUpdate ? 'pointer' : 'default' }}
                       onClick={() => canUpdate && logoInputRef.current?.click()} onMouseEnter={() => setLogoHover(true)} onMouseLeave={() => setLogoHover(false)}>
-                      <img src="/api/v1/config/logo" alt="org logo" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                      <img src={`/api/v1/config/logo?v=${configTs ?? ''}`} alt="org logo" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                       {canUpdate && logoHover && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.52)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
                           <UploadCloud size={18} color="white" strokeWidth={1.75} />
