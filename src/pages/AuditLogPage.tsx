@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useListActivityQuery, useListAccessQuery, useGetStatsQuery } from '../features/audit/auditApi';
 import type { AuditActivityRecord, AccessAuditRecord, AuditActivityParams, AccessAuditParams } from '../types/api';
 import { DataGrid, type ColDef } from '../components/shared/DataGrid';
@@ -12,6 +12,19 @@ import {
 
 const PAGE_SIZE = 20;
 type Tab = 'activity' | 'access';
+
+function useDebounce<T>(value: T, delay = 400): T {
+  const [dv, setDv] = useState(value);
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    t.current = setTimeout(() => setDv(value), delay);
+    return () => { if (t.current) clearTimeout(t.current); };
+  }, [value, delay]);
+  return dv;
+}
+
+// datetime-local produces "2026-05-13T14:30" — backend needs full ISO with seconds
+function toIso(v: string) { return v ? v + ':00' : undefined; }
 
 // ─── Severity dot ─────────────────────────────────────────────────────────────
 
@@ -257,7 +270,7 @@ export default function AuditLogPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('activity');
 
-  // Activity filters
+  // Activity filters — raw (for inputs) + debounced (for API)
   const [aOperator,  setAOperator]  = useState('');
   const [aAction,    setAAction]    = useState('');
   const [aResource,  setAResource]  = useState('');
@@ -268,6 +281,9 @@ export default function AuditLogPage() {
   const [aTo,        setATo]        = useState('');
   const [aPage,      setAPage]      = useState(0);
 
+  const dAOperator = useDebounce(aOperator);
+  const dAAction   = useDebounce(aAction);
+
   // Access filters
   const [xOperator,  setXOperator]  = useState('');
   const [xDecision,  setXDecision]  = useState('');
@@ -277,35 +293,38 @@ export default function AuditLogPage() {
   const [xTo,        setXTo]        = useState('');
   const [xPage,      setXPage]      = useState(0);
 
+  const dXOperator = useDebounce(xOperator);
+  const dXAction   = useDebounce(xAction);
+
   // Detail drawer
   const [activityDetail, setActivityDetail] = useState<AuditActivityRecord | null>(null);
   const [accessDetail,   setAccessDetail]   = useState<AccessAuditRecord   | null>(null);
 
   const activityParams: AuditActivityParams = {
-    operatorId: aOperator   || undefined,
-    action:     aAction     || undefined,
-    resourceType: aResource || undefined,
-    outcome:    aOutcome     || undefined,
-    severity:   aSeverity   || undefined,
-    category:   aCategory   || undefined,
-    from:       aFrom        || undefined,
-    to:         aTo          || undefined,
+    operatorId:   dAOperator || undefined,
+    action:       dAAction   || undefined,
+    resourceType: aResource  || undefined,
+    outcome:      aOutcome   || undefined,
+    severity:     aSeverity  || undefined,
+    category:     aCategory  || undefined,
+    from:         toIso(aFrom),
+    to:           toIso(aTo),
     page: aPage, size: PAGE_SIZE,
   };
 
   const accessParams: AccessAuditParams = {
-    operatorId: xOperator  || undefined,
-    decision:   xDecision  || undefined,
-    resourceType: xResource || undefined,
-    action:     xAction    || undefined,
-    from:       xFrom       || undefined,
-    to:         xTo         || undefined,
+    operatorId:   dXOperator || undefined,
+    decision:     xDecision  || undefined,
+    resourceType: xResource  || undefined,
+    action:       dXAction   || undefined,
+    from:         toIso(xFrom),
+    to:           toIso(xTo),
     page: xPage, size: PAGE_SIZE,
   };
 
   const { data: stats, refetch: refetchStats } = useGetStatsQuery();
-  const { data: activityData, isLoading: aLoading } = useListActivityQuery(activityParams, { skip: !canRead });
-  const { data: accessData,   isLoading: xLoading } = useListAccessQuery(accessParams,    { skip: !canRead || activeTab !== 'access' });
+  const { data: activityData, isLoading: aLoading, refetch: refetchActivity } = useListActivityQuery(activityParams, { skip: !canRead });
+  const { data: accessData,   isLoading: xLoading, refetch: refetchAccess   } = useListAccessQuery(accessParams,    { skip: !canRead });
 
   const aRows     = activityData?.content       ?? [];
   const aTotal    = activityData?.totalElements ?? 0;
@@ -315,7 +334,7 @@ export default function AuditLogPage() {
   const xPages    = accessData?.totalPages      ?? 1;
 
   const hasActivityFilters = !!(aOperator || aAction || aResource || aOutcome || aSeverity || aCategory || aFrom || aTo);
-  const hasAccessFilters   = !!(xOperator || xDecision || xResource || xAction || xFrom || xTo);
+  const hasAccessFilters   = !!(xOperator || xDecision || xResource || xAction  || xFrom || xTo);
 
   const clearActivityFilters = () => { setAOperator(''); setAAction(''); setAResource(''); setAOutcome(''); setASeverity(''); setACategory(''); setAFrom(''); setATo(''); setAPage(0); };
   const clearAccessFilters   = () => { setXOperator(''); setXDecision(''); setXResource(''); setXAction(''); setXFrom(''); setXTo(''); setXPage(0); };
@@ -329,8 +348,8 @@ export default function AuditLogPage() {
     if (aOutcome)  p.set('outcome',      aOutcome);
     if (aSeverity) p.set('severity',     aSeverity);
     if (aCategory) p.set('category',     aCategory);
-    if (aFrom)     p.set('from',         aFrom + ':00');
-    if (aTo)       p.set('to',           aTo   + ':00');
+    const from = toIso(aFrom); if (from) p.set('from', from);
+    const to   = toIso(aTo);   if (to)   p.set('to',   to);
     window.open(`${base}?${p.toString()}`, '_blank');
   };
 
@@ -479,7 +498,7 @@ export default function AuditLogPage() {
         <h1 style={{ fontSize: '1.375rem', fontWeight: 700, margin: 0, flex: 1, letterSpacing: '-0.01em' }}>
           Audit Log
         </h1>
-        <button className="btn btn-sm btn-ghost gap-1" onClick={() => refetchStats()}>
+        <button className="btn btn-sm btn-ghost gap-1" onClick={() => { refetchStats(); refetchActivity(); refetchAccess(); }}>
           <RefreshCw size={14} strokeWidth={1.5} /> Refresh
         </button>
         {activeTab === 'activity' && (
@@ -509,8 +528,8 @@ export default function AuditLogPage() {
         <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', flex: 1, paddingLeft: '0.25rem' }}>
             {([
-              { key: 'activity', label: 'Activity Log',      count: aTotal },
-              { key: 'access',   label: 'Access Decisions',  count: xTotal },
+              { key: 'activity', label: 'Activity Log',     count: aTotal },
+              { key: 'access',   label: 'Access Decisions', count: xTotal || (stats?.totalAccess ?? 0) },
             ] as { key: Tab; label: string; count: number }[]).map(t => {
               const isActive = activeTab === t.key;
               return (
@@ -533,7 +552,7 @@ export default function AuditLogPage() {
                     color: isActive ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
                     minWidth: '1.25rem', textAlign: 'center',
                   }}>
-                    {isActive ? (activeTab === 'activity' ? aTotal : xTotal) : t.count}
+                    {t.count.toLocaleString()}
                   </span>
                 </button>
               );
