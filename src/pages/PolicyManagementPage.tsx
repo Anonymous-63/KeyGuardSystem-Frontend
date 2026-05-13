@@ -641,6 +641,60 @@ const emptyForm = (): PolicyRequest => ({
 
 const ALL_ACTIONS = ['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'];
 
+// ─── Action dropdown — mirrors LocationDropdown pattern ────────────────────────
+
+function ActionDropdown({ available, onAdd }: { available: string[]; onAdd: (a: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          width: '100%', padding: '0.38rem 0.625rem',
+          fontSize: '0.82rem', color: 'var(--color-base-content)',
+          background: 'var(--color-base-100)',
+          border: '1px dashed var(--color-base-300)',
+          borderRadius: '0.375rem', cursor: 'pointer',
+        }}>
+        <Plus size={13} strokeWidth={2} style={{ opacity: 0.45 }} />
+        <span style={{ flex: 1, textAlign: 'left', opacity: 0.5 }}>Add action…</span>
+        <span style={{ fontSize: '0.7rem', opacity: 0.4 }}>{available.length} available</span>
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.375rem', background: 'var(--color-base-100)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--color-base-300)' }}>
+        <span style={{ paddingLeft: '0.6rem', opacity: 0.35, display: 'flex' }}>
+          <Search size={12} strokeWidth={1.5} />
+        </span>
+        <span style={{ flex: 1, padding: '0.3rem 0.5rem', fontSize: '0.8rem', opacity: 0.5 }}>Pick an action</span>
+        <button type="button" className="btn btn-ghost btn-xs btn-square" onClick={() => setOpen(false)}>
+          <X size={13} strokeWidth={2} />
+        </button>
+      </div>
+      {available.map(a => (
+        <button key={a} type="button"
+          onClick={() => { onAdd(a); setOpen(false); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.4rem',
+            width: '100%', padding: '0.35rem 0.625rem',
+            fontSize: '0.82rem', textAlign: 'left',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--color-base-content)', borderBottom: '1px solid var(--color-base-200)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-base-200)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+          <Play size={11} strokeWidth={1.5} style={{ opacity: 0.35, flexShrink: 0 }} />
+          {a}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; onClose: () => void }) {
   const toast = useToast();
   const [form, setForm] = useState<PolicyRequest>(() =>
@@ -769,8 +823,8 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
         </div>
 
-        {/* Priority / Resource Type / Action — 3 cols, wraps on narrow */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+        {/* Priority + Resource Type — 2 cols */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div>
             <FL text="Priority" required />
             <input className={`input input-bordered w-full${errors.priority ? ' input-error' : ''}`}
@@ -791,46 +845,70 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
             </select>
             <p style={hint}>Leave blank to match any resource type.</p>
           </div>
-          <div>
-            <FL text="Actions" />
-            {/* Unified tag-input: chips + inline add select in one bordered container */}
+        </div>
+
+        {/* Actions — full width, assign-location panel style */}
+        <div>
+          <FL text="Actions" />
+          <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden' }}>
+            {/* Selected action rows */}
+            {selectedActions.length === 0 ? (
+              <div style={{ padding: '0.65rem 0.75rem', fontSize: '0.78rem', opacity: 0.35, textAlign: 'center', fontStyle: 'italic' }}>
+                No actions selected — policy applies to any action
+              </div>
+            ) : (
+              <div>
+                {selectedActions.map(a => (
+                  <div key={a} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.38rem 0.75rem',
+                    borderBottom: '1px solid color-mix(in oklch, var(--color-primary) 12%, transparent)',
+                    background: 'color-mix(in oklch, var(--color-primary) 6%, transparent)',
+                    fontSize: '0.82rem',
+                  }}>
+                    <Play size={11} strokeWidth={1.5} style={{ color: 'var(--color-primary)', opacity: 0.5, flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontWeight: 500, color: 'var(--color-primary)' }}>{a}</span>
+                    <button type="button"
+                      className="btn btn-ghost btn-xs btn-square"
+                      style={{ flexShrink: 0, color: 'var(--color-primary)', opacity: 0.55 }}
+                      title="Remove"
+                      onClick={() => removeAction(a)}>
+                      <X size={13} strokeWidth={2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Add action picker */}
+            {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length > 0 && (
+              <div style={{ borderTop: selectedActions.length > 0 ? '1px solid var(--color-base-300)' : 'none', background: 'var(--color-base-200)', padding: '0.4rem 0.625rem' }}>
+                <ActionDropdown
+                  available={ALL_ACTIONS.filter(a => !selectedActions.includes(a))}
+                  onAdd={addAction}
+                />
+              </div>
+            )}
+            {/* Count footer */}
             <div style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.3rem',
-              padding: '0.3rem 0.45rem',
-              border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
+              display: 'flex', gap: '0.5rem', alignItems: 'center',
+              padding: '0.2rem 0.75rem',
+              borderTop: '1px solid var(--color-base-300)',
               background: 'var(--color-base-100)',
-              minHeight: '2.75rem',
+              fontSize: '0.72rem', color: 'var(--sb-text-muted)',
             }}>
-              {selectedActions.length === 0 && ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length === 0 ? null : null}
-              {selectedActions.map(a => (
-                <span key={a} className="badge badge-soft badge-primary gap-0.5"
-                  style={{ fontSize: '0.72rem', fontWeight: 600, paddingLeft: '0.5rem', paddingRight: '0.25rem', height: '1.6rem' }}>
-                  {a}
-                  <button type="button"
-                    style={{ display: 'flex', alignItems: 'center', marginLeft: '0.15rem', cursor: 'pointer', background: 'none', border: 'none', padding: '0.1rem', color: 'inherit', opacity: 0.65, borderRadius: '50%' }}
-                    onClick={() => removeAction(a)}>
-                    <X size={10} strokeWidth={2.5} />
-                  </button>
-                </span>
-              ))}
-              {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).length > 0 && (
-                <select
-                  style={{
-                    border: 'none', outline: 'none', background: 'transparent',
-                    fontSize: '0.78rem', color: 'var(--sb-text-muted)',
-                    cursor: 'pointer', padding: '0.1rem 0.2rem', minWidth: '8rem',
-                    fontFamily: 'inherit',
-                  }}
-                  value=""
-                  onChange={e => { addAction(e.target.value); e.currentTarget.value = ''; }}>
-                  <option value="">＋ Add action…</option>
-                  {ALL_ACTIONS.filter(a => !selectedActions.includes(a)).map(a =>
-                    <option key={a} value={a}>{a}</option>)}
-                </select>
+              <span style={{ fontWeight: 600 }}>{selectedActions.length}</span>
+              <span style={{ opacity: 0.6 }}>action{selectedActions.length !== 1 ? 's' : ''} selected</span>
+              {selectedActions.length > 0 && (
+                <button type="button"
+                  className="btn btn-ghost btn-xs"
+                  style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--color-error)', opacity: 0.7 }}
+                  onClick={() => setSelectedActions([])}>
+                  Clear all
+                </button>
               )}
             </div>
-            <p style={hint}>Leave empty to match any action. Click × to remove.</p>
           </div>
+          <p style={hint}>Leave empty to match any action.</p>
         </div>
 
         {/* Condition expression */}
