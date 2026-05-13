@@ -77,7 +77,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const operator = useAppSelector((s) => s.auth.operator);
-  const { data: publicOrg } = useGetPublicOrgQuery();
+  const { data: publicOrg, fulfilledTimeStamp: orgTs } = useGetPublicOrgQuery();
   const orgName = publicOrg?.orgName?.trim() ?? '';
   const hasLogo = publicOrg?.orgLogoUrl != null;
 
@@ -105,7 +105,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
           boxShadow: '0 1px 3px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06)',
         }}>
           {hasLogo
-            ? <img src="/api/v1/config/logo" alt="logo"
+            ? <img src={`/api/v1/config/logo?v=${orgTs ?? ''}`} alt="logo"
                    style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             : <Lock size={15} color="white" strokeWidth={2} />
           }

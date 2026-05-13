@@ -115,6 +115,7 @@ export const configApi = createApi({
     getPublicOrg: b.query<PublicOrgConfigRes, void>({
       query: () => '/public/config/org',
       transformResponse: (r: ApiResponse<PublicOrgConfigRes>) => r.data,
+      providesTags: ['Config'],
     }),
   }),
 });
