@@ -721,25 +721,30 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
         {/* Effect selector — radio */}
         <div>
           <FL text="Effect" required />
-          <div style={{ display: 'flex', gap: '2rem' }}>
+          <div style={{ display: 'flex', gap: '2.5rem' }}>
             {(['PERMIT', 'DENY'] as const).map(eff => {
               const selected = form.effect === eff;
               const isPermit = eff === 'PERMIT';
               return (
-                <label key={eff} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                <label key={eff} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     className={`radio radio-sm ${isPermit ? 'radio-success' : 'radio-error'}`}
                     checked={selected}
                     onChange={() => set('effect', eff)}
+                    style={{ marginTop: '0.2rem', flexShrink: 0 }}
                   />
-                  <span className={`badge badge-outline ${isPermit ? 'badge-success' : 'badge-error'}`}>
-                    {isPermit ? <ShieldCheck size={11} strokeWidth={2.5} /> : <ShieldX size={11} strokeWidth={2.5} />}
-                    {eff}
-                  </span>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--sb-text-muted)' }}>
-                    {isPermit ? 'Allow matching requests' : 'Block — overrides any PERMIT'}
-                  </span>
+                  <div>
+                    <span className={`badge badge-outline ${isPermit ? 'badge-success' : 'badge-error'} gap-1`}>
+                      {isPermit ? <ShieldCheck size={11} strokeWidth={2.5} /> : <ShieldX size={11} strokeWidth={2.5} />}
+                      {eff}
+                    </span>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--sb-text-muted)', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                      {isPermit
+                        ? 'Allow access when this condition matches.'
+                        : 'Block access. A DENY always wins over any PERMIT.'}
+                    </p>
+                  </div>
                 </label>
               );
             })}
@@ -759,26 +764,24 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
           </div>
           <div>
             <FL text="Resource Type" />
-            <input list="fm-rt-list" className="input input-bordered w-full"
+            <select className="select select-bordered w-full"
               value={form.resourceType ?? ''}
-              placeholder="OPERATOR… (blank = any)"
-              onChange={e => set('resourceType', e.target.value)} />
-            <datalist id="fm-rt-list">
+              onChange={e => set('resourceType', e.target.value)}>
+              <option value="">Any resource type</option>
               {['OPERATOR','LOCATION','CABINET','ASSET','CABINET_USER','TRANSACTION','ASSET_GROUP'].map(r =>
-                <option key={r} value={r} />)}
-            </datalist>
+                <option key={r} value={r}>{r}</option>)}
+            </select>
             <p style={hint}>Leave blank to match any resource type.</p>
           </div>
           <div>
             <FL text="Action" />
-            <input list="fm-action-list" className="input input-bordered w-full"
+            <select className="select select-bordered w-full"
               value={form.action ?? ''}
-              placeholder="READ… (blank = any)"
-              onChange={e => set('action', e.target.value)} />
-            <datalist id="fm-action-list">
+              onChange={e => set('action', e.target.value)}>
+              <option value="">Any action</option>
               {['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'].map(a =>
-                <option key={a} value={a} />)}
-            </datalist>
+                <option key={a} value={a}>{a}</option>)}
+            </select>
             <p style={hint}>Leave blank to match any action.</p>
           </div>
         </div>
@@ -1318,26 +1321,13 @@ export default function PolicyManagementPage() {
           {/* Divider */}
           <div style={{ width: '1px', height: '20px', background: 'var(--color-base-300)', flexShrink: 0 }} />
 
-          {/* Resource type chips */}
-          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            {RESOURCE_CHIPS.map(r => {
-              const active = filterResource === r;
-              return (
-                <button key={r}
-                  onClick={() => { setFilterResource(active ? '' : r); setCurrentPage(0); }}
-                  style={{
-                    padding: '0.18rem 0.6rem', borderRadius: '0.3rem',
-                    fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.03em',
-                    border: `1px solid ${active ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
-                    background: active ? 'var(--color-primary)' : 'var(--color-base-100)',
-                    color: active ? 'var(--color-primary-content)' : 'var(--sb-text-muted)',
-                    cursor: 'pointer', transition: 'all 0.12s ease',
-                  }}>
-                  {r}
-                </button>
-              );
-            })}
-          </div>
+          {/* Resource type — DaisyUI select */}
+          <select className="select select-bordered select-sm"
+            value={filterResource}
+            onChange={e => { setFilterResource(e.target.value); setCurrentPage(0); }}>
+            <option value="">All Resources</option>
+            {RESOURCE_CHIPS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
 
           {hasFilters && (
             <button className="btn btn-xs btn-ghost gap-1" onClick={clearFilters} style={{ marginLeft: 'auto', color: 'var(--color-error)' }}>
