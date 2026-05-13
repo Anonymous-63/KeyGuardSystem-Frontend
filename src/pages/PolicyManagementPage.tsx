@@ -58,8 +58,9 @@ function EffectBadge({ effect }: { effect: 'PERMIT' | 'DENY' }) {
 // No color encoding: priority is a plain rank number, lower = evaluated first.
 
 function PriorityBadge({ value }: { value: number }) {
+  const color = value <= 25 ? 'badge-error' : value <= 75 ? 'badge-warning' : 'badge-neutral';
   return (
-    <span className="badge badge-outline badge-neutral badge-sm"
+    <span className={`badge badge-outline ${color} badge-sm`}
       style={{ cursor: 'default', fontVariantNumeric: 'tabular-nums', minWidth: '2rem', justifyContent: 'center' }}>
       {value}
     </span>
