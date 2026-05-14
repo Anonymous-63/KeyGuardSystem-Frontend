@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useGetPublicOrgQuery } from '../features/config/configApi';
 import { useGetMeQuery } from '../features/operator/operatorApi';
+import LocationSwitcher from './LocationSwitcher';
+import { clearSelectedLocation, selectSelectedLocation, setSelectedLocation } from '../features/location/locationSlice';
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +141,13 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         )}
       </div>
 
+      {/* Location switcher — sidebar slot for mobile (type 3/4/5 only) */}
+      {operator && operator.type >= 3 && (
+        <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
+          <LocationSwitcher />
+        </div>
+      )}
+
       {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto', padding: '0.375rem 0.5rem' }}>
         {visibleGroups.map((group) => (
@@ -194,11 +203,26 @@ export default function Layout() {
   const navigate  = useNavigate();
   const { dark, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const operator = useAppSelector((s) => s.auth.operator);
+  const operator        = useAppSelector((s) => s.auth.operator);
+  const selectedLocation = useAppSelector(selectSelectedLocation);
   const initials  = (operator?.name ?? operator?.id ?? '?').slice(0, 2).toUpperCase();
+
+  // Auto-select first assigned location on login if nothing persisted
+  useEffect(() => {
+    if (
+      operator &&
+      operator.type >= 3 &&
+      selectedLocation === null &&
+      operator.assignedLocations?.length > 0
+    ) {
+      const first = operator.assignedLocations[0];
+      dispatch(setSelectedLocation({ id: first.id, name: first.name }));
+    }
+  }, [operator, selectedLocation, dispatch]);
 
   const handleLogout = () => {
     dispatch(logout());
+    dispatch(clearSelectedLocation());
     navigate('/login', { replace: true });
   };
 
@@ -312,6 +336,7 @@ export default function Layout() {
               <kbd style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem', borderRadius: '0.2rem', border: '1px solid var(--color-base-300)', opacity: 0.55, fontFamily: 'inherit' }}>Ctrl /</kbd>
             </button>
             <div style={{ flex: 1 }} />
+            <LocationSwitcher />
             <button className="ent-icon-btn" title="Notifications">
               <Bell size={18} strokeWidth={1.5} />
             </button>

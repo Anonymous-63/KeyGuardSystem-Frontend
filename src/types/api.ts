@@ -102,6 +102,11 @@ export const OPERATOR_TYPES: Record<number, string> = {
   5: 'Location Operator',
 };
 
+export interface AssignedLocation {
+  id: number;
+  name: string;
+}
+
 export interface OperatorResponse {
   id: string;
   name: string;
@@ -118,6 +123,7 @@ export interface OperatorResponse {
   updatedBy?: string;
   version?: number;
   photoPath?: string;
+  assignedLocations: AssignedLocation[];
 }
 
 export interface OperatorRequest {

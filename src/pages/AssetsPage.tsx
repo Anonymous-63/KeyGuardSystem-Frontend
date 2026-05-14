@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useListAssetsQuery,
@@ -9,6 +9,8 @@ import {
   useRestoreAssetMutation,
 } from '../features/asset/assetApi';
 import { useListLocationsQuery } from '../features/location/locationApi';
+import { useAppSelector } from '../app/hooks';
+import { selectSelectedLocation } from '../features/location/locationSlice';
 import { useListTransactionsByAssetQuery } from '../features/transaction/transactionApi';
 import type { AssetResponse, AssetRequest, AssetTransactionResponse } from '../types/api';
 import { ASSET_TYPES } from '../types/api';
@@ -261,7 +263,14 @@ export default function AssetsPage() {
   const { addToast } = useToast();
   const [page, setPage] = useState(0);
   const [includeDisabled, setIncludeDisabled] = useState(false);
-  const [locationFilter, setLocationFilter] = useState<number>(0);
+  const selectedLocation = useAppSelector(selectSelectedLocation);
+  const [locationFilter, setLocationFilter] = useState<number>(selectedLocation?.id ?? 0);
+
+  useEffect(() => {
+    setLocationFilter(selectedLocation?.id ?? 0);
+    setPage(0);
+    setSelected(null);
+  }, [selectedLocation]);
   const [selected, setSelected] = useState<AssetResponse | null>(null);
   const [filterName, setFilterName] = useState('');
   const [filterAssetType, setFilterAssetType] = useState('');
@@ -270,7 +279,6 @@ export default function AssetsPage() {
   const [historyAsset, setHistoryAsset] = useState<AssetResponse | null>(null);
   const [confirm, setConfirm] = useState<{ asset: AssetResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data: locations } = useListLocationsQuery({ size: 200 });
   const { data: pagedData, isLoading: loadingPaged } = useListAssetsQuery(
     { page, size: 20, includeDisabled },
     { skip: !!locationFilter }
@@ -378,24 +386,11 @@ export default function AssetsPage() {
         restoreDisabled={!selected || !selected.disabled}
         disableDisabled={!selected || selected.disabled}
         extra={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <select
-              className="select select-bordered select-sm"
-              style={{ minWidth: '140px' }}
-              value={locationFilter}
-              onChange={(e) => { setLocationFilter(Number(e.target.value)); setPage(0); setSelected(null); }}
-            >
-              <option value={0}>All Locations</option>
-              {locations?.content.filter((l) => !l.disabled).map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-            <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
-              <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>Show disabled</span>
-              <input type="checkbox" className="toggle toggle-sm" checked={includeDisabled}
-                onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }} />
-            </label>
-          </div>
+          <label className="label cursor-pointer gap-2" style={{ margin: 0, padding: 0 }}>
+            <span className="label-text text-sm" style={{ color: 'var(--ent-dark)', opacity: 0.7 }}>Show disabled</span>
+            <input type="checkbox" className="toggle toggle-sm" checked={includeDisabled}
+              onChange={(e) => { setIncludeDisabled(e.target.checked); setSelected(null); }} />
+          </label>
         }
       />
 

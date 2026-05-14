@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../features/auth/authSlice';
+import locationReducer from '../features/location/locationSlice';
 import { locationApi } from '../features/location/locationApi';
 import { operatorApi } from '../features/operator/operatorApi';
 import { cabinetApi } from '../features/cabinet/cabinetApi';
@@ -16,6 +17,7 @@ import { auditApi } from '../features/audit/auditApi';
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    location: locationReducer,
     [locationApi.reducerPath]: locationApi.reducer,
     [operatorApi.reducerPath]: operatorApi.reducer,
     [cabinetApi.reducerPath]: cabinetApi.reducer,

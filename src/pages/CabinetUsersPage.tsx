@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
+import { useAppSelector } from '../app/hooks';
+import { selectSelectedLocation } from '../features/location/locationSlice';
 import {
   useListCabinetUsersQuery,
+  useListCabinetUsersByLocationQuery,
   useCreateCabinetUserMutation,
   useUpdateCabinetUserMutation,
   useDisableCabinetUserMutation,
@@ -648,17 +651,31 @@ export default function CabinetUsersPage() {
   const [managing, setManaging] = useState<CabinetUserResponse | null>(null);
   const [confirm, setConfirm] = useState<{ user: CabinetUserResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data, isLoading } = useListCabinetUsersQuery({ size: 500, includeDisabled });
+  const selectedLocation = useAppSelector(selectSelectedLocation);
+
+  const { data: pagedData, isLoading: loadingPaged } = useListCabinetUsersQuery(
+    { size: 500, includeDisabled },
+    { skip: !!selectedLocation },
+  );
+  const { data: locationData, isLoading: loadingLocation } = useListCabinetUsersByLocationQuery(
+    selectedLocation?.id ?? 0,
+    { skip: !selectedLocation },
+  );
+  const isLoading = loadingPaged || loadingLocation;
+
   const [create, { isLoading: creating }] = useCreateCabinetUserMutation();
   const [disable, { isLoading: disabling }] = useDisableCabinetUserMutation();
   const [restore, { isLoading: restoring }] = useRestoreCabinetUserMutation();
 
+  const baseRows = selectedLocation
+    ? (locationData?.filter((u) => includeDisabled || !u.disabled) ?? [])
+    : (pagedData?.content ?? []);
   const searchLower = search.trim().toLowerCase();
   const rows = searchLower
-    ? (data?.content ?? []).filter(
+    ? baseRows.filter(
         (u) => u.name.toLowerCase().includes(searchLower) || u.id.toLowerCase().includes(searchLower)
       )
-    : (data?.content ?? []);
+    : baseRows;
 
   const handleCreate = async (body: CabinetUserRequest) => {
     try {

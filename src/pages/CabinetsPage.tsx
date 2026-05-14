@@ -2,11 +2,14 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useListCabinetsQuery,
+  useListCabinetsByLocationQuery,
   useCreateCabinetMutation,
   useUpdateCabinetMutation,
   useDisableCabinetMutation,
   useRestoreCabinetMutation,
 } from '../features/cabinet/cabinetApi';
+import { useAppSelector } from '../app/hooks';
+import { selectSelectedLocation } from '../features/location/locationSlice';
 import { useListLocationsQuery } from '../features/location/locationApi';
 import type { CabinetResponse, CabinetRequest } from '../types/api';
 import Modal from '../components/shared/Modal';
@@ -98,8 +101,19 @@ export default function CabinetsPage() {
   const [editing, setEditing] = useState<CabinetResponse | null>(null);
   const [confirm, setConfirm] = useState<{ cab: CabinetResponse; action: 'disable' | 'restore' } | null>(null);
 
+  const selectedLocation = useAppSelector(selectSelectedLocation);
+
   const { data: locations } = useListLocationsQuery({ size: 200 });
-  const { data, isLoading } = useListCabinetsQuery({ size: 500, includeDisabled });
+  const { data: pagedData, isLoading: loadingPaged } = useListCabinetsQuery(
+    { size: 500, includeDisabled },
+    { skip: !!selectedLocation },
+  );
+  const { data: locationData, isLoading: loadingLocation } = useListCabinetsByLocationQuery(
+    selectedLocation?.id ?? 0,
+    { skip: !selectedLocation },
+  );
+  const isLoading = loadingPaged || loadingLocation;
+
   const [create, { isLoading: creating }] = useCreateCabinetMutation();
   const [update, { isLoading: updating }] = useUpdateCabinetMutation();
   const [disable, { isLoading: disabling }] = useDisableCabinetMutation();
@@ -107,7 +121,10 @@ export default function CabinetsPage() {
 
   const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
 
-  const rows = (data?.content ?? []).filter((cab) => {
+  const rows = (selectedLocation
+    ? (locationData?.filter((c) => includeDisabled || !c.disabled) ?? [])
+    : (pagedData?.content ?? [])
+  ).filter((cab) => {
     if (filterName && !cab.name.toLowerCase().includes(filterName.toLowerCase())) return false;
     return true;
   });
