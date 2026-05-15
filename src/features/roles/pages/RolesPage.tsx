@@ -392,7 +392,7 @@ function RoleRow({
 
       {/* Status */}
       <div>
-        {role.disabled
+        {role.deleted
           ? <span className="badge badge-soft badge-error badge-sm" style={{ cursor: 'default' }}>Disabled</span>
           : <span className="badge badge-soft badge-success badge-sm" style={{ cursor: 'default' }}>Active</span>
         }

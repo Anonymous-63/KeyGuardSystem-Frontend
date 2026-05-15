@@ -575,7 +575,7 @@ function ConditionBuilder({ value, onChange, startRaw, roles }: { value: string;
                               style={{ fontSize: '0.77rem', width: '100%' }}
                               value={row.value}
                               onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
-                              {roles.filter(r => !r.disabled)
+                              {roles.filter(r => !r.deleted)
                                 .sort((a, b) => b.permissionLevel - a.permissionLevel)
                                 .map(r => (
                                   <option key={r.id} value={String(r.permissionLevel)}>
@@ -771,14 +771,14 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
     try {
       if (isEdit) {
         await updatePolicy({ id: policy!.id, body }).unwrap();
-        toast.success('Policy updated');
+        toast.addToast({ type: 'success', message: 'Policy updated' });
       } else {
         await createPolicy(body).unwrap();
-        toast.success('Policy created');
+        toast.addToast({ type: 'success', message: 'Policy created' });
       }
       onClose();
     } catch {
-      toast.error(isEdit ? 'Failed to update policy' : 'Failed to create policy');
+      toast.addToast({ type: 'error', message: isEdit ? 'Failed to update policy' : 'Failed to create policy' });
     }
   };
 
@@ -980,7 +980,7 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
   const set = (k: keyof EvaluateRequest, v: unknown) => setForm(f => ({ ...f, [k]: v }));
   const run = async () => {
     try { setResult(await evaluate(form).unwrap()); }
-    catch { toast.error('Evaluation failed'); }
+    catch { toast.addToast({ type: 'error', message: 'Evaluation failed' }); }
   };
 
   const sL: React.CSSProperties = {
@@ -1159,7 +1159,6 @@ export default function PolicyManagementPage() {
   const operator = useAppSelector(s => s.auth.operator);
   const can = (action: 'READ' | 'CREATE' | 'UPDATE' | 'DELETE') =>
     hasPermissionByClearance(operatorClearance(operator), 'ABAC_POLICY', action);
-  const { data: roles = [] } = useListRolesQuery();
 
   const [activeTab,       setActiveTab]       = useState<Tab>('all');
   const [currentPage,     setCurrentPage]     = useState(0);
@@ -1222,22 +1221,22 @@ export default function PolicyManagementPage() {
   const handleToggle = async (p: PolicyResponse) => {
     try {
       await togglePolicy(p.id).unwrap();
-      toast.success(`Policy ${p.active ? 'deactivated' : 'activated'}`);
-    } catch { toast.error('Failed to toggle policy'); }
+      toast.addToast({ type: 'success', message: `Policy ${p.active ? 'deactivated' : 'activated'}` });
+    } catch { toast.addToast({ type: 'error', message: 'Failed to toggle policy' }); }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
       await deletePolicy(deleteTarget.id).unwrap();
-      toast.success('Policy deleted');
+      toast.addToast({ type: 'success', message: 'Policy deleted' });
       setDeleteTarget(null);
-    } catch { toast.error('Failed to delete policy'); }
+    } catch { toast.addToast({ type: 'error', message: 'Failed to delete policy' }); }
   };
 
   const handleReload = async () => {
-    try { await reloadCache().unwrap(); toast.success('Policy cache reloaded'); }
-    catch { toast.error('Failed to reload cache'); }
+    try { await reloadCache().unwrap(); toast.addToast({ type: 'success', message: 'Policy cache reloaded' }); }
+    catch { toast.addToast({ type: 'error', message: 'Failed to reload cache' }); }
   };
 
   const cols = useMemo<ColDef<PolicyResponse>[]>(() => [

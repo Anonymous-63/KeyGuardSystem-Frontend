@@ -167,7 +167,7 @@ export function hasPermissionByClearance(
 }
 
 // Which resources an operator can READ (used to filter sidebar nav).
-export function accessibleResources(op: Pick<OperatorResponse, 'type' | 'role'> | null | undefined): ResourceType[] {
+export function accessibleResources(op: Pick<OperatorResponse, 'role'> | null | undefined): ResourceType[] {
   const clearance = operatorClearance(op);
   if (clearance === SUPER_ADMIN_LEVEL) return Array.from(SUPER_ADMIN_RESOURCES);
   return (Object.keys(PERMISSION_MAP) as ResourceType[]).filter(

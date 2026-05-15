@@ -3,7 +3,6 @@ import { useGetDashboardQuery } from '@/features/dashboard/api/dashboardApi';
 import { useListAssetsOutQuery, useListOverdueAssetsQuery } from '@/features/transaction/api/transactionApi';
 import { useAppSelector } from '@/app/store/hooks';
 import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
-import { OPERATOR_TYPES } from '@/shared/types/api';
 import type { RecentActivityItem } from '@/shared/types/api';
 
 function StatCard({ label, value, icon, color, to }: {
@@ -59,7 +58,7 @@ export default function DashboardPage() {
           {greeting()}, {operator?.name?.split(' ')[0] ?? 'there'}
         </h1>
         <p className="text-base-content/50 text-sm mt-0.5">
-          {operator?.role?.name ?? OPERATOR_TYPES[operator?.type ?? 5] ?? 'Operator'} · KeyGuard Management Console
+          {operator?.role?.name ?? 'Operator'} · KeyGuard Management Console
         </p>
       </div>
 

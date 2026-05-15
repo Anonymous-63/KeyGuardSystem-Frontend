@@ -677,7 +677,7 @@ export default function OperatorsPage() {
   const operator = useAppSelector((s) => s.auth.operator);
 
   const can = useCallback(
-    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') =>
+    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE' | 'EXPORT') =>
       operator != null && hasPermissionByClearance(operatorClearance(operator), 'OPERATOR', action),
     [operator],
   );

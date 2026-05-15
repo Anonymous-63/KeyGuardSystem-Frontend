@@ -4,7 +4,6 @@ import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { logout } from '@/features/auth/store/authSlice';
 import { hasPermissionByClearance, operatorClearance, type ResourceType } from '@/features/auth/utils/permissions';
 import { ToastProvider } from '@/shared/components/ui/Toast';
-import { OPERATOR_TYPES } from '@/shared/types/api';
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, MapPin, User, Users, Monitor, KeyRound,
@@ -143,7 +142,7 @@ function Sidebar({ onClose, showSwitcher = true }: { onClose?: () => void; showS
       </div>
 
       {/* Location switcher — sidebar slot (mobile only; desktop uses header) */}
-      {showSwitcher && operator && (operator.role?.permissionLevel ?? Math.max(1, 6 - operator.type)) <= 3 && (
+      {showSwitcher && operator && (operator.role?.permissionLevel ?? 1) <= 3 && (
         <div style={{ padding: '0 0.5rem 0.5rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
           <LocationSwitcher variant="sidebar" />
         </div>
@@ -206,13 +205,12 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const operator        = useAppSelector((s) => s.auth.operator);
   const selectedLocation = useAppSelector(selectSelectedLocation);
-  const initials  = (operator?.name ?? operator?.id ?? '?').slice(0, 2).toUpperCase();
 
   // Auto-select first assigned location on login if nothing persisted
   useEffect(() => {
     if (
       operator &&
-      (operator.role?.permissionLevel ?? Math.max(1, 6 - operator.type)) <= 3 &&
+      (operator.role?.permissionLevel ?? 1) <= 3 &&
       selectedLocation === null &&
       operator.assignedLocations?.length > 0
     ) {
@@ -346,11 +344,11 @@ export default function Layout() {
             </button>
             <div style={{ position: 'relative' }} onMouseEnter={openMenu} onMouseLeave={closeMenu}>
               {(() => {
-                const pLevel = operator ? (operator.role?.permissionLevel ?? Math.max(1, 6 - operator.type)) : 0;
+                const pLevel = operator ? (operator.role?.permissionLevel ?? 1) : 0;
                 const roleColor = operator ? (CLEARANCE_COLORS[pLevel] ?? '#6366f1') : '#6366f1';
                 return (
                   <button
-                    title={operator?.name ?? operator?.id ?? 'Profile'}
+                    title={operator?.name ?? 'Profile'}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '0.45rem',
                       background: hexRgba(roleColor, 0.07),
@@ -375,10 +373,10 @@ export default function Layout() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.25 }}>
                       <span style={{ fontSize: '0.775rem', fontWeight: 700, color: 'var(--color-base-content)', whiteSpace: 'nowrap', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {operator?.name ?? operator?.id ?? 'Me'}
+                        {operator?.name ?? 'Me'}
                       </span>
                       <span style={{ fontSize: '0.64rem', color: roleColor, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {operator ? (operator.role?.name ?? OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                        {operator ? (operator.role?.name ?? 'Operator') : ''}
                       </span>
                     </div>
                     <ChevronDown size={12} strokeWidth={2.5} style={{ color: hexRgba(roleColor, 0.6), marginLeft: '0.05rem', flexShrink: 0 }} />
@@ -402,10 +400,10 @@ export default function Layout() {
                 >
                   <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--color-base-200)' }}>
                     <p style={{ fontWeight: 600, fontSize: '0.8125rem', margin: 0, color: 'var(--color-base-content)' }}>
-                      {operator?.name ?? operator?.id}
+                      {operator?.name}
                     </p>
                     <p style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', margin: 0, marginTop: '0.1rem' }}>
-                      {operator ? (operator.role?.name ?? OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                      {operator ? (operator.role?.name ?? 'Operator') : ''}
                     </p>
                   </div>
                   <button
@@ -465,7 +463,7 @@ export default function Layout() {
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setMobileUserMenuOpen((v) => !v)}
-                title={operator?.name ?? operator?.id ?? 'Profile'}
+                title={operator?.name ?? 'Profile'}
                 style={{
                   width: '1.875rem', height: '1.875rem', borderRadius: '50%',
                   background: avatarPhotoSrc ? 'transparent' : 'var(--ent-dark)', color: 'white',
@@ -497,10 +495,10 @@ export default function Layout() {
                   }}>
                     <div style={{ padding: '0.625rem 1rem', borderBottom: '1px solid var(--color-base-200)' }}>
                       <p style={{ fontWeight: 600, fontSize: '0.8125rem', margin: 0, color: 'var(--color-base-content)' }}>
-                        {operator?.name ?? operator?.id}
+                        {operator?.name}
                       </p>
                       <p style={{ fontSize: '0.75rem', color: 'var(--sb-text-muted)', margin: 0, marginTop: '0.1rem' }}>
-                        {operator ? (operator.role?.name ?? OPERATOR_TYPES[operator.type] ?? 'Operator') : ''}
+                        {operator ? (operator.role?.name ?? 'Operator') : ''}
                       </p>
                     </div>
                     <button

@@ -9,7 +9,7 @@ import {
   useBulkDisableLocationsMutation,
   useBulkRestoreLocationsMutation,
 } from '@/features/location/api/locationApi';
-import type { LocationResponse, LocationRequest } from '@/shared/types/api';
+import type { LocationResponse, LocationRequest, LocationAssetType, LocationCabinetType } from '@/shared/types/api';
 import { LOCATION_ASSET_TYPES, LOCATION_CABINET_TYPES } from '@/shared/types/api';
 import Modal from '@/shared/components/modal/Modal';
 import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
@@ -51,12 +51,11 @@ const FL = ({ text, required }: { text: string; required?: boolean }) => (
 );
 
 function LocationForm({
-  initial, existingLocations, onSave, onCancel, loading,
+  initial, existingLocations, onSave, loading,
 }: {
   initial?: LocationResponse;
   existingLocations: LocationResponse[];
   onSave: (data: LocationRequest) => void;
-  onCancel: () => void;
   loading: boolean;
 }) {
   const defaultName        = initial?.name            ?? '';
@@ -93,8 +92,8 @@ function LocationForm({
     if (err) { setNameError(err); return; }
     onSave({
       name:        name.trim(),
-      assetType:   assetType   as import('../types/api').LocationAssetType,
-      cabinetType: cabinetType as import('../types/api').LocationCabinetType,
+      assetType:   assetType   as LocationAssetType,
+      cabinetType: cabinetType as LocationCabinetType,
       features:    lcdEnabled ? FEATURES_ENABLED : FEATURES_DISABLED,
     });
   };
@@ -121,14 +120,14 @@ function LocationForm({
         <div>
           <FL text="Asset Type" required />
           <select className="select select-bordered w-full" value={assetType}
-            onChange={(e) => setAssetType(e.target.value)} required>
+            onChange={(e) => setAssetType(e.target.value as LocationAssetType)} required>
             {Object.entries(LOCATION_ASSET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
         <div>
           <FL text="Cabinet Type" required />
           <select className="select select-bordered w-full" value={cabinetType}
-            onChange={(e) => setCabinetType(e.target.value)} required>
+            onChange={(e) => setCabinetType(e.target.value as LocationCabinetType)} required>
             {Object.entries(LOCATION_CABINET_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
@@ -628,7 +627,6 @@ export default function LocationsPage() {
           initial={editing ?? undefined}
           existingLocations={data?.content ?? []}
           onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
           loading={creating || updating}
         />
       </Modal>

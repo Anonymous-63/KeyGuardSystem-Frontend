@@ -289,7 +289,7 @@ export default function ProfilePage() {
         {[
           { label: 'Since', value: new Date(op.createdAt).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) },
           { label: 'Clearance', value: `L${clearance}/5` },
-          { label: 'Status', value: op.disabled ? 'Disabled' : 'Active', color: op.disabled ? 'var(--color-error)' : 'var(--color-success)' },
+          { label: 'Status', value: op.deleted ? 'Disabled' : 'Active', color: op.deleted ? 'var(--color-error)' : 'var(--color-success)' },
         ].map(({ label, value, color }, i, arr) => (
           <div key={label} style={{ textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid var(--color-base-200)' : 'none' }}>
             <div style={{ fontSize: '0.62rem', opacity: 0.4, marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
