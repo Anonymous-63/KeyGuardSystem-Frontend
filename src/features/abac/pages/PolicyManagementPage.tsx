@@ -104,14 +104,12 @@ function ScopeCell({ resource, action }: { resource?: string; action?: string })
 
 const SPEL_VARS = [
   { group: 'Subject', vars: [
-    { name: 'subject.operatorId',       type: 'String',          ex: "'superadmin'" },
-    { name: 'subject.clearanceLevel',   type: 'int (1–5, role)', ex: '5' },
-    { name: 'subject.locationIds',      type: 'Set<Integer>', ex: '{1,2}' },
-    { name: 'subject.accountStatus',    type: 'String',       ex: "'ACTIVE'" },
-    { name: 'subject.mfaVerified',      type: 'boolean',      ex: 'true' },
-    { name: 'subject.employmentType',   type: 'String',       ex: "'FULL_TIME'" },
-    { name: 'subject.riskCategory',     type: 'String',       ex: "'LOW'" },
-    { name: 'subject.passwordExpired',  type: 'boolean',      ex: 'false' },
+    { name: 'subject.operatorId',       type: 'String',               ex: "'superadmin'" },
+    { name: 'subject.permissionLevel',  type: 'int (role.permissionLevel)', ex: '4' },
+    { name: 'subject.locationIds',      type: 'Set<Integer>',         ex: '{1,2}' },
+    { name: 'subject.accountStatus',    type: 'String',               ex: "'ACTIVE'" },
+    { name: 'subject.mfaVerified',      type: 'boolean',              ex: 'true' },
+    { name: 'subject.passwordExpired',  type: 'boolean',              ex: 'false' },
   ]},
   { group: 'Resource', vars: [
     { name: 'resource.resourceType',    type: 'String',  ex: "'OPERATOR'" },
@@ -133,12 +131,12 @@ const SPEL_VARS = [
 ];
 
 const SPEL_EXAMPLES = [
-  'subject.clearanceLevel >= 4',
+  'subject.permissionLevel >= 4',
   "subject.accountStatus == 'ACTIVE' and subject.mfaVerified == true",
-  'resource.sensitivityLevel >= 3 and subject.clearanceLevel < 4',
+  'resource.sensitivityLevel >= 3 and subject.permissionLevel < 4',
   'env.riskScore > 75 and action.mutation == true',
-  "subject.employmentType == 'CONTRACTOR' and action.name == 'DELETE'",
   "resource.isGlobal == false and !subject.locationIds.contains(resource.locationId)",
+  "subject.permissionLevel >= 2 and subject.accountStatus == 'ACTIVE'",
 ];
 
 function SpelDrawer({ onClose }: { onClose: () => void }) {
@@ -305,12 +303,10 @@ interface BuilderState { groups: CGroup[]; groupLogic: 'and' | 'or' }
 
 const ATTR_DEFS: AttrDef[] = [
   { path: 'subject.operatorId',        group: 'Subject',  label: 'subject.operatorId',        type: 'String' },
-  { path: 'subject.clearanceLevel',    group: 'Subject',  label: 'subject.clearanceLevel',    type: 'RoleLevel' },
+  { path: 'subject.permissionLevel',   group: 'Subject',  label: 'subject.permissionLevel',   type: 'RoleLevel' },
   { path: 'subject.locationIds',       group: 'Subject',  label: 'subject.locationIds',       type: 'SetInt' },
   { path: 'subject.accountStatus',     group: 'Subject',  label: 'subject.accountStatus',     type: 'StringEnum', options: ['ACTIVE', 'DISABLED', 'LOCKED'] },
   { path: 'subject.mfaVerified',       group: 'Subject',  label: 'subject.mfaVerified',       type: 'boolean' },
-  { path: 'subject.employmentType',    group: 'Subject',  label: 'subject.employmentType',    type: 'StringEnum', options: ['FULL_TIME', 'CONTRACTOR', 'TEMP'] },
-  { path: 'subject.riskCategory',      group: 'Subject',  label: 'subject.riskCategory',      type: 'StringEnum', options: ['LOW', 'MEDIUM', 'HIGH'] },
   { path: 'subject.passwordExpired',   group: 'Subject',  label: 'subject.passwordExpired',   type: 'boolean' },
   { path: 'resource.resourceType',     group: 'Resource', label: 'resource.resourceType',     type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION'] },
   { path: 'resource.resourceId',       group: 'Resource', label: 'resource.resourceId',       type: 'String' },
@@ -361,7 +357,7 @@ function defaultVal(a: AttrDef): string {
 
 let _uid = 0;
 const uid = () => `${++_uid}`;
-function newRow(attrPath = 'subject.clearanceLevel'): CRow {
+function newRow(attrPath = 'subject.permissionLevel'): CRow {
   const a = ATTR_DEFS.find(x => x.path === attrPath) ?? ATTR_DEFS[2];
   return { id: uid(), attr: a.path, op: defaultOp(a.type), value: defaultVal(a) };
 }
@@ -370,7 +366,7 @@ function newGroup(): CGroup { return { id: uid(), logic: 'and', rows: [newRow()]
 function compileRow(row: CRow): string {
   const a = ATTR_DEFS.find(x => x.path === row.attr);
   if (!a) return '';
-  const ref = `#${row.attr}`;
+  const ref = row.attr;
   switch (row.op) {
     case 'eq':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
     case 'ne':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} != '${row.value}'` : `${ref} != ${row.value}`;
@@ -402,6 +398,28 @@ function ConditionBuilder({ value, onChange, startRaw, roles }: { value: string;
   const [mode, setMode] = useState<'visual' | 'raw'>(startRaw ? 'raw' : 'visual');
   const [bs, setBs]     = useState<BuilderState>(() => ({ groups: [newGroup()], groupLogic: 'and' }));
   const [rawVal, setRawVal] = useState(value);
+
+  // When roles load, reset any RoleLevel rows still at default '1' that don't match a real role
+  useEffect(() => {
+    if (roles.length === 0 || mode === 'raw') return;
+    const sorted = [...roles].filter(r => !r.deleted).sort((a, b) => b.permissionLevel - a.permissionLevel);
+    if (sorted.length === 0) return;
+    const validLevels = new Set(sorted.map(r => String(r.permissionLevel)));
+    setBs(prev => {
+      const updated = { ...prev, groups: prev.groups.map(g => ({
+        ...g, rows: g.rows.map(r => {
+          const def = ATTR_DEFS.find(a => a.path === r.attr);
+          if (def?.type === 'RoleLevel' && !validLevels.has(r.value)) {
+            return { ...r, value: String(sorted[0].permissionLevel) };
+          }
+          return r;
+        }),
+      })) };
+      onChange(compileToSpel(updated));
+      return updated;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roles]);
 
   const applyBs = (next: BuilderState) => { setBs(next); onChange(compileToSpel(next)); };
 
@@ -961,8 +979,6 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
 // ─── Evaluate modal ────────────────────────────────────────────────────────────
 
 const ACCOUNT_STATUSES = ['ACTIVE', 'DISABLED', 'LOCKED'];
-const EMPLOYMENT_TYPES = ['FULL_TIME', 'CONTRACTOR', 'TEMP'];
-const RISK_CATEGORIES  = ['LOW', 'MEDIUM', 'HIGH'];
 const ACTIONS_LIST     = ['READ', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'IMPORT', 'ASSIGN', 'APPROVE', 'PERMANENT_DELETE'];
 
 function EvaluateModal({ onClose }: { onClose: () => void }) {
@@ -971,9 +987,8 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<EvaluateResult | null>(null);
   const [form, setForm] = useState<EvaluateRequest>({
     resourceType: 'OPERATOR', action: 'READ',
-    subjectClearanceLevel: 5, subjectAccountStatus: 'ACTIVE',
-    subjectMfaVerified: true, subjectEmploymentType: 'FULL_TIME',
-    subjectRiskCategory: 'LOW', resourceSensitivityLevel: 0,
+    subjectPermissionLevel: 4, subjectAccountStatus: 'ACTIVE',
+    subjectMfaVerified: true, resourceSensitivityLevel: 0,
     envRiskScore: 0, envBusinessHours: true,
   });
 
@@ -1004,29 +1019,15 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
             <span style={sL}>Subject (who is accessing)</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               <div>
-                <FL text="Clearance Level (1–5)" />
-                <input className="input input-bordered input-sm w-full" type="number" min={1} max={5}
-                  value={form.subjectClearanceLevel ?? ''} onChange={e => set('subjectClearanceLevel', Number(e.target.value))} />
+                <FL text="Permission Level" />
+                <input className="input input-bordered input-sm w-full" type="number" min={0} max={9999}
+                  value={form.subjectPermissionLevel ?? ''} onChange={e => set('subjectPermissionLevel', Number(e.target.value))} />
               </div>
               <div>
                 <FL text="Account Status" />
                 <select className="select select-bordered select-sm w-full"
                   value={form.subjectAccountStatus ?? ''} onChange={e => set('subjectAccountStatus', e.target.value)}>
                   {ACCOUNT_STATUSES.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <FL text="Employment Type" />
-                <select className="select select-bordered select-sm w-full"
-                  value={form.subjectEmploymentType ?? ''} onChange={e => set('subjectEmploymentType', e.target.value)}>
-                  {EMPLOYMENT_TYPES.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <FL text="Risk Category" />
-                <select className="select select-bordered select-sm w-full"
-                  value={form.subjectRiskCategory ?? ''} onChange={e => set('subjectRiskCategory', e.target.value)}>
-                  {RISK_CATEGORIES.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.75rem' }}>
@@ -1123,7 +1124,7 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                 ['Reason',         result.reason ?? '—'],
                 ['Resource',       result.resourceType],
                 ['Action',         result.action],
-                ['Effective Clearance', `Level ${result.effectiveClearanceLevel ?? '—'}`],
+                ['Effective Permission', `Level ${result.effectivePermissionLevel ?? '—'}`],
               ].map(([label, value]) => (
                 <div key={label} style={{
                   display: 'flex', gap: '0.5rem',

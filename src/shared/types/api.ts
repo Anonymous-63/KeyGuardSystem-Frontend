@@ -671,12 +671,10 @@ export interface EvaluateRequest {
   resourceId?: string;
   action: string;
   subjectOperatorType?: number;
-  subjectClearanceLevel?: number;
+  subjectPermissionLevel?: number;
   subjectLocationIds?: number[];
   subjectAccountStatus?: string;
   subjectMfaVerified?: boolean;
-  subjectEmploymentType?: string;
-  subjectRiskCategory?: string;
   resourceLocationId?: number;
   resourceIsGlobal?: boolean;
   resourceSensitivityLevel?: number;
@@ -691,7 +689,7 @@ export interface EvaluateResult {
   reason?: string;
   resourceType: string;
   action: string;
-  effectiveClearanceLevel?: number;
+  effectivePermissionLevel?: number;
   isDeny: boolean;
 }
 
