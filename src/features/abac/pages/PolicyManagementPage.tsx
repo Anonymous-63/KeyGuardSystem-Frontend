@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useListPoliciesQuery,
   useCreatePolicyMutation,
@@ -403,6 +403,106 @@ function compileToSpel(s: BuilderState): string {
 
 const ATTR_GROUPS = ['Subject', 'Resource', 'Env', 'Action'] as const;
 
+// ─── Location multi-select (chip + floating dropdown) ─────────────────────────
+
+function LocMultiSelect({
+  locations, values, onChange,
+}: {
+  locations: LocationResponse[];
+  values: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = (id: string) =>
+    onChange(values.includes(id) ? values.filter(v => v !== id) : [...values, id]);
+
+  const selected = locations.filter(l => values.includes(String(l.id)));
+
+  const chipStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+    background: 'var(--color-primary)', color: 'white',
+    borderRadius: '0.25rem', padding: '0.1rem 0.3rem 0.1rem 0.45rem',
+    fontSize: '0.68rem', lineHeight: 1.4, maxWidth: '90px',
+    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      {/* Trigger */}
+      <div
+        role="button" tabIndex={0}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
+        style={{
+          border: `1px solid var(--color-base-300)`,
+          borderRadius: '0.375rem', padding: '0.25rem 0.375rem',
+          minHeight: '2rem', cursor: 'pointer',
+          display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center',
+          background: 'var(--color-base-100)', outline: open ? '2px solid var(--color-primary)' : 'none',
+          outlineOffset: '1px',
+        }}
+      >
+        {selected.length === 0
+          ? <span style={{ fontSize: '0.75rem', opacity: 0.4, userSelect: 'none' }}>Select locations…</span>
+          : selected.map(loc => (
+              <span key={loc.id} style={chipStyle} title={loc.name}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc.name}</span>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); toggle(String(loc.id)); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.1rem', opacity: 0.8, lineHeight: 1, color: 'inherit' }}
+                >×</button>
+              </span>
+            ))
+        }
+      </div>
+
+      {/* Floating dropdown */}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 60,
+          minWidth: '200px', maxWidth: '280px',
+          border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
+          background: 'var(--color-base-100)', boxShadow: '0 6px 20px rgba(0,0,0,0.13)',
+          maxHeight: '12rem', overflowY: 'auto',
+        }}>
+          {locations.length === 0
+            ? <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.8rem', opacity: 0.4 }}>No locations</div>
+            : locations.map(loc => {
+                const checked = values.includes(String(loc.id));
+                return (
+                  <label key={loc.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.6rem',
+                    padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem',
+                    background: checked ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent',
+                    borderBottom: '1px solid var(--color-base-200)',
+                    transition: 'background 0.1s',
+                  }}>
+                    <input type="checkbox" className="checkbox checkbox-xs checkbox-primary"
+                      checked={checked} onChange={() => toggle(String(loc.id))} />
+                    <span style={{ flex: 1 }}>{loc.name}</span>
+                    <span style={{ fontSize: '0.68rem', opacity: 0.35, fontFamily: 'monospace' }}>#{loc.id}</span>
+                  </label>
+                );
+              })
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChange: (v: string) => void; startRaw: boolean }) {
   const [mode, setMode] = useState<'visual' | 'raw'>(startRaw ? 'raw' : 'visual');
   const [bs, setBs]     = useState<BuilderState>(() => ({ groups: [newGroup()], groupLogic: 'and' }));
@@ -412,15 +512,6 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
   const { data: cbRolesRaw = [] } = useListRolesQuery();
   const cbLocations = (cbLocData?.content ?? []) as LocationResponse[];
   const cbRoles = (cbRolesRaw as Role[]).filter(r => !r.deleted).sort((a, b) => a.permissionLevel - b.permissionLevel);
-
-  const toggleLocationValue = (gid: string, rid: string, locId: string) => {
-    const row = bs.groups.find(g => g.id === gid)?.rows.find(r => r.id === rid);
-    if (!row) return;
-    const cur = row.values ?? [];
-    const next = cur.includes(locId) ? cur.filter(v => v !== locId) : [...cur, locId];
-    patchRow(gid, rid, { values: next });
-  };
-
 
   const applyBs = (next: BuilderState) => { setBs(next); onChange(compileToSpel(next)); };
 
@@ -589,33 +680,13 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
 
                         {/* Value */}
                         {opDef.hasValue ? (
-                          // SetInt + location → multi-select checkbox list
+                          // SetInt + location → chip multi-select
                           attrDef.valueKind === 'location' && attrDef.type === 'SetInt' ? (
-                            <div style={{
-                              border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
-                              maxHeight: '7rem', overflowY: 'auto', width: '100%',
-                              background: 'var(--color-base-100)', fontSize: '0.75rem',
-                            }}>
-                              {cbLocations.length === 0
-                                ? <div style={{ padding: '0.3rem 0.5rem', opacity: 0.4 }}>No locations</div>
-                                : cbLocations.map(loc => {
-                                    const checked = (row.values ?? []).includes(String(loc.id));
-                                    return (
-                                      <label key={loc.id} style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.35rem',
-                                        padding: '0.2rem 0.5rem', cursor: 'pointer',
-                                        background: checked ? 'var(--color-primary-content,#e0f2fe)' : 'transparent',
-                                        borderBottom: '1px solid var(--color-base-200)',
-                                      }}>
-                                        <input type="checkbox" className="checkbox checkbox-xs"
-                                          checked={checked}
-                                          onChange={() => toggleLocationValue(group.id, row.id, String(loc.id))} />
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-                                      </label>
-                                    );
-                                  })
-                              }
-                            </div>
+                            <LocMultiSelect
+                              locations={cbLocations}
+                              values={row.values ?? []}
+                              onChange={vals => patchRow(group.id, row.id, { values: vals })}
+                            />
                           // int + location → single dropdown
                           ) : attrDef.valueKind === 'location' ? (
                             <select className="select select-bordered select-sm"
