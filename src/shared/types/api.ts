@@ -670,17 +670,10 @@ export interface EvaluateRequest {
   resourceType: string;
   resourceId?: string;
   action: string;
-  subjectOperatorType?: number;
   subjectPermissionLevel?: number;
   subjectLocationIds?: number[];
   subjectAccountStatus?: string;
-  subjectMfaVerified?: boolean;
   resourceLocationId?: number;
-  resourceIsGlobal?: boolean;
-  resourceSensitivityLevel?: number;
-  resourceOwnerType?: number;
-  envRiskScore?: number;
-  envBusinessHours?: boolean;
 }
 
 export interface EvaluateResult {
@@ -700,6 +693,16 @@ export interface PolicyListParams {
   active?: boolean;
   page?: number;
   size?: number;
+}
+
+export interface ResourcePermission {
+  resource: string;
+  actions: string[];
+}
+
+export interface MePermissionsResponse {
+  isSuperAdmin: boolean;
+  permissions: ResourcePermission[];
 }
 
 // ─── Audit Trail ──────────────────────────────────────────────────────────────
