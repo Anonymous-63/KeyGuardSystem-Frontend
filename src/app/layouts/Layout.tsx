@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { logout } from '@/features/auth/store/authSlice';
-import { hasPermissionByClearance, operatorClearance, type ResourceType } from '@/features/auth/utils/permissions';
+import type { ResourceType } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import { ToastProvider } from '@/shared/components/ui/Toast';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -63,7 +64,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { to: '/time-constraints', icon: Clock,           label: 'Time Constraints', resource: 'TIME_CONSTRAINT' },
       { to: '/transactions',     icon: ArrowLeftRight,  label: 'Transactions',     resource: 'TRANSACTION', badge: 'live' },
-      { to: '/audit',            icon: ClipboardList,   label: 'Audit Trail',      resource: 'AUDIT' },
+      { to: '/audit',            icon: ClipboardList,   label: 'Audit Trail',      resource: 'AUDIT_TRAIL' },
     ],
   },
   {
@@ -83,13 +84,13 @@ function Sidebar({ onClose, showSwitcher = true }: { onClose?: () => void; showS
   const { data: publicOrg, fulfilledTimeStamp: orgTs } = useGetPublicOrgQuery();
   const orgName = publicOrg?.orgName?.trim() ?? '';
   const hasLogo = publicOrg?.orgLogoUrl != null;
+  const { canAccess, isSuperAdmin } = usePermissions();
 
   const visibleGroups = NAV_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter((item) => {
       if (!item.resource) return true;
-      if (!operator) return false;
-      return hasPermissionByClearance(operatorClearance(operator), item.resource, 'READ');
+      return canAccess(item.resource, 'READ');
     }),
   })).filter((g) => g.items.length > 0);
 
@@ -142,7 +143,7 @@ function Sidebar({ onClose, showSwitcher = true }: { onClose?: () => void; showS
       </div>
 
       {/* Location switcher — sidebar slot (mobile only; desktop uses header) */}
-      {showSwitcher && operator && (operator.role?.permissionLevel ?? 1) <= 3 && (
+      {showSwitcher && operator && !isSuperAdmin && (operator.assignedLocations?.length ?? 0) > 0 && (
         <div style={{ padding: '0 0.5rem 0.5rem', borderBottom: '1px solid var(--sb-border)', flexShrink: 0 }}>
           <LocationSwitcher variant="sidebar" />
         </div>
@@ -181,20 +182,13 @@ function Sidebar({ onClose, showSwitcher = true }: { onClose?: () => void; showS
   );
 }
 
-// ─── Role colours ────────────────────────────────────────────────────────────
-
-const CLEARANCE_COLORS: Record<number, string> = {
-  5: '#ef4444',
-  4: '#f97316',
-  3: '#8b5cf6',
-  2: '#3b82f6',
-  1: '#10b981',
-};
-
 function hexRgba(hex: string, alpha: number) {
   const n = parseInt(hex.replace('#', ''), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
+
+const ROLE_COLOR_SA   = '#ef4444';
+const ROLE_COLOR_STD  = '#6366f1';
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
@@ -205,19 +199,20 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const operator        = useAppSelector((s) => s.auth.operator);
   const selectedLocation = useAppSelector(selectSelectedLocation);
+  const { isSuperAdmin, canAccess } = usePermissions();
 
   // Auto-select first assigned location on login if nothing persisted
   useEffect(() => {
     if (
       operator &&
-      (operator.role?.permissionLevel ?? 1) <= 3 &&
+      !isSuperAdmin &&
       selectedLocation === null &&
       operator.assignedLocations?.length > 0
     ) {
       const first = operator.assignedLocations[0];
       dispatch(setSelectedLocation({ id: first.id, name: first.name }));
     }
-  }, [operator, selectedLocation, dispatch]);
+  }, [operator, isSuperAdmin, selectedLocation, dispatch]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -256,8 +251,7 @@ export default function Layout() {
   const allNavItems = NAV_GROUPS.flatMap((g) =>
     g.items.filter((item) => {
       if (!item.resource) return true;
-      if (!operator) return false;
-      return hasPermissionByClearance(operatorClearance(operator), item.resource, 'READ');
+      return canAccess(item.resource, 'READ');
     })
   );
   const searchResults = searchQuery.trim()
@@ -344,8 +338,7 @@ export default function Layout() {
             </button>
             <div style={{ position: 'relative' }} onMouseEnter={openMenu} onMouseLeave={closeMenu}>
               {(() => {
-                const pLevel = operator ? (operator.role?.permissionLevel ?? 1) : 0;
-                const roleColor = operator ? (CLEARANCE_COLORS[pLevel] ?? '#6366f1') : '#6366f1';
+                const roleColor = isSuperAdmin ? ROLE_COLOR_SA : ROLE_COLOR_STD;
                 return (
                   <button
                     title={operator?.name ?? 'Profile'}

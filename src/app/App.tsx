@@ -2,7 +2,8 @@ import { useEffect, type ReactElement } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { fetchMe } from '@/features/auth/store/authSlice';
-import { hasPermissionByClearance, operatorClearance, type ResourceType } from '@/features/auth/utils/permissions';
+import type { ResourceType } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import ProtectedRoute from '@/app/router/ProtectedRoute';
 import Layout from '@/app/layouts/Layout';
 import LoginPage from '@/features/auth/pages/LoginPage';
@@ -24,11 +25,9 @@ import PolicyManagementPage from '@/features/abac/pages/PolicyManagementPage';
 import RolesPage from '@/features/roles/pages/RolesPage';
 
 function ResourceRoute({ resource, element }: { resource: ResourceType; element: ReactElement }) {
-  const operator   = useAppSelector((s) => s.auth.operator);
-  const accessToken = useAppSelector((s) => s.auth.accessToken);
-  if (!operator && accessToken) return null; // still loading fetchMe
-  const allowed = hasPermissionByClearance(operatorClearance(operator), resource, 'READ');
-  return allowed ? element : <Navigate to="/dashboard" replace />;
+  const { canAccess, isLoading } = usePermissions();
+  if (isLoading) return null;
+  return canAccess(resource, 'READ') ? element : <Navigate to="/dashboard" replace />;
 }
 
 export default function App() {
@@ -58,7 +57,7 @@ export default function App() {
           <Route path="/asset-groups"     element={<ResourceRoute resource="ASSET_GROUP"     element={<AssetGroupsPage />} />} />
           <Route path="/time-constraints" element={<ResourceRoute resource="TIME_CONSTRAINT" element={<TimeConstraintsPage />} />} />
           <Route path="/transactions"     element={<ResourceRoute resource="TRANSACTION"     element={<TransactionsPage />} />} />
-          <Route path="/audit"            element={<ResourceRoute resource="AUDIT"           element={<AuditLogPage />} />} />
+          <Route path="/audit"            element={<ResourceRoute resource="AUDIT_TRAIL"     element={<AuditLogPage />} />} />
           <Route path="/settings"         element={<ResourceRoute resource="APP_CONFIG"      element={<SettingsPage />} />} />
           <Route path="/policies"         element={<ResourceRoute resource="ABAC_POLICY"     element={<PolicyManagementPage />} />} />
           <Route path="/roles"            element={<ResourceRoute resource="ROLE"            element={<RolesPage />} />} />

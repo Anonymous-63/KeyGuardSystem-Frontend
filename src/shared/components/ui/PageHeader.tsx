@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance, type ResourceType } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
+import type { ResourceType } from '@/features/auth/utils/permissions';
 
 const Ico = ({ d, size = '1.35rem' }: { d: string | string[]; size?: string }) => (
   <svg
@@ -53,10 +53,10 @@ export default function PageHeader({
   disableDisabled = false,
   extra,
 }: PageHeaderProps) {
-  const operator = useAppSelector((s) => s.auth.operator);
+  const { canAccess } = usePermissions();
 
   const can = (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') =>
-    operator != null && hasPermissionByClearance(operatorClearance(operator), resource, action);
+    canAccess(resource, action);
 
   const showAdd     = onAdd     != null && can('CREATE');
   const showUpdate  = onUpdate  != null && can('UPDATE');

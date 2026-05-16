@@ -14,8 +14,7 @@ import {
   useTestEmailMutation,
 } from '@/features/config/api/configApi';
 import { useToast } from '@/shared/components/ui/Toast';
-import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermission } from '@/shared/hooks/usePermission';
 
 const TON_OPTIONS = [
   { v: 0, l: 'Unknown' }, { v: 1, l: 'International' }, { v: 2, l: 'National' },
@@ -135,8 +134,7 @@ const Stack = ({ children }: { children: React.ReactNode }) => (
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { addToast } = useToast();
-  const operator = useAppSelector((s) => s.auth.operator);
-  const canUpdate = operator != null && hasPermissionByClearance(operatorClearance(operator), 'APP_CONFIG', 'UPDATE');
+  const canUpdate = usePermission('APP_CONFIG', 'UPDATE');
 
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   useEffect(() => {

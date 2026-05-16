@@ -2,8 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useListActivityQuery, useListAccessQuery, useGetStatsQuery } from '@/features/audit/api/auditApi';
 import type { AuditActivityRecord, AccessAuditRecord, AuditActivityParams, AccessAuditParams } from '@/shared/types/api';
 import { DataGrid, type ColDef } from '@/shared/components/table/DataGrid';
-import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermission } from '@/shared/hooks/usePermission';
 import {
   ShieldAlert, Search, X, Download, ClipboardList,
   ShieldCheck, ShieldX, AlertTriangle, Info, Flame,
@@ -338,8 +337,7 @@ function AuditPagination({ total, pages, current, pageSize, onPage, onPageSize }
 const RESOURCE_TYPES = ['OPERATOR','LOCATION','CABINET','ASSET','CABINET_USER','TRANSACTION','ASSET_GROUP'];
 
 export default function AuditLogPage() {
-  const operator = useAppSelector(s => s.auth.operator);
-  const canRead = hasPermissionByClearance(operatorClearance(operator), 'AUDIT', 'READ');
+  const canRead = usePermission('AUDIT_TRAIL', 'READ');
 
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   useEffect(() => {

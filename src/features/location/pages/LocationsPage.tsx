@@ -15,8 +15,7 @@ import Modal from '@/shared/components/modal/Modal';
 import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
 import { useToast } from '@/shared/components/ui/Toast';
 import { DataGrid, type ColDef } from '@/shared/components/table/DataGrid';
-import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import { Search, Download, Pencil, Ban, RefreshCw } from 'lucide-react';
 
 const FEATURES_ENABLED   = '01000000000000000000';
@@ -178,12 +177,11 @@ type Tab = 'all' | 'active' | 'disabled';
 
 export default function LocationsPage() {
   const { addToast } = useToast();
-  const operator = useAppSelector((s) => s.auth.operator);
+  const { canAccess } = usePermissions();
 
   const can = useCallback(
-    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') =>
-      operator != null && hasPermissionByClearance(operatorClearance(operator), 'LOCATION', action),
-    [operator],
+    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE') => canAccess('LOCATION', action),
+    [canAccess],
   );
 
   const [activeTab,          setActiveTab]          = useState<Tab>('active');

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useGetDashboardQuery } from '@/features/dashboard/api/dashboardApi';
 import { useListAssetsOutQuery, useListOverdueAssetsQuery } from '@/features/transaction/api/transactionApi';
 import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import type { RecentActivityItem } from '@/shared/types/api';
 
 function StatCard({ label, value, icon, color, to }: {
@@ -40,8 +40,8 @@ export default function DashboardPage() {
   const { data: assetsOut } = useListAssetsOutQuery();
   const { data: overdueAssets } = useListOverdueAssetsQuery();
 
-  const canRead = (resource: Parameters<typeof hasPermissionByClearance>[1]) =>
-    operator ? hasPermissionByClearance(operatorClearance(operator), resource, 'READ') : false;
+  const { canAccess } = usePermissions();
+  const canRead = (resource: string) => canAccess(resource, 'READ');
 
   const greeting = () => {
     const h = new Date().getHours();

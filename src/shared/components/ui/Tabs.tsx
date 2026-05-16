@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react';
+
 interface TabDef {
   id: string;
   label: string;
-  icon?: string;
+  icon?: ReactNode;
   badge?: number;
 }
 
@@ -21,7 +23,7 @@ export default function Tabs({ tabs, active, onChange }: Props) {
           className={`tab gap-1.5 ${active === tab.id ? 'tab-active font-semibold' : 'text-base-content/60'}`}
           onClick={() => onChange(tab.id)}
         >
-          {tab.icon && <span>{tab.icon}</span>}
+          {tab.icon && <span className="flex items-center">{tab.icon}</span>}
           {tab.label}
           {tab.badge !== undefined && tab.badge > 0 && (
             <span className="badge badge-sm badge-primary ml-0.5">{tab.badge}</span>

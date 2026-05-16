@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MapPin, ChevronDown, Check } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { setSelectedLocation, clearSelectedLocation, selectSelectedLocation } from '@/features/location/store/locationSlice';
-import { operatorClearance } from '@/features/auth/utils/permissions';
-import { SUPER_ADMIN_LEVEL } from '@/shared/types/api';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 
 interface Props {
   variant?: 'pill' | 'sidebar';
@@ -24,12 +23,13 @@ export default function LocationSwitcher({ variant = 'pill' }: Props) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  if (!operator) return null;
-  const clearance = operatorClearance(operator);
-  if (clearance === SUPER_ADMIN_LEVEL || clearance > 3) return null;
+  const { isSuperAdmin } = usePermissions();
+
+  if (!operator || isSuperAdmin) return null;
 
   const locations     = operator.assignedLocations ?? [];
-  const showAllOption = clearance === 3;
+  if (locations.length === 0) return null;
+  const showAllOption = locations.length > 1;
   const label         = selected?.name ?? 'All Locations';
 
   const handleSelect = (id: number | null, name: string | null) => {

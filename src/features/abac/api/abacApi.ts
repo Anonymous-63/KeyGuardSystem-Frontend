@@ -4,13 +4,20 @@ import type {
   ApiResponse, PagedResponse,
   PolicyResponse, PolicyRequest, PolicyVersionResponse,
   EvaluateRequest, EvaluateResult, PolicyListParams,
+  MePermissionsResponse,
 } from '@/shared/types/api';
 
 export const abacApi = createApi({
   reducerPath: 'abacApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Policy', 'PolicyVersion'],
+  tagTypes: ['Policy', 'PolicyVersion', 'Permissions'],
   endpoints: (b) => ({
+
+    getMyPermissions: b.query<MePermissionsResponse, void>({
+      query: () => '/me/permissions',
+      transformResponse: (r: ApiResponse<MePermissionsResponse>) => r.data,
+      providesTags: ['Permissions'],
+    }),
 
     listPolicies: b.query<PagedResponse<PolicyResponse>, PolicyListParams>({
       query: ({ resourceType, action, effect, active, page = 0, size = 20 } = {}) => {
@@ -40,24 +47,24 @@ export const abacApi = createApi({
     createPolicy: b.mutation<PolicyResponse, PolicyRequest>({
       query: (body) => ({ url: '/admin/policies', method: 'POST', body }),
       transformResponse: (r: ApiResponse<PolicyResponse>) => r.data,
-      invalidatesTags: ['Policy'],
+      invalidatesTags: ['Policy', 'Permissions'],
     }),
 
     updatePolicy: b.mutation<PolicyResponse, { id: string; body: PolicyRequest }>({
       query: ({ id, body }) => ({ url: `/admin/policies/${id}`, method: 'PUT', body }),
       transformResponse: (r: ApiResponse<PolicyResponse>) => r.data,
-      invalidatesTags: (_r, _e, { id }) => ['Policy', { type: 'PolicyVersion', id }],
+      invalidatesTags: (_r, _e, { id }) => ['Policy', { type: 'PolicyVersion', id }, 'Permissions'],
     }),
 
     togglePolicy: b.mutation<PolicyResponse, string>({
       query: (id) => ({ url: `/admin/policies/${id}/toggle`, method: 'PATCH' }),
       transformResponse: (r: ApiResponse<PolicyResponse>) => r.data,
-      invalidatesTags: (_r, _e, id) => ['Policy', { type: 'PolicyVersion', id }],
+      invalidatesTags: (_r, _e, id) => ['Policy', { type: 'PolicyVersion', id }, 'Permissions'],
     }),
 
     deletePolicy: b.mutation<void, string>({
       query: (id) => ({ url: `/admin/policies/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Policy'],
+      invalidatesTags: ['Policy', 'Permissions'],
     }),
 
     evaluatePolicy: b.mutation<EvaluateResult, EvaluateRequest>({
@@ -74,6 +81,7 @@ export const abacApi = createApi({
 });
 
 export const {
+  useGetMyPermissionsQuery,
   useListPoliciesQuery,
   useGetPolicyQuery,
   useGetPolicyVersionsQuery,

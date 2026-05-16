@@ -1,4 +1,4 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import authReducer from '@/features/auth/store/authSlice';
 import locationReducer from '@/features/location/store/locationSlice';
 import { locationApi } from '@/features/location/api/locationApi';
@@ -15,24 +15,32 @@ import { abacApi } from '@/features/abac/api/abacApi';
 import { auditApi } from '@/features/audit/api/auditApi';
 import { rolesApi } from '@/features/roles/api/rolesApi';
 
+const appReducer = combineReducers({
+  auth: authReducer,
+  location: locationReducer,
+  [locationApi.reducerPath]: locationApi.reducer,
+  [operatorApi.reducerPath]: operatorApi.reducer,
+  [cabinetApi.reducerPath]: cabinetApi.reducer,
+  [assetApi.reducerPath]: assetApi.reducer,
+  [cabinetUserApi.reducerPath]: cabinetUserApi.reducer,
+  [transactionApi.reducerPath]: transactionApi.reducer,
+  [assetGroupApi.reducerPath]: assetGroupApi.reducer,
+  [timeConstraintApi.reducerPath]: timeConstraintApi.reducer,
+  [dashboardApi.reducerPath]: dashboardApi.reducer,
+  [configApi.reducerPath]: configApi.reducer,
+  [abacApi.reducerPath]: abacApi.reducer,
+  [auditApi.reducerPath]: auditApi.reducer,
+  [rolesApi.reducerPath]: rolesApi.reducer,
+});
+
+// Reset ALL RTK Query caches on logout so the next user gets fresh permissions
+const rootReducer: typeof appReducer = (state, action) => {
+  if (action.type === 'auth/logout') return appReducer(undefined, action);
+  return appReducer(state, action);
+};
+
 export const store = configureStore({
-  reducer: {
-    auth: authReducer,
-    location: locationReducer,
-    [locationApi.reducerPath]: locationApi.reducer,
-    [operatorApi.reducerPath]: operatorApi.reducer,
-    [cabinetApi.reducerPath]: cabinetApi.reducer,
-    [assetApi.reducerPath]: assetApi.reducer,
-    [cabinetUserApi.reducerPath]: cabinetUserApi.reducer,
-    [transactionApi.reducerPath]: transactionApi.reducer,
-    [assetGroupApi.reducerPath]: assetGroupApi.reducer,
-    [timeConstraintApi.reducerPath]: timeConstraintApi.reducer,
-    [dashboardApi.reducerPath]: dashboardApi.reducer,
-    [configApi.reducerPath]: configApi.reducer,
-    [abacApi.reducerPath]: abacApi.reducer,
-    [auditApi.reducerPath]: auditApi.reducer,
-    [rolesApi.reducerPath]: rolesApi.reducer,
-  },
+  reducer: rootReducer,
   middleware: (gDM) =>
     gDM()
       .concat(locationApi.middleware)

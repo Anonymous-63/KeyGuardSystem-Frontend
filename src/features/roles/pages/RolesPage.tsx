@@ -10,8 +10,7 @@ import { MAX_ROLES, SUPER_ADMIN_LEVEL } from '@/shared/types/api';
 import Modal from '@/shared/components/modal/Modal';
 import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
 import { useToast } from '@/shared/components/ui/Toast';
-import { useAppSelector } from '@/app/store/hooks';
-import { operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import { Pencil, Trash2, ShieldAlert, Lock } from 'lucide-react';
 
 // Gradient: low levels green, high levels red.
@@ -166,10 +165,7 @@ function LevelBadge({ level }: { level: number }) {
 
 export default function RolesPage() {
   const { addToast } = useToast();
-  const operator = useAppSelector((s) => s.auth.operator);
-
-  const clearance   = operatorClearance(operator);
-  const isSuperAdmin = clearance === SUPER_ADMIN_LEVEL;
+  const { isSuperAdmin } = usePermissions();
 
   const { data: roles = [], isLoading } = useListRolesQuery();
   const [createRole, { isLoading: creating }] = useCreateRoleMutation();
