@@ -292,7 +292,7 @@ function VersionHistoryDrawer({ policy, onClose }: { policy: PolicyResponse; onC
 type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt' | 'RoleName';
 type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse' | 'contains' | 'notContains';
 
-interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; spelPath?: string }
+interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; multi?: boolean; spelPath?: string }
 interface OpDef   { key: OpKey; label: string; hasValue: boolean }
 interface CRow    { id: string; attr: string; op: OpKey; value: string; values?: string[] }
 interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
@@ -305,11 +305,11 @@ const ATTR_DEFS: AttrDef[] = [
   { path: 'subject.selectedLocationId', group: 'Subject',  label: 'Selected Location',  type: 'int',    valueKind: 'location' },
   { path: 'subject.roleId',             group: 'Subject',  label: 'Role',               type: 'int',    valueKind: 'role' },
   { path: 'subject.operatorId',         group: 'Subject',  label: 'Operator ID',        type: 'String' },
-  { path: 'resource.resourceType',      group: 'Resource', label: 'Resource Type',      type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'] },
+  { path: 'resource.resourceType',      group: 'Resource', label: 'Resource Type',      type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'], multi: true },
   { path: 'resource.resourceId',        group: 'Resource', label: 'Resource ID',        type: 'String' },
   { path: 'resource.locationId',        group: 'Resource', label: 'Location',           type: 'int',    valueKind: 'location' },
   { path: 'env.clientIp',               group: 'Env',      label: 'Client IP',          type: 'String' },
-  { path: 'action.name',                group: 'Action',   label: 'Action Name',        type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'], spelPath: 'action.name()' },
+  { path: 'action.name',                group: 'Action',   label: 'Action',             type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'], spelPath: 'action.name()', multi: true },
   { path: 'action.mutation',            group: 'Action',   label: 'Is Mutation',        type: 'boolean' },
 ];
 
@@ -339,7 +339,7 @@ function defaultOp(type: AttrType): OpKey {
   return 'eq';
 }
 function defaultVal(a: AttrDef): string {
-  if (a.valueKind)             return '';
+  if (a.valueKind || a.multi)  return '';
   if (a.type === 'boolean')    return '';
   if (a.type === 'StringEnum') return a.options?.[0] ?? '';
   if (a.type === 'int')        return '1';
@@ -362,7 +362,7 @@ function compileRow(row: CRow): string {
   const opDef = OPS_FOR[a.type].find(o => o.key === row.op);
   const ref = a.spelPath ?? row.attr;
 
-  // Multi-value: SetInt with valueKind (location checkbox list)
+  // Multi-value: SetInt + location → contains / notContains OR/AND chain
   if (a.type === 'SetInt' && a.valueKind && (row.op === 'contains' || row.op === 'notContains')) {
     const ids = (row.values ?? []).filter(Boolean);
     if (ids.length === 0) return '';
@@ -371,6 +371,19 @@ function compileRow(row: CRow): string {
       return parts.length === 1 ? parts[0] : `(${parts.join(' or ')})`;
     } else {
       const parts = ids.map(id => `!${ref}.contains(${id})`);
+      return parts.length === 1 ? parts[0] : `(${parts.join(' and ')})`;
+    }
+  }
+
+  // Multi-value: StringEnum + multi → eq = OR chain, ne = AND chain
+  if (a.type === 'StringEnum' && a.multi && (row.op === 'eq' || row.op === 'ne')) {
+    const vals = (row.values ?? []).filter(Boolean);
+    if (vals.length === 0) return '';
+    if (row.op === 'eq') {
+      const parts = vals.map(v => `${ref} == '${v}'`);
+      return parts.length === 1 ? parts[0] : `(${parts.join(' or ')})`;
+    } else {
+      const parts = vals.map(v => `${ref} != '${v}'`);
       return parts.length === 1 ? parts[0] : `(${parts.join(' and ')})`;
     }
   }
@@ -497,6 +510,99 @@ function LocMultiSelect({
                 );
               })
           }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Enum multi-select (chip + floating dropdown) ─────────────────────────────
+
+function EnumMultiSelect({
+  options, values, onChange,
+}: {
+  options: string[];
+  values: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = (opt: string) =>
+    onChange(values.includes(opt) ? values.filter(v => v !== opt) : [...values, opt]);
+
+  const chipStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+    background: 'var(--color-secondary,#7c3aed)', color: 'white',
+    borderRadius: '0.25rem', padding: '0.1rem 0.3rem 0.1rem 0.45rem',
+    fontSize: '0.68rem', lineHeight: 1.4,
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      {/* Trigger */}
+      <div
+        role="button" tabIndex={0}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
+        style={{
+          border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
+          padding: '0.25rem 0.375rem', minHeight: '2rem', cursor: 'pointer',
+          display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center',
+          background: 'var(--color-base-100)',
+          outline: open ? '2px solid var(--color-secondary,#7c3aed)' : 'none',
+          outlineOffset: '1px',
+        }}
+      >
+        {values.length === 0
+          ? <span style={{ fontSize: '0.75rem', opacity: 0.4, userSelect: 'none' }}>Select…</span>
+          : values.map(opt => (
+              <span key={opt} style={chipStyle}>
+                {opt}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); toggle(opt); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.1rem', opacity: 0.8, lineHeight: 1, color: 'inherit' }}
+                >×</button>
+              </span>
+            ))
+        }
+      </div>
+
+      {/* Floating dropdown */}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 60,
+          minWidth: '190px', maxWidth: '260px',
+          border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
+          background: 'var(--color-base-100)', boxShadow: '0 6px 20px rgba(0,0,0,0.13)',
+          maxHeight: '14rem', overflowY: 'auto',
+        }}>
+          {options.map(opt => {
+            const checked = values.includes(opt);
+            return (
+              <label key={opt} style={{
+                display: 'flex', alignItems: 'center', gap: '0.6rem',
+                padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem',
+                background: checked ? 'color-mix(in srgb, var(--color-secondary,#7c3aed) 10%, transparent)' : 'transparent',
+                borderBottom: '1px solid var(--color-base-200)',
+              }}>
+                <input type="checkbox" className="checkbox checkbox-xs"
+                  style={{ accentColor: 'var(--color-secondary,#7c3aed)' }}
+                  checked={checked} onChange={() => toggle(opt)} />
+                <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.77rem' }}>{opt}</span>
+              </label>
+            );
+          })}
         </div>
       )}
     </div>
@@ -659,7 +765,7 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                             const nd   = ATTR_DEFS.find(a => a.path === e.target.value) ?? ATTR_DEFS[2];
                             const ops2 = OPS_FOR[nd.type];
                             const validOp = ops2.find(o => o.key === row.op) ? row.op : defaultOp(nd.type);
-                            patchRow(group.id, row.id, { attr: e.target.value, op: validOp, value: defaultVal(nd) });
+                            patchRow(group.id, row.id, { attr: e.target.value, op: validOp, value: defaultVal(nd), values: [] });
                           }}>
                           {ATTR_GROUPS.map(grp => (
                             <optgroup key={grp} label={grp}>
@@ -708,6 +814,14 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                                 <option key={r.id} value={String(r.id)}>{r.name} (L{r.permissionLevel})</option>
                               ))}
                             </select>
+                          // StringEnum + multi → chip multi-select
+                          ) : attrDef.type === 'StringEnum' && attrDef.multi ? (
+                            <EnumMultiSelect
+                              options={attrDef.options ?? []}
+                              values={row.values ?? []}
+                              onChange={vals => patchRow(group.id, row.id, { values: vals })}
+                            />
+                          // StringEnum single → standard dropdown
                           ) : attrDef.type === 'StringEnum' ? (
                             <select className="select select-bordered select-sm"
                               style={{ fontSize: '0.77rem', width: '100%' }}
