@@ -292,7 +292,7 @@ function VersionHistoryDrawer({ policy, onClose }: { policy: PolicyResponse; onC
 type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt' | 'RoleName';
 type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse' | 'contains' | 'notContains';
 
-interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; spelPath?: string }
+interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; spelPath?: string }
 interface OpDef   { key: OpKey; label: string; hasValue: boolean }
 interface CRow    { id: string; attr: string; op: OpKey; value: string }
 interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
@@ -301,13 +301,13 @@ interface BuilderState { groups: CGroup[]; groupLogic: 'and' | 'or' }
 const ATTR_DEFS: AttrDef[] = [
   { path: 'subject.permissionLevel',    group: 'Subject',  label: 'Permission Level',   type: 'int' },
   { path: 'subject.accountStatus',      group: 'Subject',  label: 'Account Status',     type: 'StringEnum', options: ['ACTIVE', 'LOCKED', 'DISABLED'] },
-  { path: 'subject.locationIds',        group: 'Subject',  label: 'Location IDs',       type: 'SetInt' },
-  { path: 'subject.selectedLocationId', group: 'Subject',  label: 'Selected Location',  type: 'int' },
-  { path: 'subject.roleId',             group: 'Subject',  label: 'Role ID',            type: 'int' },
+  { path: 'subject.locationIds',        group: 'Subject',  label: 'Location IDs',       type: 'SetInt', valueKind: 'location' },
+  { path: 'subject.selectedLocationId', group: 'Subject',  label: 'Selected Location',  type: 'int',    valueKind: 'location' },
+  { path: 'subject.roleId',             group: 'Subject',  label: 'Role',               type: 'int',    valueKind: 'role' },
   { path: 'subject.operatorId',         group: 'Subject',  label: 'Operator ID',        type: 'String' },
   { path: 'resource.resourceType',      group: 'Resource', label: 'Resource Type',      type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'] },
   { path: 'resource.resourceId',        group: 'Resource', label: 'Resource ID',        type: 'String' },
-  { path: 'resource.locationId',        group: 'Resource', label: 'Location ID',        type: 'int' },
+  { path: 'resource.locationId',        group: 'Resource', label: 'Location',           type: 'int',    valueKind: 'location' },
   { path: 'env.clientIp',               group: 'Env',      label: 'Client IP',          type: 'String' },
   { path: 'action.name',                group: 'Action',   label: 'Action Name',        type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'] },
   { path: 'action.mutation',            group: 'Action',   label: 'Is Mutation',        type: 'boolean' },
@@ -339,6 +339,7 @@ function defaultOp(type: AttrType): OpKey {
   return 'eq';
 }
 function defaultVal(a: AttrDef): string {
+  if (a.valueKind)             return '';
   if (a.type === 'boolean')    return '';
   if (a.type === 'StringEnum') return a.options?.[0] ?? '';
   if (a.type === 'int')        return '1';
@@ -358,6 +359,8 @@ function newGroup(): CGroup { return { id: uid(), logic: 'and', rows: [newRow()]
 function compileRow(row: CRow): string {
   const a = ATTR_DEFS.find(x => x.path === row.attr);
   if (!a) return '';
+  const opDef = OPS_FOR[a.type].find(o => o.key === row.op);
+  if (opDef?.hasValue && !row.value) return '';
   const ref = a.spelPath ?? row.attr;
   switch (row.op) {
     case 'eq':  return (a.type === 'String' || a.type === 'StringEnum' || a.type === 'RoleName') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
@@ -390,6 +393,11 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
   const [mode, setMode] = useState<'visual' | 'raw'>(startRaw ? 'raw' : 'visual');
   const [bs, setBs]     = useState<BuilderState>(() => ({ groups: [newGroup()], groupLogic: 'and' }));
   const [rawVal, setRawVal] = useState(value);
+
+  const { data: cbLocData } = useListLocationsQuery({ size: 200, disabled: false });
+  const { data: cbRolesRaw = [] } = useListRolesQuery();
+  const cbLocations = (cbLocData?.content ?? []) as LocationResponse[];
+  const cbRoles = (cbRolesRaw as Role[]).filter(r => !r.deleted).sort((a, b) => a.permissionLevel - b.permissionLevel);
 
 
   const applyBs = (next: BuilderState) => { setBs(next); onChange(compileToSpel(next)); };
@@ -559,7 +567,27 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
 
                         {/* Value */}
                         {opDef.hasValue ? (
-                          attrDef.type === 'StringEnum' ? (
+                          attrDef.valueKind === 'location' ? (
+                            <select className="select select-bordered select-sm"
+                              style={{ fontSize: '0.77rem', width: '100%' }}
+                              value={row.value}
+                              onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
+                              <option value="">— location —</option>
+                              {cbLocations.map(loc => (
+                                <option key={loc.id} value={String(loc.id)}>{loc.name}</option>
+                              ))}
+                            </select>
+                          ) : attrDef.valueKind === 'role' ? (
+                            <select className="select select-bordered select-sm"
+                              style={{ fontSize: '0.77rem', width: '100%' }}
+                              value={row.value}
+                              onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
+                              <option value="">— role —</option>
+                              {cbRoles.map(r => (
+                                <option key={r.id} value={String(r.id)}>{r.name} (L{r.permissionLevel})</option>
+                              ))}
+                            </select>
+                          ) : attrDef.type === 'StringEnum' ? (
                             <select className="select select-bordered select-sm"
                               style={{ fontSize: '0.77rem', width: '100%' }}
                               value={row.value}
