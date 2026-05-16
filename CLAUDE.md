@@ -46,16 +46,16 @@ Old reference: D:\Projects\AI KMS\AMSwebKey_v3.0.0G
 - Responsive: test mobile breakpoints
 
 ### Permission Model (ABAC)
-- Resources: LOCATION, OPERATOR, CABINET, ASSET, ASSET_GROUP, TIME_CONSTRAINT, CABINET_USER, TRANSACTION, POLICY
-- Actions: CREATE, READ, UPDATE, DELETE, ASSIGN, RESTORE
-- clearanceLevel = max(1, 6 - operatorType): Type 1 (Super Admin) = level 5, Type 5 (Op) = level 1
+- Resources: LOCATION, OPERATOR, CABINET, ASSET, ASSET_GROUP, TIME_CONSTRAINT, CABINET_USER, TRANSACTION, AUDIT_TRAIL, ROLE, ABAC_POLICY, APP_CONFIG, MY_PROFILE
+- Actions: READ, CREATE, UPDATE, DELETE, RESTORE, ASSIGN, EXPORT, IMPORT, PERMANENT_DELETE, APPROVE, REJECT, SWITCH_LOCATION, RESET_PASSWORD, MANAGE_CABINET
+- permissionLevel: 0 = Super Admin (engine-level bypass, all policies skipped), 1–20 = regular roles (lower = more privileged)
+- Permissions resolved from backend via GET /me/permissions — never derive locally from operator state
 - Never bypass PermissionGate — access control must match backend ABAC policies exactly
 
 ---
 
 ## Module Status Reference
-See PROGRESS.md for current module status.
-Do NOT add features to any module marked "Pending Testing" or "Blocked".
+Ask the user for current module status before adding features to any module.
 
 ---
 

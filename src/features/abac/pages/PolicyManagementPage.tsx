@@ -16,8 +16,7 @@ import type {
 import { useListRolesQuery } from '@/features/roles/api/rolesApi';
 import { DataGrid, type ColDef } from '@/shared/components/table/DataGrid';
 import { useToast } from '@/shared/components/ui/Toast';
-import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import Modal from '@/shared/components/modal/Modal';
 import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
 import {
@@ -104,39 +103,40 @@ function ScopeCell({ resource, action }: { resource?: string; action?: string })
 
 const SPEL_VARS = [
   { group: 'Subject', vars: [
-    { name: 'subject.operatorId',       type: 'String',               ex: "'superadmin'" },
-    { name: 'subject.permissionLevel',  type: 'int (role.permissionLevel)', ex: '4' },
-    { name: 'subject.locationIds',      type: 'Set<Integer>',         ex: '{1,2}' },
-    { name: 'subject.accountStatus',    type: 'String',               ex: "'ACTIVE'" },
-    { name: 'subject.mfaVerified',      type: 'boolean',              ex: 'true' },
-    { name: 'subject.passwordExpired',  type: 'boolean',              ex: 'false' },
+    { name: 'subject.operatorId',      type: 'String',                        ex: "'op-001'" },
+    { name: 'subject.accessMode',      type: 'String (role name uppercased)', ex: "'SUPER_ADMIN'" },
+    { name: 'subject.permissionLevel', type: 'int (role.permissionLevel)',    ex: '4' },
+    { name: 'subject.locationIds',     type: 'Set<Integer>',                  ex: '{1,2}' },
+    { name: 'subject.accountStatus',   type: 'String — ACTIVE | DISABLED',   ex: "'ACTIVE'" },
+    { name: 'subject.operatorType',    type: 'int (1=SuperAdmin … 5=Op)',     ex: '2' },
   ]},
   { group: 'Resource', vars: [
-    { name: 'resource.resourceType',    type: 'String',  ex: "'OPERATOR'" },
-    { name: 'resource.resourceId',      type: 'String',  ex: "'op-001'" },
-    { name: 'resource.locationId',      type: 'int',     ex: '1' },
-    { name: 'resource.isGlobal',        type: 'boolean', ex: 'false' },
-    { name: 'resource.sensitivityLevel',type: 'int',     ex: '2' },
-    { name: 'resource.ownerType',       type: 'int',     ex: '3' },
+    { name: 'resource.resourceType',     type: 'String',    ex: "'OPERATOR'" },
+    { name: 'resource.resourceId',       type: 'String',    ex: "'op-001'" },
+    { name: 'resource.isGlobal',         type: 'boolean',   ex: 'false' },
+    { name: 'resource.sensitivityLevel', type: 'int (1–3)', ex: '2' },
   ]},
   { group: 'Environment', vars: [
-    { name: 'env.riskScore',     type: 'int (0–100)', ex: '25' },
-    { name: 'env.businessHours', type: 'boolean',     ex: 'true' },
-    { name: 'env.clientIp',      type: 'String',      ex: "'192.168.1.1'" },
+    { name: 'env.riskScore',      type: 'int (0–100)',          ex: '25' },
+    { name: 'env.businessHours',  type: 'boolean (09:00–18:00 IST)', ex: 'true' },
+    { name: 'env.clientIp',       type: 'String',               ex: "'192.168.1.1'" },
+    { name: 'env.requestChannel', type: 'String — WEB | API',   ex: "'WEB'" },
   ]},
   { group: 'Action', vars: [
-    { name: 'action.name',     type: 'String',  ex: "'READ'" },
-    { name: 'action.mutation', type: 'boolean', ex: 'false' },
+    { name: 'action.name',              type: 'String',  ex: "'READ'" },
+    { name: 'action.mutation',          type: 'boolean', ex: 'false' },
+    { name: 'action.requiresElevated()', type: 'boolean', ex: 'true' },
   ]},
 ];
 
 const SPEL_EXAMPLES = [
   'subject.permissionLevel >= 4',
-  "subject.accountStatus == 'ACTIVE' and subject.mfaVerified == true",
+  "subject.accountStatus == 'ACTIVE' and subject.accessMode != 'GUEST'",
   'resource.sensitivityLevel >= 3 and subject.permissionLevel < 4',
   'env.riskScore > 75 and action.mutation == true',
-  "resource.isGlobal == false and !subject.locationIds.contains(resource.locationId)",
+  "resource.isGlobal == true and subject.permissionLevel >= 2",
   "subject.permissionLevel >= 2 and subject.accountStatus == 'ACTIVE'",
+  "env.requestChannel == 'WEB' and env.businessHours == true",
 ];
 
 function SpelDrawer({ onClose }: { onClose: () => void }) {
@@ -291,35 +291,36 @@ function VersionHistoryDrawer({ policy, onClose }: { policy: PolicyResponse; onC
 
 // ─── Condition builder ─────────────────────────────────────────────────────────
 
-// RoleLevel: int comparison where the value is chosen from a role picker (uses role.permissionLevel)
-type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt' | 'RoleLevel';
+type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt' | 'RoleName';
 type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse' | 'contains' | 'notContains';
 
-interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[] }
+interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; spelPath?: string }
 interface OpDef   { key: OpKey; label: string; hasValue: boolean }
 interface CRow    { id: string; attr: string; op: OpKey; value: string }
 interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
 interface BuilderState { groups: CGroup[]; groupLogic: 'and' | 'or' }
 
 const ATTR_DEFS: AttrDef[] = [
-  { path: 'subject.operatorId',        group: 'Subject',  label: 'subject.operatorId',        type: 'String' },
-  { path: 'subject.permissionLevel',   group: 'Subject',  label: 'subject.permissionLevel',   type: 'RoleLevel' },
-  { path: 'subject.locationIds',       group: 'Subject',  label: 'subject.locationIds',       type: 'SetInt' },
-  { path: 'subject.accountStatus',     group: 'Subject',  label: 'subject.accountStatus',     type: 'StringEnum', options: ['ACTIVE', 'DISABLED', 'LOCKED'] },
-  { path: 'subject.mfaVerified',       group: 'Subject',  label: 'subject.mfaVerified',       type: 'boolean' },
-  { path: 'subject.passwordExpired',   group: 'Subject',  label: 'subject.passwordExpired',   type: 'boolean' },
-  { path: 'resource.resourceType',     group: 'Resource', label: 'resource.resourceType',     type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION'] },
-  { path: 'resource.resourceId',       group: 'Resource', label: 'resource.resourceId',       type: 'String' },
-  { path: 'resource.locationId',       group: 'Resource', label: 'resource.locationId',       type: 'int' },
-  { path: 'resource.isGlobal',         group: 'Resource', label: 'resource.isGlobal',         type: 'boolean' },
-  { path: 'resource.sensitivityLevel', group: 'Resource', label: 'resource.sensitivityLevel', type: 'int' },
-  { path: 'resource.ownerType',        group: 'Resource', label: 'resource.ownerType',        type: 'int' },
-  { path: 'env.riskScore',             group: 'Env',      label: 'env.riskScore',             type: 'int' },
-  { path: 'env.businessHours',         group: 'Env',      label: 'env.businessHours',         type: 'boolean' },
-  { path: 'env.clientIp',              group: 'Env',      label: 'env.clientIp',              type: 'String' },
-  { path: 'env.dayOfWeek',             group: 'Env',      label: 'env.dayOfWeek',             type: 'StringEnum', options: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'] },
-  { path: 'action.name',               group: 'Action',   label: 'action.name',               type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'IMPORT', 'ASSIGN', 'APPROVE'] },
-  { path: 'action.mutation',           group: 'Action',   label: 'action.mutation',           type: 'boolean' },
+  // Subject — real fields only (mfaVerified/passwordExpired hardcoded false in JWT/resolver)
+  { path: 'subject.accessMode',        group: 'Subject',  label: 'Role (by name)',            type: 'RoleName' },
+  { path: 'subject.permissionLevel',   group: 'Subject',  label: 'Permission Level',          type: 'int' },
+  { path: 'subject.operatorType',      group: 'Subject',  label: 'Operator Type (1–5)',       type: 'int' },
+  { path: 'subject.locationIds',       group: 'Subject',  label: 'Location IDs',              type: 'SetInt' },
+  { path: 'subject.accountStatus',     group: 'Subject',  label: 'Account Status',            type: 'StringEnum', options: ['ACTIVE', 'DISABLED'] },
+  { path: 'subject.operatorId',        group: 'Subject',  label: 'Operator ID',               type: 'String' },
+  // Resource — real fields only (locationId/ownerType/ownerId always 0/null in resolver)
+  { path: 'resource.resourceType',     group: 'Resource', label: 'Resource Type',             type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'] },
+  { path: 'resource.resourceId',       group: 'Resource', label: 'Resource ID',               type: 'String' },
+  { path: 'resource.isGlobal',         group: 'Resource', label: 'Is Global',                 type: 'boolean' },
+  { path: 'resource.sensitivityLevel', group: 'Resource', label: 'Sensitivity Level (1–3)',   type: 'int' },
+  // Environment — real fields only (mfaFreshnessMinutes always 0, sessionId optional header)
+  { path: 'env.riskScore',             group: 'Env',      label: 'Risk Score (0–100)',        type: 'int' },
+  { path: 'env.businessHours',         group: 'Env',      label: 'Business Hours',            type: 'boolean' },
+  { path: 'env.requestChannel',        group: 'Env',      label: 'Request Channel',           type: 'StringEnum', options: ['WEB', 'API'] },
+  { path: 'env.clientIp',              group: 'Env',      label: 'Client IP',                 type: 'String' },
+  // Action
+  { path: 'action.name',               group: 'Action',   label: 'Action Name',               type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'] },
+  { path: 'action.mutation',           group: 'Action',   label: 'Is Mutation',               type: 'boolean' },
 ];
 
 const INT_OPS: OpDef[] = [
@@ -332,7 +333,7 @@ const INT_OPS: OpDef[] = [
 ];
 const OPS_FOR: Record<AttrType, OpDef[]> = {
   int:        INT_OPS,
-  RoleLevel:  INT_OPS,
+  RoleName:   [{ key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
   boolean:    [{ key: 'isTrue', label: 'is true', hasValue: false }, { key: 'isFalse', label: 'is false', hasValue: false }],
   String:     [{ key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
   StringEnum: [{ key: 'eq', label: '= equals', hasValue: true }, { key: 'ne', label: '≠ not equals', hasValue: true }],
@@ -340,10 +341,10 @@ const OPS_FOR: Record<AttrType, OpDef[]> = {
 };
 
 function defaultOp(type: AttrType): OpKey {
-  if (type === 'boolean')   return 'isTrue';
-  if (type === 'SetInt')    return 'contains';
-  if (type === 'int')       return 'gte';
-  if (type === 'RoleLevel') return 'gte';
+  if (type === 'boolean')  return 'isTrue';
+  if (type === 'SetInt')   return 'contains';
+  if (type === 'int')      return 'gte';
+  if (type === 'RoleName') return 'eq';
   return 'eq';
 }
 function defaultVal(a: AttrDef): string {
@@ -351,14 +352,14 @@ function defaultVal(a: AttrDef): string {
   if (a.type === 'StringEnum') return a.options?.[0] ?? '';
   if (a.type === 'int')        return '1';
   if (a.type === 'SetInt')     return '1';
-  if (a.type === 'RoleLevel')  return '1';
+  if (a.type === 'RoleName')   return '';
   return '';
 }
 
 let _uid = 0;
 const uid = () => `${++_uid}`;
-function newRow(attrPath = 'subject.permissionLevel'): CRow {
-  const a = ATTR_DEFS.find(x => x.path === attrPath) ?? ATTR_DEFS[2];
+function newRow(attrPath = 'subject.accessMode'): CRow {
+  const a = ATTR_DEFS.find(x => x.path === attrPath) ?? ATTR_DEFS[0];
   return { id: uid(), attr: a.path, op: defaultOp(a.type), value: defaultVal(a) };
 }
 function newGroup(): CGroup { return { id: uid(), logic: 'and', rows: [newRow()] }; }
@@ -366,10 +367,10 @@ function newGroup(): CGroup { return { id: uid(), logic: 'and', rows: [newRow()]
 function compileRow(row: CRow): string {
   const a = ATTR_DEFS.find(x => x.path === row.attr);
   if (!a) return '';
-  const ref = row.attr;
+  const ref = a.spelPath ?? row.attr;
   switch (row.op) {
-    case 'eq':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
-    case 'ne':  return (a.type === 'String' || a.type === 'StringEnum') ? `${ref} != '${row.value}'` : `${ref} != ${row.value}`;
+    case 'eq':  return (a.type === 'String' || a.type === 'StringEnum' || a.type === 'RoleName') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
+    case 'ne':  return (a.type === 'String' || a.type === 'StringEnum' || a.type === 'RoleName') ? `${ref} != '${row.value}'` : `${ref} != ${row.value}`;
     case 'gt':  return `${ref} > ${row.value}`;
     case 'gte': return `${ref} >= ${row.value}`;
     case 'lt':  return `${ref} < ${row.value}`;
@@ -399,18 +400,18 @@ function ConditionBuilder({ value, onChange, startRaw, roles }: { value: string;
   const [bs, setBs]     = useState<BuilderState>(() => ({ groups: [newGroup()], groupLogic: 'and' }));
   const [rawVal, setRawVal] = useState(value);
 
-  // When roles load, reset any RoleLevel rows still at default '1' that don't match a real role
+  // When roles load, initialise any RoleName rows that have no value yet
   useEffect(() => {
     if (roles.length === 0 || mode === 'raw') return;
-    const sorted = [...roles].filter(r => !r.deleted).sort((a, b) => b.permissionLevel - a.permissionLevel);
-    if (sorted.length === 0) return;
-    const validLevels = new Set(sorted.map(r => String(r.permissionLevel)));
+    const active = [...roles].filter(r => !r.deleted).sort((a, b) => a.permissionLevel - b.permissionLevel);
+    if (active.length === 0) return;
+    const validNames = new Set(active.map(r => r.name.toUpperCase().replace(/ /g, '_')));
     setBs(prev => {
       const updated = { ...prev, groups: prev.groups.map(g => ({
         ...g, rows: g.rows.map(r => {
           const def = ATTR_DEFS.find(a => a.path === r.attr);
-          if (def?.type === 'RoleLevel' && !validLevels.has(r.value)) {
-            return { ...r, value: String(sorted[0].permissionLevel) };
+          if (def?.type === 'RoleName' && !validNames.has(r.value)) {
+            return { ...r, value: active[0].name.toUpperCase().replace(/ /g, '_') };
           }
           return r;
         }),
@@ -505,7 +506,7 @@ function ConditionBuilder({ value, onChange, startRaw, roles }: { value: string;
           rows={5}
           style={{ fontFamily: 'monospace', fontSize: '0.825rem', resize: 'vertical', lineHeight: 1.65 }}
           value={rawVal}
-          placeholder="subject.clearanceLevel >= 4 and subject.mfaVerified == true"
+          placeholder="subject.permissionLevel >= 4 and subject.mfaVerified == true"
           onChange={e => { setRawVal(e.target.value); onChange(e.target.value); }}
         />
       ) : (
@@ -588,19 +589,22 @@ function ConditionBuilder({ value, onChange, startRaw, roles }: { value: string;
 
                         {/* Value */}
                         {opDef.hasValue ? (
-                          attrDef.type === 'RoleLevel' ? (
+                          attrDef.type === 'RoleName' ? (
                             <select className="select select-bordered select-sm"
                               style={{ fontSize: '0.77rem', width: '100%' }}
                               value={row.value}
                               onChange={e => patchRow(group.id, row.id, { value: e.target.value })}>
                               {roles.filter(r => !r.deleted)
-                                .sort((a, b) => b.permissionLevel - a.permissionLevel)
-                                .map(r => (
-                                  <option key={r.id} value={String(r.permissionLevel)}>
-                                    {r.name} (Level {r.permissionLevel})
-                                  </option>
-                                ))}
-                              {roles.length === 0 && <option value="1">Level 1</option>}
+                                .sort((a, b) => a.permissionLevel - b.permissionLevel)
+                                .map(r => {
+                                  const accessMode = r.name.toUpperCase().replace(/ /g, '_');
+                                  return (
+                                    <option key={r.id} value={accessMode}>
+                                      {r.name} ({accessMode})
+                                    </option>
+                                  );
+                                })}
+                              {roles.length === 0 && <option value="">No roles loaded</option>}
                             </select>
                           ) : attrDef.type === 'StringEnum' ? (
                             <select className="select select-bordered select-sm"
@@ -682,7 +686,7 @@ const emptyForm = (): PolicyRequest => ({
   effect: 'PERMIT', priority: 100, conditionExpr: '', changeReason: '',
 });
 
-const ALL_ACTIONS = ['READ','CREATE','UPDATE','DELETE','EXPORT','IMPORT','ASSIGN','APPROVE','PERMANENT_DELETE'];
+const ALL_ACTIONS = ['READ','CREATE','UPDATE','DELETE','PERMANENT_DELETE','RESTORE','EXPORT','IMPORT','APPROVE','REJECT','ASSIGN','SWITCH_LOCATION','RESET_PASSWORD','MANAGE_CABINET'];
 
 // ─── Action dropdown — mirrors LocationDropdown pattern ────────────────────────
 
@@ -978,23 +982,40 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
 
 // ─── Evaluate modal ────────────────────────────────────────────────────────────
 
-const ACCOUNT_STATUSES = ['ACTIVE', 'DISABLED', 'LOCKED'];
-const ACTIONS_LIST     = ['READ', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'IMPORT', 'ASSIGN', 'APPROVE', 'PERMANENT_DELETE'];
+const ACCOUNT_STATUSES = ['ACTIVE', 'DISABLED'];
+const ACTIONS_LIST     = ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'];
+const RESOURCE_TYPES   = ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'];
 
 function EvaluateModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
+  const { data: roles = [] } = useListRolesQuery();
   const [evaluate, { isLoading }] = useEvaluatePolicyMutation();
   const [result, setResult] = useState<EvaluateResult | null>(null);
+
   const [form, setForm] = useState<EvaluateRequest>({
     resourceType: 'OPERATOR', action: 'READ',
     subjectPermissionLevel: 4, subjectAccountStatus: 'ACTIVE',
-    subjectMfaVerified: true, resourceSensitivityLevel: 0,
+    subjectMfaVerified: false, resourceSensitivityLevel: 1,
     envRiskScore: 0, envBusinessHours: true,
   });
 
+  // locationIds stored as comma-separated string; parsed on submit
+  const [locationIdsInput, setLocationIdsInput] = useState('');
+  // isGlobal: '' = auto-derive from locationId, 'true'/'false' = explicit override
+  const [isGlobalOverride, setIsGlobalOverride] = useState<'' | 'true' | 'false'>('');
+
   const set = (k: keyof EvaluateRequest, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
   const run = async () => {
-    try { setResult(await evaluate(form).unwrap()); }
+    const locationIds = locationIdsInput.trim()
+      ? locationIdsInput.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      : undefined;
+    const payload: EvaluateRequest = {
+      ...form,
+      subjectLocationIds: locationIds,
+      resourceIsGlobal: isGlobalOverride === '' ? undefined : isGlobalOverride === 'true',
+    };
+    try { setResult(await evaluate(payload).unwrap()); }
     catch { toast.addToast({ type: 'error', message: 'Evaluation failed' }); }
   };
 
@@ -1002,6 +1023,9 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
     fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em',
     textTransform: 'uppercase', opacity: 0.4, marginBottom: '0.5rem', display: 'block',
   };
+  const hint: React.CSSProperties = { fontSize: '0.68rem', opacity: 0.4, marginTop: '0.2rem' };
+
+  const activeRoles = roles.filter(r => !r.deleted).sort((a, b) => a.permissionLevel - b.permissionLevel);
 
   return (
     <Modal open onClose={onClose} title="Simulate Policy Decision" size="xl"
@@ -1015,13 +1039,35 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
+          {/* Subject */}
           <div>
-            <span style={sL}>Subject (who is accessing)</span>
+            <span style={sL}>Subject — who is accessing</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               <div>
+                <FL text="Role (access mode)" />
+                <select className="select select-bordered select-sm w-full"
+                  value={form.subjectAccessMode ?? ''}
+                  onChange={e => set('subjectAccessMode', e.target.value || undefined)}>
+                  <option value="">— use caller's role —</option>
+                  {activeRoles.map(r => {
+                    const am = r.name.toUpperCase().replace(/ /g, '_');
+                    return <option key={r.id} value={am}>{r.name} ({am})</option>;
+                  })}
+                </select>
+                <p style={hint}>subject.accessMode</p>
+              </div>
+              <div>
                 <FL text="Permission Level" />
-                <input className="input input-bordered input-sm w-full" type="number" min={0} max={9999}
+                <input className="input input-bordered input-sm w-full" type="number" min={0} max={20}
                   value={form.subjectPermissionLevel ?? ''} onChange={e => set('subjectPermissionLevel', Number(e.target.value))} />
+                <p style={hint}>subject.permissionLevel</p>
+              </div>
+              <div>
+                <FL text="Operator Type (1–5)" />
+                <input className="input input-bordered input-sm w-full" type="number" min={1} max={5}
+                  value={form.subjectOperatorType ?? ''} placeholder="auto"
+                  onChange={e => set('subjectOperatorType', e.target.value ? Number(e.target.value) : undefined)} />
+                <p style={hint}>subject.operatorType</p>
               </div>
               <div>
                 <FL text="Account Status" />
@@ -1029,8 +1075,16 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                   value={form.subjectAccountStatus ?? ''} onChange={e => set('subjectAccountStatus', e.target.value)}>
                   {ACCOUNT_STATUSES.map(s => <option key={s}>{s}</option>)}
                 </select>
+                <p style={hint}>subject.accountStatus</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.75rem' }}>
+              <div>
+                <FL text="Location IDs" />
+                <input className="input input-bordered input-sm w-full"
+                  value={locationIdsInput} placeholder="1,2,3"
+                  onChange={e => setLocationIdsInput(e.target.value)} />
+                <p style={hint}>subject.locationIds — comma-separated</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.5rem' }}>
                 <input type="checkbox" className="checkbox checkbox-sm" checked={form.subjectMfaVerified ?? false}
                   onChange={e => set('subjectMfaVerified', e.target.checked)} />
                 <span style={{ fontSize: '0.825rem' }}>MFA Verified</span>
@@ -1038,13 +1092,16 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
+          {/* Resource + Action */}
           <div>
-            <span style={sL}>Resource &amp; Action (what is being accessed)</span>
+            <span style={sL}>Resource &amp; Action — what is being accessed</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               <div>
                 <FL text="Resource Type" required />
-                <input className="input input-bordered input-sm w-full"
-                  value={form.resourceType} onChange={e => set('resourceType', e.target.value)} placeholder="OPERATOR…" />
+                <select className="select select-bordered select-sm w-full"
+                  value={form.resourceType} onChange={e => set('resourceType', e.target.value)}>
+                  {RESOURCE_TYPES.map(r => <option key={r}>{r}</option>)}
+                </select>
               </div>
               <div>
                 <FL text="Action" required />
@@ -1054,18 +1111,39 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                 </select>
               </div>
               <div>
-                <FL text="Sensitivity Level (0–5)" />
-                <input className="input input-bordered input-sm w-full" type="number" min={0} max={5}
-                  value={form.resourceSensitivityLevel ?? 0} onChange={e => set('resourceSensitivityLevel', Number(e.target.value))} />
+                <FL text="Resource ID" />
+                <input className="input input-bordered input-sm w-full"
+                  value={form.resourceId ?? ''} placeholder="optional"
+                  onChange={e => set('resourceId', e.target.value || undefined)} />
+                <p style={hint}>resource.resourceId</p>
               </div>
               <div>
-                <FL text="Location ID (0 = global)" />
+                <FL text="Sensitivity Level (1–3)" />
+                <input className="input input-bordered input-sm w-full" type="number" min={1} max={3}
+                  value={form.resourceSensitivityLevel ?? 1} onChange={e => set('resourceSensitivityLevel', Number(e.target.value))} />
+                <p style={hint}>resource.sensitivityLevel</p>
+              </div>
+              <div>
+                <FL text="Location ID" />
                 <input className="input input-bordered input-sm w-full" type="number" min={0}
                   value={form.resourceLocationId ?? 0} onChange={e => set('resourceLocationId', Number(e.target.value))} />
+                <p style={hint}>0 = no location scope</p>
+              </div>
+              <div>
+                <FL text="Is Global" />
+                <select className="select select-bordered select-sm w-full"
+                  value={isGlobalOverride}
+                  onChange={e => setIsGlobalOverride(e.target.value as '' | 'true' | 'false')}>
+                  <option value="">Auto (from location ID)</option>
+                  <option value="true">Yes — global resource</option>
+                  <option value="false">No — scoped resource</option>
+                </select>
+                <p style={hint}>resource.isGlobal</p>
               </div>
             </div>
           </div>
 
+          {/* Environment */}
           <div>
             <span style={sL}>Environment</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
@@ -1073,8 +1151,9 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                 <FL text="Risk Score (0–100)" />
                 <input className="input input-bordered input-sm w-full" type="number" min={0} max={100}
                   value={form.envRiskScore ?? 0} onChange={e => set('envRiskScore', Number(e.target.value))} />
+                <p style={hint}>env.riskScore</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.5rem' }}>
                 <input type="checkbox" className="checkbox checkbox-sm" checked={form.envBusinessHours ?? true}
                   onChange={e => set('envBusinessHours', e.target.checked)} />
                 <span style={{ fontSize: '0.825rem' }}>Business Hours</span>
@@ -1157,9 +1236,8 @@ const RESOURCE_CHIPS = ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USE
 
 export default function PolicyManagementPage() {
   const toast = useToast();
-  const operator = useAppSelector(s => s.auth.operator);
-  const can = (action: 'READ' | 'CREATE' | 'UPDATE' | 'DELETE') =>
-    hasPermissionByClearance(operatorClearance(operator), 'ABAC_POLICY', action);
+  const { canAccess } = usePermissions();
+  const can = (action: 'READ' | 'CREATE' | 'UPDATE' | 'DELETE') => canAccess('ABAC_POLICY', action);
 
   const [activeTab,       setActiveTab]       = useState<Tab>('all');
   const [currentPage,     setCurrentPage]     = useState(0);
@@ -1338,7 +1416,7 @@ export default function PolicyManagementPage() {
       },
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [operator, toggling]);
+  ], [canAccess, toggling]);
 
   if (!can('READ')) {
     return (

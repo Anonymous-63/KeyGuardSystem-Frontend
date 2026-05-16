@@ -23,7 +23,8 @@ import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
 import { useToast } from '@/shared/components/ui/Toast';
 import { DataGrid, type ColDef } from '@/shared/components/table/DataGrid';
 import { useAppSelector } from '@/app/store/hooks';
-import { hasPermissionByClearance, operatorClearance } from '@/features/auth/utils/permissions';
+import { operatorClearance } from '@/features/auth/utils/permissions';
+import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import { Search, Pencil, Ban, RefreshCw, MapPin, Download, Camera, User } from 'lucide-react';
 
 const DEFAULT_PASSWORD = 'Admin@123';
@@ -329,13 +330,14 @@ type PhotoAction = { type: 'upload'; file: File } | { type: 'remove' } | null;
 
 // ─── Operator form ────────────────────────────────────────────────────────────
 function OperatorForm({
-  initial, onSave, onCancel, loading, callerClearance = 5, roles = [], isMobile = false,
+  initial, onSave, onCancel, loading, callerClearance = 5, callerIsSuperAdmin = false, roles = [], isMobile = false,
 }: {
   initial?: OperatorResponse;
   onSave: (data: OperatorRequest, locationIds: number[], photoAction: PhotoAction) => void;
   onCancel: () => void;
   loading: boolean;
   callerClearance?: number;
+  callerIsSuperAdmin?: boolean;
   roles?: Role[];
   isMobile?: boolean;
 }) {
@@ -381,9 +383,8 @@ function OperatorForm({
     setPendingPhoto({ type: 'remove' });
   };
 
-  // Super Admin (level 0) can assign any regular role; others limited to their own level.
-  // Level 0 (Super Admin role) is never assignable via the form.
-  const callerIsSuperAdmin = callerClearance === SUPER_ADMIN_LEVEL;
+  // Super Admin can assign any regular role; others are limited to their own level.
+  // Super Admin role (level 0) is never assignable via the form.
   const availableRoles = roles.filter(
     (r) => !r.deleted && r.permissionLevel > SUPER_ADMIN_LEVEL &&
            (callerIsSuperAdmin || r.permissionLevel <= callerClearance)
@@ -676,10 +677,11 @@ export default function OperatorsPage() {
   const { addToast } = useToast();
   const operator = useAppSelector((s) => s.auth.operator);
 
+  const { canAccess, isSuperAdmin } = usePermissions();
+
   const can = useCallback(
-    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE' | 'EXPORT') =>
-      operator != null && hasPermissionByClearance(operatorClearance(operator), 'OPERATOR', action),
-    [operator],
+    (action: 'CREATE' | 'UPDATE' | 'RESTORE' | 'DELETE' | 'EXPORT') => canAccess('OPERATOR', action),
+    [canAccess],
   );
 
   const [activeTab,       setActiveTab]       = useState<Tab>('active');
@@ -924,8 +926,7 @@ export default function OperatorsPage() {
       cellRenderer: ({ data: d }: { data: OperatorResponse }) => {
         const targetClearance  = d.role?.permissionLevel ?? 1;
         const isSuperAdminRow  = targetClearance === SUPER_ADMIN_LEVEL;
-        const callerIsAdmin    = callerClearance === SUPER_ADMIN_LEVEL;
-        const isPeerOrHigher   = !callerIsAdmin && targetClearance >= callerClearance && d.id !== operator?.id;
+        const isPeerOrHigher   = !isSuperAdmin && targetClearance >= callerClearance && d.id !== operator?.id;
         const restricted       = isSuperAdminRow || isPeerOrHigher;
         const canEdit          = can('UPDATE') && !restricted;
         return (
@@ -1100,8 +1101,7 @@ export default function OperatorsPage() {
           onRowDoubleClicked={(r) => {
             const tClearance = r.role?.permissionLevel ?? 1;
             const isSuperAdminTarget = tClearance === SUPER_ADMIN_LEVEL;
-            const callerIsAdmin = callerClearance === SUPER_ADMIN_LEVEL;
-            const restricted = isSuperAdminTarget || (!callerIsAdmin && tClearance >= callerClearance && r.id !== operator?.id);
+            const restricted = isSuperAdminTarget || (!isSuperAdmin && tClearance >= callerClearance && r.id !== operator?.id);
             if (can('UPDATE') && !restricted) openEdit(r);
           }}
           onSelectionChanged={setSelectedRows}
@@ -1182,6 +1182,7 @@ export default function OperatorsPage() {
             onCancel={() => setModalOpen(false)}
             loading={creating || updating}
             callerClearance={callerClearance}
+            callerIsSuperAdmin={isSuperAdmin}
             roles={roles}
             isMobile={isMobile}
           />
