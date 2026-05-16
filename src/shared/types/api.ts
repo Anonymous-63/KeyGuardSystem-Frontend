@@ -322,6 +322,7 @@ export interface CabinetUserResponse {
   shortName?: string;
   cardUid?: number;
   emailId?: string;
+  mobileCountryCode?: string;
   mobileNo?: string;
   landlineNo?: string;
   division?: string;
@@ -343,6 +344,7 @@ export interface CabinetUserRequest {
   cardUid?: number;
   pin?: string;
   emailId?: string;
+  mobileCountryCode?: string;
   mobileNo?: string;
   landlineNo?: string;
   division?: string;
@@ -353,11 +355,13 @@ export interface CabinetUserRequest {
 // Location assignment for a cabinet user (from location_cabinet_users table)
 export interface LocationAssignmentResponse {
   locationId: number;
+  locationName?: string;
   userId: string;
   validFrom: string;
   validUpto?: string;
   individualAccess?: number;
   type?: number;
+  shift?: number;
   disabled: boolean;
 }
 
@@ -368,6 +372,23 @@ export interface AssignLocationRequest {
   validUpto?: string;
   type?: number;
   individualAccess?: number;
+  shift?: number;
+}
+
+// Cabinet assignment for a cabinet user (from user_cabinets table — MULTI_DIFF locations only)
+export interface CabinetAssignmentResponse {
+  cabinetId: number;
+  cabinetName?: string;
+  userId: string;
+  validFrom: string;
+  validUpto?: string;
+  disabled: boolean;
+}
+
+export interface AssignCabinetRequest {
+  cabinetId: number;
+  validFrom: string;
+  validUpto?: string;
 }
 
 // ─── User Assignments ─────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import type {
   ApiResponse, PagedResponse,
   CabinetUserResponse, CabinetUserRequest,
   AssignLocationRequest, LocationAssignmentResponse,
+  AssignCabinetRequest, CabinetAssignmentResponse,
   UserAssetRequest, UserAssetResponse,
   UserTimeConstraintRequest, UserTimeConstraintResponse,
   UserAssetGroupRequest, UserAssetGroupResponse,
@@ -12,7 +13,7 @@ import type {
 export const cabinetUserApi = createApi({
   reducerPath: 'cabinetUserApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['CabinetUser', 'UserAsset', 'UserTimeConstraint', 'UserAssetGroup'],
+  tagTypes: ['CabinetUser', 'UserAsset', 'UserTimeConstraint', 'UserAssetGroup', 'UserCabinet'],
   endpoints: (b) => ({
     // ─── Cabinet Users ────────────────────────────────────────────────────────
     listCabinetUsers: b.query<PagedResponse<CabinetUserResponse>, { page?: number; size?: number; includeDisabled?: boolean }>({
@@ -64,6 +65,22 @@ export const cabinetUserApi = createApi({
       invalidatesTags: ['CabinetUser'],
     }),
 
+    // ─── User-Cabinet Assignments (MULTI_DIFF locations only) ────────────────
+    getUserCabinets: b.query<CabinetAssignmentResponse[], string>({
+      query: (userId) => `/cabinet-users/${userId}/cabinets`,
+      transformResponse: (r: ApiResponse<CabinetAssignmentResponse[]>) => r.data,
+      providesTags: (_r, _e, userId) => [{ type: 'UserCabinet', id: userId }],
+    }),
+    assignUserCabinet: b.mutation<CabinetAssignmentResponse, { userId: string; body: AssignCabinetRequest }>({
+      query: ({ userId, body }) => ({ url: `/cabinet-users/${userId}/cabinets`, method: 'POST', body }),
+      transformResponse: (r: ApiResponse<CabinetAssignmentResponse>) => r.data,
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserCabinet', id: userId }],
+    }),
+    removeUserCabinet: b.mutation<void, { userId: string; cabinetId: number }>({
+      query: ({ userId, cabinetId }) => ({ url: `/cabinet-users/${userId}/cabinets/${cabinetId}`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserCabinet', id: userId }],
+    }),
+
     // ─── User-Asset Assignments ───────────────────────────────────────────────
     getUserAssets: b.query<UserAssetResponse[], string>({
       query: (userId) => `/user-assets/by-user/${userId}`,
@@ -78,6 +95,12 @@ export const cabinetUserApi = createApi({
     removeUserAsset: b.mutation<void, { userId: string; assetId: number; locationId: number }>({
       query: ({ userId, assetId, locationId }) =>
         ({ url: `/user-assets/${userId}/${assetId}/${locationId}`, method: 'DELETE' }),
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserAsset', id: userId }],
+    }),
+    updateUserAssetPriority: b.mutation<UserAssetResponse, { userId: string; assetId: number; locationId: number; priority: number }>({
+      query: ({ userId, assetId, locationId, priority }) =>
+        ({ url: `/user-assets/${userId}/${assetId}/${locationId}`, method: 'PATCH', body: { priority } }),
+      transformResponse: (r: ApiResponse<UserAssetResponse>) => r.data,
       invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserAsset', id: userId }],
     }),
 
@@ -114,6 +137,12 @@ export const cabinetUserApi = createApi({
         ({ url: `/user-asset-groups/${userId}/${groupId}/${locationId}`, method: 'DELETE' }),
       invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserAssetGroup', id: userId }],
     }),
+    updateUserAssetGroupPriority: b.mutation<UserAssetGroupResponse, { userId: string; groupId: number; locationId: number; priority: number }>({
+      query: ({ userId, groupId, locationId, priority }) =>
+        ({ url: `/user-asset-groups/${userId}/${groupId}/${locationId}`, method: 'PATCH', body: { priority } }),
+      transformResponse: (r: ApiResponse<UserAssetGroupResponse>) => r.data,
+      invalidatesTags: (_r, _e, { userId }) => [{ type: 'UserAssetGroup', id: userId }],
+    }),
   }),
 });
 
@@ -128,6 +157,9 @@ export const {
   useRemoveLocationMutation,
   useDisableCabinetUserMutation,
   useRestoreCabinetUserMutation,
+  useGetUserCabinetsQuery,
+  useAssignUserCabinetMutation,
+  useRemoveUserCabinetMutation,
   useGetUserAssetsQuery,
   useAssignUserAssetMutation,
   useRemoveUserAssetMutation,
@@ -137,4 +169,6 @@ export const {
   useGetUserAssetGroupsQuery,
   useAssignUserAssetGroupMutation,
   useRemoveUserAssetGroupMutation,
+  useUpdateUserAssetPriorityMutation,
+  useUpdateUserAssetGroupPriorityMutation,
 } = cabinetUserApi;
