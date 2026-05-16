@@ -292,7 +292,7 @@ function VersionHistoryDrawer({ policy, onClose }: { policy: PolicyResponse; onC
 type AttrType = 'int' | 'boolean' | 'String' | 'StringEnum' | 'SetInt' | 'RoleName';
 type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse' | 'contains' | 'notContains';
 
-interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; multi?: boolean; spelPath?: string }
+interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; multi?: boolean; noun?: string; spelPath?: string }
 interface OpDef   { key: OpKey; label: string; hasValue: boolean }
 interface CRow    { id: string; attr: string; op: OpKey; value: string; values?: string[] }
 interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
@@ -305,11 +305,11 @@ const ATTR_DEFS: AttrDef[] = [
   { path: 'subject.selectedLocationId', group: 'Subject',  label: 'Selected Location',  type: 'int',    valueKind: 'location' },
   { path: 'subject.roleId',             group: 'Subject',  label: 'Role',               type: 'int',    valueKind: 'role' },
   { path: 'subject.operatorId',         group: 'Subject',  label: 'Operator ID',        type: 'String' },
-  { path: 'resource.resourceType',      group: 'Resource', label: 'Resource Type',      type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'], multi: true },
+  { path: 'resource.resourceType',      group: 'Resource', label: 'Resource Type',      type: 'StringEnum', options: ['OPERATOR', 'LOCATION', 'CABINET', 'ASSET', 'CABINET_USER', 'TRANSACTION', 'ASSET_GROUP', 'ABAC_POLICY', 'APP_CONFIG', 'AUDIT_TRAIL'], multi: true, noun: 'type' },
   { path: 'resource.resourceId',        group: 'Resource', label: 'Resource ID',        type: 'String' },
   { path: 'resource.locationId',        group: 'Resource', label: 'Location',           type: 'int',    valueKind: 'location' },
   { path: 'env.clientIp',               group: 'Env',      label: 'Client IP',          type: 'String' },
-  { path: 'action.name',                group: 'Action',   label: 'Action',             type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'], spelPath: 'action.name()', multi: true },
+  { path: 'action.name',                group: 'Action',   label: 'Action',             type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'], spelPath: 'action.name()', multi: true, noun: 'action' },
   { path: 'action.mutation',            group: 'Action',   label: 'Is Mutation',        type: 'boolean' },
 ];
 
@@ -516,95 +516,77 @@ function LocMultiSelect({
   );
 }
 
-// ─── Enum multi-select (chip + floating dropdown) ─────────────────────────────
+// ─── Enum multi-select (panel style — matches ACTIONS section in PolicyFormModal) ─
 
 function EnumMultiSelect({
-  options, values, onChange,
+  options, values, onChange, noun = 'value',
 }: {
   options: string[];
   values: string[];
   onChange: (v: string[]) => void;
+  noun?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const toggle = (opt: string) =>
-    onChange(values.includes(opt) ? values.filter(v => v !== opt) : [...values, opt]);
-
-  const chipStyle: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-    background: 'var(--color-secondary,#7c3aed)', color: 'white',
-    borderRadius: '0.25rem', padding: '0.1rem 0.3rem 0.1rem 0.45rem',
-    fontSize: '0.68rem', lineHeight: 1.4,
-  };
+  const available = options.filter(o => !values.includes(o));
+  const add    = (o: string) => onChange([...values, o]);
+  const remove = (o: string) => onChange(values.filter(v => v !== o));
 
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
-      {/* Trigger */}
-      <div
-        role="button" tabIndex={0}
-        onClick={() => setOpen(o => !o)}
-        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
-        style={{
-          border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
-          padding: '0.25rem 0.375rem', minHeight: '2rem', cursor: 'pointer',
-          display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center',
-          background: 'var(--color-base-100)',
-          outline: open ? '2px solid var(--color-secondary,#7c3aed)' : 'none',
-          outlineOffset: '1px',
-        }}
-      >
+    <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden', width: '100%' }}>
+      {/* Selected badges */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: '0.3rem',
+        padding: values.length > 0 ? '0.4rem 0.5rem' : '0.5rem 0.625rem',
+        minHeight: '2.25rem', alignItems: 'center',
+      }}>
         {values.length === 0
-          ? <span style={{ fontSize: '0.75rem', opacity: 0.4, userSelect: 'none' }}>Select…</span>
-          : values.map(opt => (
-              <span key={opt} style={chipStyle}>
-                {opt}
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); toggle(opt); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.1rem', opacity: 0.8, lineHeight: 1, color: 'inherit' }}
-                >×</button>
+          ? <span style={{ fontSize: '0.74rem', opacity: 0.35, fontStyle: 'italic' }}>
+              No {noun}s selected
+            </span>
+          : values.map(v => (
+              <span key={v} className="badge badge-soft badge-primary"
+                style={{ fontSize: '0.7rem', fontWeight: 600, gap: '0.2rem', paddingRight: '0.25rem', fontFamily: 'monospace' }}>
+                {v}
+                <button type="button" onClick={() => remove(v)}
+                  style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}>
+                  <X size={10} strokeWidth={2.5} />
+                </button>
               </span>
             ))
         }
       </div>
 
-      {/* Floating dropdown */}
-      {open && (
+      {/* Add picker — reuse ActionDropdown */}
+      {available.length > 0 && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 60,
-          minWidth: '190px', maxWidth: '260px',
-          border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
-          background: 'var(--color-base-100)', boxShadow: '0 6px 20px rgba(0,0,0,0.13)',
-          maxHeight: '14rem', overflowY: 'auto',
+          borderTop: values.length > 0 ? '1px solid var(--color-base-300)' : 'none',
+          background: 'var(--color-base-200)', padding: '0.35rem 0.5rem',
         }}>
-          {options.map(opt => {
-            const checked = values.includes(opt);
-            return (
-              <label key={opt} style={{
-                display: 'flex', alignItems: 'center', gap: '0.6rem',
-                padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem',
-                background: checked ? 'color-mix(in srgb, var(--color-secondary,#7c3aed) 10%, transparent)' : 'transparent',
-                borderBottom: '1px solid var(--color-base-200)',
-              }}>
-                <input type="checkbox" className="checkbox checkbox-xs"
-                  style={{ accentColor: 'var(--color-secondary,#7c3aed)' }}
-                  checked={checked} onChange={() => toggle(opt)} />
-                <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.77rem' }}>{opt}</span>
-              </label>
-            );
-          })}
+          <ActionDropdown
+            available={available}
+            onAdd={add}
+            autoClose={available.length === 1}
+          />
         </div>
       )}
+
+      {/* Footer count */}
+      <div style={{
+        display: 'flex', gap: '0.4rem', alignItems: 'center',
+        padding: '0.15rem 0.625rem',
+        borderTop: '1px solid var(--color-base-300)',
+        background: 'var(--color-base-100)',
+        fontSize: '0.7rem',
+      }}>
+        <span style={{ fontWeight: 600 }}>{values.length}</span>
+        <span style={{ opacity: 0.55 }}>{noun}{values.length !== 1 ? 's' : ''} selected</span>
+        {values.length > 0 && (
+          <button type="button" className="btn btn-ghost btn-xs"
+            style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--color-error)', opacity: 0.7 }}
+            onClick={() => onChange([])}>
+            Clear all
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -814,12 +796,13 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                                 <option key={r.id} value={String(r.id)}>{r.name} (L{r.permissionLevel})</option>
                               ))}
                             </select>
-                          // StringEnum + multi → chip multi-select
+                          // StringEnum + multi → panel-style multi-select
                           ) : attrDef.type === 'StringEnum' && attrDef.multi ? (
                             <EnumMultiSelect
                               options={attrDef.options ?? []}
                               values={row.values ?? []}
                               onChange={vals => patchRow(group.id, row.id, { values: vals })}
+                              noun={attrDef.noun}
                             />
                           // StringEnum single → standard dropdown
                           ) : attrDef.type === 'StringEnum' ? (
