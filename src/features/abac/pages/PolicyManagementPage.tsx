@@ -294,7 +294,7 @@ type OpKey    = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'isTrue' | 'isFalse'
 
 interface AttrDef { path: string; label: string; group: string; type: AttrType; options?: string[]; valueKind?: 'location' | 'role'; spelPath?: string }
 interface OpDef   { key: OpKey; label: string; hasValue: boolean }
-interface CRow    { id: string; attr: string; op: OpKey; value: string }
+interface CRow    { id: string; attr: string; op: OpKey; value: string; values?: string[] }
 interface CGroup  { id: string; logic: 'and' | 'or'; rows: CRow[] }
 interface BuilderState { groups: CGroup[]; groupLogic: 'and' | 'or' }
 
@@ -309,7 +309,7 @@ const ATTR_DEFS: AttrDef[] = [
   { path: 'resource.resourceId',        group: 'Resource', label: 'Resource ID',        type: 'String' },
   { path: 'resource.locationId',        group: 'Resource', label: 'Location',           type: 'int',    valueKind: 'location' },
   { path: 'env.clientIp',               group: 'Env',      label: 'Client IP',          type: 'String' },
-  { path: 'action.name',                group: 'Action',   label: 'Action Name',        type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'] },
+  { path: 'action.name',                group: 'Action',   label: 'Action Name',        type: 'StringEnum', options: ['READ', 'CREATE', 'UPDATE', 'DELETE', 'PERMANENT_DELETE', 'RESTORE', 'EXPORT', 'IMPORT', 'APPROVE', 'REJECT', 'ASSIGN', 'SWITCH_LOCATION', 'RESET_PASSWORD', 'MANAGE_CABINET'], spelPath: 'action.name()' },
   { path: 'action.mutation',            group: 'Action',   label: 'Is Mutation',        type: 'boolean' },
 ];
 
@@ -360,8 +360,22 @@ function compileRow(row: CRow): string {
   const a = ATTR_DEFS.find(x => x.path === row.attr);
   if (!a) return '';
   const opDef = OPS_FOR[a.type].find(o => o.key === row.op);
-  if (opDef?.hasValue && !row.value) return '';
   const ref = a.spelPath ?? row.attr;
+
+  // Multi-value: SetInt with valueKind (location checkbox list)
+  if (a.type === 'SetInt' && a.valueKind && (row.op === 'contains' || row.op === 'notContains')) {
+    const ids = (row.values ?? []).filter(Boolean);
+    if (ids.length === 0) return '';
+    if (row.op === 'contains') {
+      const parts = ids.map(id => `${ref}.contains(${id})`);
+      return parts.length === 1 ? parts[0] : `(${parts.join(' or ')})`;
+    } else {
+      const parts = ids.map(id => `!${ref}.contains(${id})`);
+      return parts.length === 1 ? parts[0] : `(${parts.join(' and ')})`;
+    }
+  }
+
+  if (opDef?.hasValue && !row.value) return '';
   switch (row.op) {
     case 'eq':  return (a.type === 'String' || a.type === 'StringEnum' || a.type === 'RoleName') ? `${ref} == '${row.value}'` : `${ref} == ${row.value}`;
     case 'ne':  return (a.type === 'String' || a.type === 'StringEnum' || a.type === 'RoleName') ? `${ref} != '${row.value}'` : `${ref} != ${row.value}`;
@@ -398,6 +412,14 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
   const { data: cbRolesRaw = [] } = useListRolesQuery();
   const cbLocations = (cbLocData?.content ?? []) as LocationResponse[];
   const cbRoles = (cbRolesRaw as Role[]).filter(r => !r.deleted).sort((a, b) => a.permissionLevel - b.permissionLevel);
+
+  const toggleLocationValue = (gid: string, rid: string, locId: string) => {
+    const row = bs.groups.find(g => g.id === gid)?.rows.find(r => r.id === rid);
+    if (!row) return;
+    const cur = row.values ?? [];
+    const next = cur.includes(locId) ? cur.filter(v => v !== locId) : [...cur, locId];
+    patchRow(gid, rid, { values: next });
+  };
 
 
   const applyBs = (next: BuilderState) => { setBs(next); onChange(compileToSpel(next)); };
@@ -512,7 +534,7 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
 
                 {/* Column headers — only on first group's first row */}
                 {gi === 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px 130px 32px', gap: '0.5rem', marginBottom: '0.25rem', minWidth: '480px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px minmax(130px,180px) 32px', gap: '0.5rem', marginBottom: '0.25rem', minWidth: '480px' }}>
                     <div style={col}>Attribute</div>
                     <div style={col}>Operator</div>
                     <div style={col}>Value</div>
@@ -537,7 +559,7 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                       )}
 
                       {/* Condition row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px 130px 32px', gap: '0.5rem', alignItems: 'center', minWidth: '480px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px,1fr) 160px minmax(130px,180px) 32px', gap: '0.5rem', alignItems: 'start', minWidth: '480px' }}>
                         {/* Attribute */}
                         <select className="select select-bordered select-sm"
                           style={{ fontFamily: 'monospace', fontSize: '0.77rem', width: '100%' }}
@@ -567,7 +589,35 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
 
                         {/* Value */}
                         {opDef.hasValue ? (
-                          attrDef.valueKind === 'location' ? (
+                          // SetInt + location → multi-select checkbox list
+                          attrDef.valueKind === 'location' && attrDef.type === 'SetInt' ? (
+                            <div style={{
+                              border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
+                              maxHeight: '7rem', overflowY: 'auto', width: '100%',
+                              background: 'var(--color-base-100)', fontSize: '0.75rem',
+                            }}>
+                              {cbLocations.length === 0
+                                ? <div style={{ padding: '0.3rem 0.5rem', opacity: 0.4 }}>No locations</div>
+                                : cbLocations.map(loc => {
+                                    const checked = (row.values ?? []).includes(String(loc.id));
+                                    return (
+                                      <label key={loc.id} style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                        padding: '0.2rem 0.5rem', cursor: 'pointer',
+                                        background: checked ? 'var(--color-primary-content,#e0f2fe)' : 'transparent',
+                                        borderBottom: '1px solid var(--color-base-200)',
+                                      }}>
+                                        <input type="checkbox" className="checkbox checkbox-xs"
+                                          checked={checked}
+                                          onChange={() => toggleLocationValue(group.id, row.id, String(loc.id))} />
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
+                                      </label>
+                                    );
+                                  })
+                              }
+                            </div>
+                          // int + location → single dropdown
+                          ) : attrDef.valueKind === 'location' ? (
                             <select className="select select-bordered select-sm"
                               style={{ fontSize: '0.77rem', width: '100%' }}
                               value={row.value}
@@ -999,6 +1049,8 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
 
   const toggleLocId = (id: number) =>
     setSelectedLocIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+
 
   const run = async () => {
     const payload: EvaluateRequest = {
