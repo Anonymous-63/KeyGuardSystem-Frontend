@@ -23,7 +23,7 @@ import ConfirmDialog from '@/shared/components/modal/ConfirmDialog';
 import {
   ShieldCheck, ShieldX, Plus, Pencil, Trash2,
   RefreshCw, Search, History, Play, BookOpen, X,
-  Power,
+  Power, Check, ChevronDown,
 } from 'lucide-react';
 
 const PAGE_SIZE = 20;
@@ -416,177 +416,197 @@ function compileToSpel(s: BuilderState): string {
 
 const ATTR_GROUPS = ['Subject', 'Resource', 'Env', 'Action'] as const;
 
-// ─── Location multi-select (chip + floating dropdown) ─────────────────────────
+// ─── Enterprise multi-select dropdown ────────────────────────────────────────
 
-function LocMultiSelect({
-  locations, values, onChange,
+interface MultiSelectOption { value: string; label: string; meta?: string }
+
+function MultiSelectDropdown({
+  options, values, onChange, placeholder = 'Select…', noun = 'item',
 }: {
-  locations: LocationResponse[];
+  options: MultiSelectOption[];
   values: string[];
   onChange: (v: string[]) => void;
+  placeholder?: string;
+  noun?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setSearch(''); return; }
+    const t = setTimeout(() => searchRef.current?.focus(), 10);
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
   }, [open]);
 
-  const toggle = (id: string) =>
-    onChange(values.includes(id) ? values.filter(v => v !== id) : [...values, id]);
+  const toggle = (v: string) =>
+    onChange(values.includes(v) ? values.filter(x => x !== v) : [...values, v]);
 
-  const selected = locations.filter(l => values.includes(String(l.id)));
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return options;
+    return options.filter(o => o.label.toLowerCase().includes(q) || (o.meta?.toLowerCase().includes(q) ?? false));
+  }, [options, search]);
 
-  const chipStyle: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-    background: 'var(--color-primary)', color: 'white',
-    borderRadius: '0.25rem', padding: '0.1rem 0.3rem 0.1rem 0.45rem',
-    fontSize: '0.68rem', lineHeight: 1.4, maxWidth: '90px',
-    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-  };
+  const sorted = useMemo(() => [
+    ...filtered.filter(o => values.includes(o.value)),
+    ...filtered.filter(o => !values.includes(o.value)),
+  ], [filtered, values]);
+
+  const first = options.find(o => o.value === values[0]);
+  const extraCount = values.length - 1;
 
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>
       {/* Trigger */}
-      <div
-        role="button" tabIndex={0}
+      <button
+        type="button"
         onClick={() => setOpen(o => !o)}
-        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
         style={{
-          border: `1px solid var(--color-base-300)`,
-          borderRadius: '0.375rem', padding: '0.25rem 0.375rem',
-          minHeight: '2rem', cursor: 'pointer',
-          display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center',
-          background: 'var(--color-base-100)', outline: open ? '2px solid var(--color-primary)' : 'none',
-          outlineOffset: '1px',
+          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          width: '100%', height: '2rem', padding: '0 0.5rem',
+          border: `1px solid ${open ? 'var(--color-primary)' : 'var(--color-base-300)'}`,
+          borderRadius: '0.375rem', cursor: 'pointer',
+          background: 'var(--color-base-100)',
+          boxShadow: open ? '0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent)' : 'none',
+          transition: 'border-color 0.12s, box-shadow 0.12s',
+          minWidth: 0,
         }}
       >
-        {selected.length === 0
-          ? <span style={{ fontSize: '0.75rem', opacity: 0.4, userSelect: 'none' }}>Select locations…</span>
-          : selected.map(loc => (
-              <span key={loc.id} style={chipStyle} title={loc.name}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc.name}</span>
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); toggle(String(loc.id)); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.1rem', opacity: 0.8, lineHeight: 1, color: 'inherit' }}
-                >×</button>
-              </span>
-            ))
-        }
-      </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.3rem', minWidth: 0, overflow: 'hidden' }}>
+          {values.length === 0 ? (
+            <span style={{ fontSize: '0.78rem', opacity: 0.35, fontStyle: 'italic', userSelect: 'none' }}>{placeholder}</span>
+          ) : (
+            <>
+              <span style={{
+                fontSize: '0.78rem', fontWeight: 600, fontFamily: 'monospace',
+                overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+              }}>{first?.label ?? values[0]}</span>
+              {extraCount > 0 && (
+                <span style={{
+                  flexShrink: 0, fontSize: '0.62rem', fontWeight: 700,
+                  background: 'var(--color-primary)', color: 'white',
+                  borderRadius: '9999px', padding: '0 0.35rem', lineHeight: '1.3rem',
+                }}>+{extraCount}</span>
+              )}
+            </>
+          )}
+        </div>
+        <ChevronDown size={13} strokeWidth={2} style={{
+          flexShrink: 0, opacity: 0.4,
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.15s',
+        }} />
+      </button>
 
-      {/* Floating dropdown */}
+      {/* Floating panel */}
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 60,
-          minWidth: '200px', maxWidth: '280px',
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 60,
+          minWidth: '200px', width: 'max(100%, 220px)',
           border: '1px solid var(--color-base-300)', borderRadius: '0.5rem',
-          background: 'var(--color-base-100)', boxShadow: '0 6px 20px rgba(0,0,0,0.13)',
-          maxHeight: '12rem', overflowY: 'auto',
+          background: 'var(--color-base-100)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+          overflow: 'hidden',
         }}>
-          {locations.length === 0
-            ? <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.8rem', opacity: 0.4 }}>No locations</div>
-            : locations.map(loc => {
-                const checked = values.includes(String(loc.id));
-                return (
-                  <label key={loc.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.6rem',
-                    padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem',
-                    background: checked ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent',
-                    borderBottom: '1px solid var(--color-base-200)',
-                    transition: 'background 0.1s',
+          {/* Search */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.35rem',
+            padding: '0.375rem 0.5rem',
+            borderBottom: '1px solid var(--color-base-200)',
+          }}>
+            <Search size={12} strokeWidth={1.5} style={{ opacity: 0.35, flexShrink: 0 }} />
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Filter…"
+              style={{
+                flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                fontSize: '0.78rem', color: 'var(--color-base-content)',
+              }}
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.4, padding: 0 }}>
+                <X size={11} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+
+          {/* Options */}
+          <div style={{ maxHeight: '13rem', overflowY: 'auto' }}>
+            {sorted.length === 0 ? (
+              <div style={{ padding: '0.75rem', fontSize: '0.8rem', opacity: 0.4, textAlign: 'center' }}>No results</div>
+            ) : sorted.map(opt => {
+              const checked = values.includes(opt.value);
+              return (
+                <button key={opt.value} type="button"
+                  onClick={() => toggle(opt.value)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    width: '100%', padding: '0.38rem 0.625rem',
+                    background: checked ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'transparent',
+                    border: 'none', borderBottom: '1px solid var(--color-base-200)',
+                    cursor: 'pointer', textAlign: 'left',
+                    transition: 'background 0.08s',
+                  }}
+                  onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'var(--color-base-200)'; }}
+                  onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div style={{
+                    flexShrink: 0, width: '14px', height: '14px', borderRadius: '3px',
+                    border: `1.5px solid ${checked ? 'var(--color-primary)' : 'color-mix(in srgb, var(--color-base-content) 35%, transparent)'}`,
+                    background: checked ? 'var(--color-primary)' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background 0.1s, border-color 0.1s',
                   }}>
-                    <input type="checkbox" className="checkbox checkbox-xs checkbox-primary"
-                      checked={checked} onChange={() => toggle(String(loc.id))} />
-                    <span style={{ flex: 1 }}>{loc.name}</span>
-                    <span style={{ fontSize: '0.68rem', opacity: 0.35, fontFamily: 'monospace' }}>#{loc.id}</span>
-                  </label>
-                );
-              })
-          }
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Enum multi-select (panel style — matches ACTIONS section in PolicyFormModal) ─
-
-function EnumMultiSelect({
-  options, values, onChange, noun = 'value',
-}: {
-  options: string[];
-  values: string[];
-  onChange: (v: string[]) => void;
-  noun?: string;
-}) {
-  const available = options.filter(o => !values.includes(o));
-  const add    = (o: string) => onChange([...values, o]);
-  const remove = (o: string) => onChange(values.filter(v => v !== o));
-
-  return (
-    <div style={{ border: '1px solid var(--color-base-300)', borderRadius: '0.5rem', overflow: 'hidden', width: '100%' }}>
-      {/* Selected badges */}
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '0.3rem',
-        padding: values.length > 0 ? '0.4rem 0.5rem' : '0.5rem 0.625rem',
-        minHeight: '2.25rem', alignItems: 'center',
-      }}>
-        {values.length === 0
-          ? <span style={{ fontSize: '0.74rem', opacity: 0.35, fontStyle: 'italic' }}>
-              No {noun}s selected
-            </span>
-          : values.map(v => (
-              <span key={v} className="badge badge-soft badge-primary"
-                style={{ fontSize: '0.7rem', fontWeight: 600, gap: '0.2rem', paddingRight: '0.25rem', fontFamily: 'monospace' }}>
-                {v}
-                <button type="button" onClick={() => remove(v)}
-                  style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', opacity: 0.6 }}>
-                  <X size={10} strokeWidth={2.5} />
+                    {checked && <Check size={9} strokeWidth={3} color="white" />}
+                  </div>
+                  <span style={{
+                    flex: 1, fontSize: '0.8rem', fontFamily: 'monospace',
+                    fontWeight: checked ? 600 : 400,
+                    color: checked ? 'var(--color-primary)' : 'var(--color-base-content)',
+                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                  }}>{opt.label}</span>
+                  {opt.meta && (
+                    <span style={{ fontSize: '0.65rem', opacity: 0.3, fontFamily: 'monospace', flexShrink: 0 }}>{opt.meta}</span>
+                  )}
                 </button>
-              </span>
-            ))
-        }
-      </div>
+              );
+            })}
+          </div>
 
-      {/* Add picker — reuse ActionDropdown */}
-      {available.length > 0 && (
-        <div style={{
-          borderTop: values.length > 0 ? '1px solid var(--color-base-300)' : 'none',
-          background: 'var(--color-base-200)', padding: '0.35rem 0.5rem',
-        }}>
-          <ActionDropdown
-            available={available}
-            onAdd={add}
-            autoClose={available.length === 1}
-          />
+          {/* Footer */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.28rem 0.625rem',
+            borderTop: '1px solid var(--color-base-200)',
+            background: 'var(--color-base-200)',
+            fontSize: '0.7rem',
+          }}>
+            <span style={{ fontWeight: 600 }}>{values.length}</span>
+            <span style={{ opacity: 0.5 }}>of {options.length} {noun}{values.length !== 1 ? 's' : ''} selected</span>
+            {values.length > 0 && (
+              <button type="button"
+                onClick={() => onChange([])}
+                style={{
+                  marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '0.65rem', color: 'var(--color-error)', fontWeight: 600, opacity: 0.75,
+                  padding: '0.1rem 0.25rem',
+                }}>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Footer count */}
-      <div style={{
-        display: 'flex', gap: '0.4rem', alignItems: 'center',
-        padding: '0.15rem 0.625rem',
-        borderTop: '1px solid var(--color-base-300)',
-        background: 'var(--color-base-100)',
-        fontSize: '0.7rem',
-      }}>
-        <span style={{ fontWeight: 600 }}>{values.length}</span>
-        <span style={{ opacity: 0.55 }}>{noun}{values.length !== 1 ? 's' : ''} selected</span>
-        {values.length > 0 && (
-          <button type="button" className="btn btn-ghost btn-xs"
-            style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--color-error)', opacity: 0.7 }}
-            onClick={() => onChange([])}>
-            Clear all
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -768,12 +788,14 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
 
                         {/* Value */}
                         {opDef.hasValue ? (
-                          // SetInt + location → chip multi-select
+                          // SetInt + location → enterprise multi-select
                           attrDef.valueKind === 'location' && attrDef.type === 'SetInt' ? (
-                            <LocMultiSelect
-                              locations={cbLocations}
+                            <MultiSelectDropdown
+                              options={cbLocations.map(loc => ({ value: String(loc.id), label: loc.name, meta: `#${loc.id}` }))}
                               values={row.values ?? []}
                               onChange={vals => patchRow(group.id, row.id, { values: vals })}
+                              placeholder="Select locations…"
+                              noun="location"
                             />
                           // int + location → single dropdown
                           ) : attrDef.valueKind === 'location' ? (
@@ -796,12 +818,13 @@ function ConditionBuilder({ value, onChange, startRaw }: { value: string; onChan
                                 <option key={r.id} value={String(r.id)}>{r.name} (L{r.permissionLevel})</option>
                               ))}
                             </select>
-                          // StringEnum + multi → panel-style multi-select
+                          // StringEnum + multi → enterprise multi-select
                           ) : attrDef.type === 'StringEnum' && attrDef.multi ? (
-                            <EnumMultiSelect
-                              options={attrDef.options ?? []}
+                            <MultiSelectDropdown
+                              options={(attrDef.options ?? []).map(o => ({ value: o, label: o }))}
                               values={row.values ?? []}
                               onChange={vals => patchRow(group.id, row.id, { values: vals })}
+                              placeholder={`Select ${attrDef.noun ?? 'value'}s…`}
                               noun={attrDef.noun}
                             />
                           // StringEnum single → standard dropdown
