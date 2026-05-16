@@ -9,9 +9,11 @@ import {
   useReloadPolicyCacheMutation,
   useGetPolicyVersionsQuery,
 } from '@/features/abac/api/abacApi';
+import { useListRolesQuery } from '@/features/roles/api/rolesApi';
+import { useListLocationsQuery } from '@/features/location/api/locationApi';
 import type {
   PolicyResponse, PolicyRequest, PolicyListParams,
-  EvaluateRequest, EvaluateResult, Role,
+  EvaluateRequest, EvaluateResult, Role, LocationResponse,
 } from '@/shared/types/api';
 import { DataGrid, type ColDef } from '@/shared/components/table/DataGrid';
 import { useToast } from '@/shared/components/ui/Toast';
@@ -940,21 +942,41 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
   const [evaluate, { isLoading }] = useEvaluatePolicyMutation();
   const [result, setResult] = useState<EvaluateResult | null>(null);
 
+  const { data: rolesData = [] } = useListRolesQuery();
+  const { data: locData }        = useListLocationsQuery({ size: 200, disabled: false });
+
+  const activeRoles = rolesData.filter((r: Role) => !r.deleted).sort((a: Role, b: Role) => a.permissionLevel - b.permissionLevel);
+  const locations   = (locData?.content ?? []) as LocationResponse[];
+
   const [form, setForm] = useState<EvaluateRequest>({
     resourceType: 'OPERATOR', action: 'READ',
     subjectPermissionLevel: 4, subjectAccountStatus: 'ACTIVE',
   });
 
-  // locationIds stored as comma-separated string; parsed on submit
-  const [locationIdsInput, setLocationIdsInput] = useState('');
+  // Role selection → drives subjectPermissionLevel display
+  const [selectedRoleId, setSelectedRoleId] = useState<number | ''>('');
+  // Location multi-select for subjectLocationIds
+  const [selectedLocIds, setSelectedLocIds] = useState<Set<number>>(new Set());
 
   const set = (k: keyof EvaluateRequest, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const handleRoleChange = (val: string) => {
+    const id = val === '' ? '' : Number(val);
+    setSelectedRoleId(id);
+    if (id !== '') {
+      const role = activeRoles.find((r: Role) => r.id === id);
+      if (role) set('subjectPermissionLevel', role.permissionLevel);
+    }
+  };
+
+  const toggleLocId = (id: number) =>
+    setSelectedLocIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   const run = async () => {
-    const locationIds = locationIdsInput.trim()
-      ? locationIdsInput.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
-      : undefined;
-    const payload: EvaluateRequest = { ...form, subjectLocationIds: locationIds };
+    const payload: EvaluateRequest = {
+      ...form,
+      subjectLocationIds: selectedLocIds.size > 0 ? Array.from(selectedLocIds) : undefined,
+    };
     try { setResult(await evaluate(payload).unwrap()); }
     catch { toast.addToast({ type: 'error', message: 'Evaluation failed' }); }
   };
@@ -964,6 +986,11 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
     textTransform: 'uppercase', opacity: 0.4, marginBottom: '0.5rem', display: 'block',
   };
   const hint: React.CSSProperties = { fontSize: '0.68rem', opacity: 0.4, marginTop: '0.2rem' };
+
+  const locBoxStyle: React.CSSProperties = {
+    border: '1px solid var(--color-base-300)', borderRadius: '0.375rem',
+    maxHeight: '7.5rem', overflowY: 'auto', background: 'var(--color-base-100)',
+  };
 
   return (
     <Modal open onClose={onClose} title="Simulate Policy Decision" size="xl"
@@ -981,13 +1008,32 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
           <div>
             <span style={sL}>Subject — who is accessing</span>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+
+              {/* Role dropdown → auto-fills permissionLevel */}
+              <div>
+                <FL text="Role" />
+                <select className="select select-bordered select-sm w-full"
+                  value={selectedRoleId}
+                  onChange={e => handleRoleChange(e.target.value)}>
+                  <option value="">— custom level —</option>
+                  {activeRoles.map((r: Role) => (
+                    <option key={r.id} value={r.id}>{r.name} (L{r.permissionLevel})</option>
+                  ))}
+                </select>
+                <p style={hint}>Sets permission level</p>
+              </div>
+
+              {/* Permission Level — editable, clears role selection */}
               <div>
                 <FL text="Permission Level" />
                 <input className="input input-bordered input-sm w-full" type="number" min={0} max={20}
-                  value={form.subjectPermissionLevel ?? ''} onChange={e => set('subjectPermissionLevel', Number(e.target.value))} />
+                  value={form.subjectPermissionLevel ?? ''}
+                  onChange={e => { setSelectedRoleId(''); set('subjectPermissionLevel', Number(e.target.value)); }} />
                 <p style={hint}>subject.permissionLevel</p>
               </div>
-              <div>
+
+              {/* Account Status */}
+              <div style={{ gridColumn: '1 / -1' }}>
                 <FL text="Account Status" />
                 <select className="select select-bordered select-sm w-full"
                   value={form.subjectAccountStatus ?? ''} onChange={e => set('subjectAccountStatus', e.target.value)}>
@@ -995,12 +1041,34 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                 </select>
                 <p style={hint}>subject.accountStatus</p>
               </div>
+
+              {/* Assigned Locations — checkbox list */}
               <div style={{ gridColumn: '1 / -1' }}>
-                <FL text="Location IDs" />
-                <input className="input input-bordered input-sm w-full"
-                  value={locationIdsInput} placeholder="1,2,3"
-                  onChange={e => setLocationIdsInput(e.target.value)} />
-                <p style={hint}>subject.locationIds — comma-separated</p>
+                <FL text="Assigned Locations" />
+                <div style={locBoxStyle}>
+                  {locations.length === 0
+                    ? <div style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', opacity: 0.4 }}>No locations found</div>
+                    : locations.map((loc: LocationResponse) => (
+                        <label key={loc.id} style={{
+                          display: 'flex', alignItems: 'center', gap: '0.5rem',
+                          padding: '0.25rem 0.75rem', cursor: 'pointer',
+                          borderBottom: '1px solid var(--color-base-200)',
+                        }}>
+                          <input type="checkbox" className="checkbox checkbox-xs"
+                            checked={selectedLocIds.has(loc.id)}
+                            onChange={() => toggleLocId(loc.id)} />
+                          <span style={{ fontSize: '0.8rem', flex: 1 }}>{loc.name}</span>
+                          <span style={{ fontSize: '0.68rem', opacity: 0.35, fontFamily: 'monospace' }}>#{loc.id}</span>
+                        </label>
+                      ))
+                  }
+                </div>
+                {selectedLocIds.size > 0 && (
+                  <p style={hint}>
+                    {selectedLocIds.size} selected · IDs: [{Array.from(selectedLocIds).sort((a, b) => a - b).join(', ')}]
+                  </p>
+                )}
+                <p style={{ ...hint, marginTop: selectedLocIds.size > 0 ? 0 : '0.2rem' }}>subject.locationIds</p>
               </div>
             </div>
           </div>
@@ -1030,11 +1098,19 @@ function EvaluateModal({ onClose }: { onClose: () => void }) {
                   onChange={e => set('resourceId', e.target.value || undefined)} />
                 <p style={hint}>resource.resourceId</p>
               </div>
+
+              {/* Resource Location — dropdown */}
               <div>
-                <FL text="Location ID" />
-                <input className="input input-bordered input-sm w-full" type="number" min={0}
-                  value={form.resourceLocationId ?? 0} onChange={e => set('resourceLocationId', Number(e.target.value))} />
-                <p style={hint}>0 = no location scope</p>
+                <FL text="Location Scope" />
+                <select className="select select-bordered select-sm w-full"
+                  value={form.resourceLocationId ?? 0}
+                  onChange={e => set('resourceLocationId', Number(e.target.value))}>
+                  <option value={0}>None — no scope</option>
+                  {locations.map((loc: LocationResponse) => (
+                    <option key={loc.id} value={loc.id}>{loc.name} (#{loc.id})</option>
+                  ))}
+                </select>
+                <p style={hint}>resource.locationId</p>
               </div>
             </div>
           </div>
