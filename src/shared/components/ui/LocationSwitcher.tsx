@@ -3,6 +3,7 @@ import { MapPin, ChevronDown, Check } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
 import { setSelectedLocation, selectSelectedLocation } from '@/features/location/store/locationSlice';
 import { usePermissions } from '@/features/abac/hooks/usePermissions';
+import { useGetPublicOrgQuery } from '@/features/config/api/configApi';
 
 interface Props {
   variant?: 'pill' | 'sidebar';
@@ -24,12 +25,42 @@ export default function LocationSwitcher({ variant = 'pill' }: Props) {
   }, []);
 
   const { isSuperAdmin } = usePermissions();
+  const { data: publicOrg } = useGetPublicOrgQuery();
+  const isStandalone = publicOrg?.standalone ?? false;
 
   if (!operator || isSuperAdmin) return null;
 
   const locations = operator.assignedLocations ?? [];
   if (locations.length === 0) return null;
-  const label = selected?.name ?? 'All Locations';
+
+  // STS/SO: single location is fixed — nothing to switch
+  if (locations.length === 1 && isStandalone) return null;
+
+  // Sidebar never needs a switcher when there's only 1 location
+  if (locations.length === 1 && variant === 'sidebar') return null;
+
+  const label = selected?.name ?? locations[0]?.name ?? 'All Locations';
+
+  // MTS with exactly 1 assigned location: show static name in header, no dropdown
+  if (locations.length === 1 && variant === 'pill') {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.35rem',
+        background: 'var(--color-primary-content, #e0f2fe)',
+        border: '1px solid var(--color-primary)',
+        borderRadius: '2rem',
+        padding: '0.275rem 0.6rem 0.275rem 0.45rem',
+        fontSize: '0.7875rem',
+        color: 'var(--color-primary)',
+        fontWeight: 600,
+        maxWidth: '200px',
+        flexShrink: 0,
+      }}>
+        <MapPin size={13} strokeWidth={2} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      </div>
+    );
+  }
 
   const handleSelect = (id: number, name: string) => {
     dispatch(setSelectedLocation({ id, name }));

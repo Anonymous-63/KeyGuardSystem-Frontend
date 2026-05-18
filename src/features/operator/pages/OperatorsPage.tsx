@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { useGetPublicOrgQuery } from '@/features/config/api/configApi';
 import {
   useListOperatorsQuery,
   useLazyListOperatorsQuery,
@@ -14,6 +16,8 @@ import {
   useBulkDisableOperatorsMutation,
   useBulkRestoreOperatorsMutation,
 } from '@/features/operator/api/operatorApi';
+import { dashboardApi } from '@/features/dashboard/api/dashboardApi';
+import { useGetOtherQuery } from '@/features/config/api/configApi';
 import { useListLocationsQuery } from '@/features/location/api/locationApi';
 import { useListRolesQuery } from '@/features/roles/api/rolesApi';
 import type { OperatorResponse, OperatorRequest, Role } from '@/shared/types/api';
@@ -27,7 +31,6 @@ import { operatorClearance } from '@/features/auth/utils/permissions';
 import { usePermissions } from '@/features/abac/hooks/usePermissions';
 import { Search, Pencil, Ban, RefreshCw, MapPin, Download, Camera, User } from 'lucide-react';
 
-const DEFAULT_PASSWORD = 'Admin@123';
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200];
 
 function getPageNumbers(current: number, total: number): (number | '...')[] {
@@ -330,7 +333,7 @@ type PhotoAction = { type: 'upload'; file: File } | { type: 'remove' } | null;
 
 // ─── Operator form ────────────────────────────────────────────────────────────
 function OperatorForm({
-  initial, onSave, onCancel, loading, callerClearance = 5, callerIsSuperAdmin = false, roles = [], isMobile = false,
+  initial, onSave, onCancel, loading, callerClearance = 5, callerIsSuperAdmin = false, roles = [], isMobile = false, standalone = false,
 }: {
   initial?: OperatorResponse;
   onSave: (data: OperatorRequest, locationIds: number[], photoAction: PhotoAction) => void;
@@ -340,6 +343,7 @@ function OperatorForm({
   callerIsSuperAdmin?: boolean;
   roles?: Role[];
   isMobile?: boolean;
+  standalone?: boolean;
 }) {
   const isEdit = !!initial;
 
@@ -389,8 +393,9 @@ function OperatorForm({
     (r) => !r.deleted && r.permissionLevel > SUPER_ADMIN_LEVEL &&
            (callerIsSuperAdmin || r.permissionLevel <= callerClearance)
   );
-  const selectedRole   = availableRoles.find((r) => r.id === roleId);
-  const needsLocation  = (selectedRole?.permissionLevel ?? 0) <= 2;
+  const selectedRole      = availableRoles.find((r) => r.id === roleId);
+  const needsLocation     = (selectedRole?.permissionLevel ?? 0) <= 2;
+  const showLocationPicker = !standalone && needsLocation;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -520,8 +525,8 @@ function OperatorForm({
         )}
       </div>
 
-      {/* ── Assigned Locations (type 4 / 5 only) ─────────────────────── */}
-      {needsLocation && (
+      {/* ── Assigned Locations (MTS only; STS/SO auto-assign default) ── */}
+      {showLocationPicker && (
         <div>
           <FL text="Assigned Locations" />
           {isEdit
@@ -674,6 +679,7 @@ type Tab       = 'all' | 'active' | 'disabled';
 type ModalView = 'form' | 'pwd';
 
 export default function OperatorsPage() {
+  const dispatch = useDispatch();
   const { addToast } = useToast();
   const operator = useAppSelector((s) => s.auth.operator);
 
@@ -734,6 +740,19 @@ export default function OperatorsPage() {
 
   const [fetchAll, { isFetching: exportFetching }] = useLazyListOperatorsQuery();
 
+  const { data: otherConfig } = useGetOtherQuery();
+  const defaultPwdPrefix = otherConfig?.defaultOperatorPassword ?? 'Admin@123';
+
+  const { data: publicOrg } = useGetPublicOrgQuery();
+  const isStandalone = publicOrg?.standalone ?? false;
+
+  // In STS/SO, fetch the single default location for auto-assign on create
+  const { data: standaloneLocsPage } = useListLocationsQuery(
+    { page: 0, size: 1, disabled: false },
+    { skip: !isStandalone },
+  );
+  const standaloneDefaultLocId = standaloneLocsPage?.content[0]?.id;
+
   const [create,       { isLoading: creating  }] = useCreateOperatorMutation();
   const [update,       { isLoading: updating  }] = useUpdateOperatorMutation();
   const [disable,      { isLoading: disabling }] = useDisableOperatorMutation();
@@ -789,12 +808,18 @@ export default function OperatorsPage() {
           photo: photoAction?.type === 'upload' ? photoAction.file : undefined,
           removePhoto: photoAction?.type === 'remove' ? true : undefined,
         }).unwrap();
+        dispatch(dashboardApi.util.invalidateTags(['Dashboard']));
         addToast({ type: 'success', message: 'Operator updated' });
       } else {
-        const created = await create({ ...body, password: DEFAULT_PASSWORD }).unwrap();
+        const created = await create(body).unwrap();
         const operatorId = created.id;
+        // MTS: assign locations picked in form
         for (const locationId of locationIds) {
           try { await assign({ locationId, operatorId }).unwrap(); } catch {}
+        }
+        // STS/SO: auto-assign the single default location
+        if (isStandalone && standaloneDefaultLocId != null) {
+          try { await assign({ locationId: standaloneDefaultLocId, operatorId }).unwrap(); } catch {}
         }
         if (photoAction?.type === 'upload') {
           const fd = new FormData();
@@ -805,7 +830,8 @@ export default function OperatorsPage() {
             addToast({ type: 'error', message: 'Operator created but photo upload failed' });
           }
         }
-        addToast({ type: 'success', message: `Operator created — default password: ${DEFAULT_PASSWORD}` });
+        dispatch(dashboardApi.util.invalidateTags(['Dashboard']));
+        addToast({ type: 'success', message: `Operator created — password: ${defaultPwdPrefix}${body.username}` });
       }
       setModalOpen(false);
     } catch (err: unknown) {
@@ -819,6 +845,7 @@ export default function OperatorsPage() {
     try {
       if (confirmState.action === 'disable') await disable(confirmState.op.id).unwrap();
       else                                   await restore(confirmState.op.id).unwrap();
+      dispatch(dashboardApi.util.invalidateTags(['Dashboard']));
       addToast({
         type: 'success',
         message: confirmState.action === 'disable' ? 'Operator disabled' : 'Operator restored',
@@ -836,6 +863,7 @@ export default function OperatorsPage() {
     setBulkLoading(true);
     try {
       const count = await bulkDisable(ids).unwrap();
+      dispatch(dashboardApi.util.invalidateTags(['Dashboard']));
       addToast({ type: 'success', message: `${count} operator${count !== 1 ? 's' : ''} disabled` });
       clearSelection();
     } catch (err: unknown) {
@@ -851,6 +879,7 @@ export default function OperatorsPage() {
     setBulkLoading(true);
     try {
       const count = await bulkRestore(ids).unwrap();
+      dispatch(dashboardApi.util.invalidateTags(['Dashboard']));
       addToast({ type: 'success', message: `${count} operator${count !== 1 ? 's' : ''} restored` });
       clearSelection();
     } catch (err: unknown) {
@@ -1185,6 +1214,7 @@ export default function OperatorsPage() {
             callerIsSuperAdmin={isSuperAdmin}
             roles={roles}
             isMobile={isMobile}
+            standalone={isStandalone}
           />
         ) : (
           editing && (
