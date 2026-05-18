@@ -19,10 +19,10 @@ export default function AssetDetailPage() {
 
   const { data: asset, isLoading } = useGetAssetQuery(assetId, { skip: !assetId });
   const { data: txs, isLoading: loadingTx } = useListTransactionsByAssetQuery(assetId, { skip: !assetId });
-  const { data: locations } = useListLocationsQuery({ size: 200 });
+  const { data: locations, isLoading: loadingLocations } = useListLocationsQuery({ size: 200 });
 
   const locationName = (locId?: number) =>
-    locId ? (locations?.content.find((l) => l.id === locId)?.name ?? `#${locId}`) : '—';
+    locId ? (locations?.content.find((l) => l.id === locId)?.name ?? (loadingLocations ? '…' : '—')) : '—';
 
   if (isLoading) {
     return (

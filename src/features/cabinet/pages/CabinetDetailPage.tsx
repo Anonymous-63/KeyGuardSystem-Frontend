@@ -1,10 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGetCabinetQuery, useGetCabinetMatrixQuery } from '@/features/cabinet/api/cabinetApi';
-import { useListLocationsQuery } from '@/features/location/api/locationApi';
 import { useListCabinetTransactionsQuery } from '@/features/transaction/api/transactionApi';
 import type { CabinetMatrixResponse } from '@/shared/types/api';
 import LoadingRow from '@/shared/components/ui/LoadingRow';
 import StatusBadge from '@/shared/components/ui/StatusBadge';
+import PermissionGate from '@/shared/components/ui/PermissionGate';
 
 const REGISTERED_LABEL = (registered: boolean) =>
   registered
@@ -76,14 +76,10 @@ export default function CabinetDetailPage() {
 
   const { data: cabinet, isLoading: loadingCabinet } = useGetCabinetQuery(cabinetId, { skip: !cabinetId });
   const { data: matrix, isLoading: loadingMatrix } = useGetCabinetMatrixQuery(cabinetId, { skip: !cabinetId });
-  const { data: locations } = useListLocationsQuery({ size: 200 });
   const { data: recentTx, isLoading: loadingTx } = useListCabinetTransactionsQuery(
     { cabinetId, size: 10 },
     { skip: !cabinetId }
   );
-
-  const locationName = (locId: number) =>
-    locations?.content.find((l) => l.id === locId)?.name ?? `#${locId}`;
 
   if (loadingCabinet) {
     return (
@@ -124,16 +120,24 @@ export default function CabinetDetailPage() {
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold">{cabinet.name}</h1>
-                <StatusBadge disabled={cabinet.disabled} />
+                <StatusBadge disabled={cabinet.deleted} />
               </div>
               <p className="text-base-content/50 text-sm mt-0.5">
-                {locationName(cabinet.locationId)}
+                {cabinet.location?.name ?? '—'}
               </p>
             </div>
             <div className="flex gap-2">
               <button className="btn btn-ghost btn-sm" onClick={() => navigate('/cabinets')}>
                 ← Back
               </button>
+              <PermissionGate resource="CABINET" action="MANAGE_CABINET">
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => navigate(`/cabinets/${cabinetId}/settings`)}
+                >
+                  Settings
+                </button>
+              </PermissionGate>
             </div>
           </div>
 

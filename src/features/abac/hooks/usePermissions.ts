@@ -11,7 +11,6 @@ export function usePermissions() {
   const canAccess = useCallback(
     (resource: string, action: string): boolean => {
       if (!data) return false;
-      if (data.isSuperAdmin) return true;
       const perm = data.permissions.find((p) => p.resource === resource);
       return perm?.actions.includes(action) ?? false;
     },

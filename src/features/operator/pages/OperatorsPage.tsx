@@ -269,7 +269,7 @@ function LocationChips({ operatorId }: { operatorId: number }) {
 
   const all         = allPage?.content ?? [];
   const assignedSet = new Set(assignedList.map((a) => a.locationId));
-  const items       = assignedList.map((a) => ({ id: a.locationId, name: a.locationName ?? `#${a.locationId}` }));
+  const items       = assignedList.map((a) => ({ id: a.locationId, name: a.locationName ?? '—' }));
   const available   = all.filter((l) => !assignedSet.has(l.id));
 
   if (isLoading) return (

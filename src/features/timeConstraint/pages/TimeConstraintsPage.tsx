@@ -144,14 +144,14 @@ export default function TimeConstraintsPage() {
   const [editing, setEditing] = useState<TimeConstraintResponse | null>(null);
   const [confirm, setConfirm] = useState<{ tc: TimeConstraintResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data: locations } = useListLocationsQuery({ size: 200 });
+  const { data: locations, isLoading: loadingLocations } = useListLocationsQuery({ size: 200 });
   const { data, isLoading } = useListTimeConstraintsQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateTimeConstraintMutation();
   const [update, { isLoading: updating }] = useUpdateTimeConstraintMutation();
   const [disable, { isLoading: disabling }] = useDisableTimeConstraintMutation();
   const [restore, { isLoading: restoring }] = useRestoreTimeConstraintMutation();
 
-  const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
+  const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? (loadingLocations ? '…' : '—');
 
   const rows = (data?.content ?? []).filter((tc) => {
     if (filterName && !tc.name.toLowerCase().includes(filterName.toLowerCase())) return false;

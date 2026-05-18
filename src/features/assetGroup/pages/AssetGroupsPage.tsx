@@ -57,7 +57,7 @@ function GroupForm({
 
 function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; onClose: () => void }) {
   const { addToast } = useToast();
-  const { data: assets } = useListAssetsByLocationQuery(group.locationId);
+  const { data: assets, isLoading: loadingAssets } = useListAssetsByLocationQuery(group.locationId);
   const [add, { isLoading: adding }] = useAddAssetToGroupMutation();
   const [remove, { isLoading: removing }] = useRemoveAssetFromGroupMutation();
 
@@ -78,7 +78,7 @@ function AssetAssignmentPanel({ group, onClose }: { group: AssetGroupResponse; o
               const asset = assets?.find((a) => a.id === assetId);
               return (
                 <span key={assetId} className="badge badge-primary gap-1">
-                  {asset?.name ?? `#${assetId}`}
+                  {asset?.name ?? (loadingAssets ? '…' : '—')}
                   <PermissionGate resource="ASSET_GROUP" action="ASSIGN">
                     <button
                       className="text-xs opacity-70 hover:opacity-100"
@@ -148,14 +148,14 @@ export default function AssetGroupsPage() {
   const [filterName, setFilterName] = useState('');
   const [confirm, setConfirm] = useState<{ g: AssetGroupResponse; action: 'disable' | 'restore' } | null>(null);
 
-  const { data: locations } = useListLocationsQuery({ size: 200 });
+  const { data: locations, isLoading: loadingLocations } = useListLocationsQuery({ size: 200 });
   const { data, isLoading } = useListAssetGroupsQuery({ size: 500, includeDisabled });
   const [create, { isLoading: creating }] = useCreateAssetGroupMutation();
   const [update, { isLoading: updating }] = useUpdateAssetGroupMutation();
   const [disable, { isLoading: disabling }] = useDisableAssetGroupMutation();
   const [restore, { isLoading: restoring }] = useRestoreAssetGroupMutation();
 
-  const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? `#${id}`;
+  const locationName = (id: number) => locations?.content.find((l) => l.id === id)?.name ?? (loadingLocations ? '…' : '—');
 
   const openCreate = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (g: AssetGroupResponse) => { setEditing(g); setModalOpen(true); };

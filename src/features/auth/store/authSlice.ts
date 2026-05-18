@@ -10,14 +10,18 @@ interface AuthState {
   refreshToken: string | null;
   operator: OperatorResponse | null;
   loading: boolean;
+  validating: boolean;
   error: string | null;
 }
 
+const storedToken = localStorage.getItem(ACCESS_KEY);
+
 const initialState: AuthState = {
-  accessToken: localStorage.getItem(ACCESS_KEY),
+  accessToken: storedToken,
   refreshToken: localStorage.getItem(REFRESH_KEY),
   operator: null,
   loading: false,
+  validating: !!storedToken, // true when we have a stored token that needs backend verification
   error: null,
 };
 
@@ -60,6 +64,7 @@ const authSlice = createSlice({
       state.accessToken = null;
       state.refreshToken = null;
       state.operator = null;
+      state.validating = false;
       localStorage.removeItem(ACCESS_KEY);
       localStorage.removeItem(REFRESH_KEY);
     },
@@ -90,6 +95,15 @@ const authSlice = createSlice({
       })
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.operator = action.payload;
+        state.validating = false;
+      })
+      .addCase(fetchMe.rejected, (state) => {
+        state.accessToken = null;
+        state.refreshToken = null;
+        state.operator = null;
+        state.validating = false;
+        localStorage.removeItem(ACCESS_KEY);
+        localStorage.removeItem(REFRESH_KEY);
       });
   },
 });

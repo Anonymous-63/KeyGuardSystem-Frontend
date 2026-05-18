@@ -18,6 +18,7 @@ import AssetGroupsPage from '@/features/assetGroup/pages/AssetGroupsPage';
 import TimeConstraintsPage from '@/features/timeConstraint/pages/TimeConstraintsPage';
 import ProfilePage from '@/features/auth/pages/ProfilePage';
 import CabinetDetailPage from '@/features/cabinet/pages/CabinetDetailPage';
+import CabinetSettingsPage from '@/features/cabinet/pages/CabinetSettingsPage';
 import AssetDetailPage from '@/features/asset/pages/AssetDetailPage';
 import AuditLogPage from '@/features/audit/pages/AuditLogPage';
 import SettingsPage from '@/features/config/pages/SettingsPage';
@@ -51,7 +52,8 @@ export default function App() {
           <Route path="/operators"        element={<ResourceRoute resource="OPERATOR"        element={<OperatorsPage />} />} />
           <Route path="/cabinet-users"    element={<ResourceRoute resource="CABINET_USER"   element={<CabinetUsersPage />} />} />
           <Route path="/cabinets"         element={<ResourceRoute resource="CABINET"         element={<CabinetsPage />} />} />
-          <Route path="/cabinets/:id"     element={<ResourceRoute resource="CABINET"         element={<CabinetDetailPage />} />} />
+          <Route path="/cabinets/:id"          element={<ResourceRoute resource="CABINET" element={<CabinetDetailPage />} />} />
+          <Route path="/cabinets/:id/settings" element={<ResourceRoute resource="CABINET" element={<CabinetSettingsPage />} />} />
           <Route path="/assets"           element={<ResourceRoute resource="ASSET"           element={<AssetsPage />} />} />
           <Route path="/assets/:id"       element={<ResourceRoute resource="ASSET"           element={<AssetDetailPage />} />} />
           <Route path="/asset-groups"     element={<ResourceRoute resource="ASSET_GROUP"     element={<AssetGroupsPage />} />} />

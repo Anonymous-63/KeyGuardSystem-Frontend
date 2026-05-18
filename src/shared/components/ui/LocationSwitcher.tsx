@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MapPin, ChevronDown, Check } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/store/hooks';
-import { setSelectedLocation, clearSelectedLocation, selectSelectedLocation } from '@/features/location/store/locationSlice';
+import { setSelectedLocation, selectSelectedLocation } from '@/features/location/store/locationSlice';
 import { usePermissions } from '@/features/abac/hooks/usePermissions';
 
 interface Props {
@@ -27,14 +27,12 @@ export default function LocationSwitcher({ variant = 'pill' }: Props) {
 
   if (!operator || isSuperAdmin) return null;
 
-  const locations     = operator.assignedLocations ?? [];
+  const locations = operator.assignedLocations ?? [];
   if (locations.length === 0) return null;
-  const showAllOption = locations.length > 1;
-  const label         = selected?.name ?? 'All Locations';
+  const label = selected?.name ?? 'All Locations';
 
-  const handleSelect = (id: number | null, name: string | null) => {
-    if (id !== null && name !== null) dispatch(setSelectedLocation({ id, name }));
-    else dispatch(clearSelectedLocation());
+  const handleSelect = (id: number, name: string) => {
+    dispatch(setSelectedLocation({ id, name }));
     setOpen(false);
   };
 
@@ -100,18 +98,6 @@ export default function LocationSwitcher({ variant = 'pill' }: Props) {
             boxShadow: '0 6px 20px rgba(0,0,0,0.13)',
             overflow: 'hidden',
           }}>
-            {showAllOption && (
-              <SbOption
-                label="All Locations"
-                active={selected === null}
-                onClick={() => handleSelect(null, null)}
-              />
-            )}
-            {locations.length === 0 && (
-              <p style={{ padding: '0.6rem 0.875rem', fontSize: '0.8rem', color: 'var(--sb-text-muted)', margin: 0 }}>
-                No locations assigned
-              </p>
-            )}
             {locations.map((loc) => (
               <SbOption
                 key={loc.id}
@@ -175,18 +161,6 @@ export default function LocationSwitcher({ variant = 'pill' }: Props) {
             Switch Location
           </div>
 
-          {showAllOption && (
-            <LocOption
-              label="All Locations"
-              active={selected === null}
-              onClick={() => handleSelect(null, null)}
-            />
-          )}
-          {locations.length === 0 && (
-            <p style={{ padding: '0.6rem 0.875rem', fontSize: '0.8rem', color: 'var(--sb-text-muted)', margin: 0 }}>
-              No locations assigned
-            </p>
-          )}
           {locations.map((loc) => (
             <LocOption
               key={loc.id}

@@ -1,3 +1,10 @@
+// ─── Shared reference type ───────────────────────────────────────────────────
+
+export interface ReferenceRes {
+  id: number;
+  name: string;
+}
+
 // ─── Generic wrappers ────────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {
@@ -168,7 +175,7 @@ export interface ChangePasswordRequest {
 
 export interface CabinetResponse {
   id: number;
-  locationId: number;
+  location: ReferenceRes;
   name: string;
   mac: string;
   ip: string;
@@ -176,9 +183,19 @@ export interface CabinetResponse {
   gateway?: string;
   serverIp?: string;
   serverUrl?: string;
-  disabled: boolean;
+  serverRespTimeout?: number;
+  camera?: string;
+  cameraIp?: string;
+  faceReaderIp?: string;
+  faceReaderPort?: number;
+  faceReaderGatewayIp?: string;
+  health?: string;
+  liveAt?: string;
+  changedAt?: string;
+  deleted: boolean;
   registered: boolean;
   syncStatus: number;
+  cabinetType?: number;
 }
 
 export interface CabinetRequest {
@@ -190,6 +207,14 @@ export interface CabinetRequest {
   gateway: string;
   serverIp?: string;
   serverUrl?: string;
+  serverRespTimeout?: number;
+  camera?: string;
+  photoPath?: string;
+  photoSuffix?: string;
+  cameraIp?: string;
+  faceReaderIp?: string;
+  faceReaderPort?: number;
+  faceReaderGatewayIp?: string;
 }
 
 export interface CabinetMatrixResponse {
@@ -198,6 +223,121 @@ export interface CabinetMatrixResponse {
   assetName?: string;
   assetNumber?: number;
   status: number;
+}
+
+export interface LcdRelaySetting {
+  eventIndex: number;
+  eventName: string;
+  relay1: boolean;
+  relay2: boolean;
+  alarm: boolean;
+  delayTimeout: number;
+}
+
+export interface CabinetSettingsResponse {
+  cabinetType: number;
+  displayString?: string;
+  withdrawPolicy?: number;
+  accessMode?: number;
+  accessMode2?: number;
+  autoRelease?: boolean;
+  multiRelease?: boolean;
+  notifyTamper?: boolean;
+  checkTimeConstraint?: boolean;
+  checkValidity?: boolean;
+  keypadEcho?: boolean;
+  fixedSlot?: boolean;
+  authReturn?: boolean;
+  keyBunchReleaseTimeout?: number;
+  keyReleaseTimeout?: number;
+  keypadTimeout?: number;
+  doorCloseTimeout?: number;
+  serverRespTimeout?: number;
+  healthPacketInterval?: number;
+  transUploadCount?: number;
+  fpSecurity?: number;
+  volume?: number;
+  brightness?: number;
+  alarmMask?: number;
+  inputMask?: number;
+  relay1Mask?: number;
+  relay2Mask?: number;
+  doorMask?: number;
+  outputTimeout1?: number;
+  outputTimeout2?: number;
+  doorTimeout1?: number;
+  doorTimeout2?: number;
+  doorTimeout3?: number;
+  doorTimeout4?: number;
+  spareMask?: number;
+  // LCD-only
+  readerType?: number;
+  listenPort?: number;
+  serverPort?: number;
+  relayTimeout?: number;
+  openForValidUser?: boolean;
+  inputMaskDoor1?: number;
+  inputMaskDoor2?: number;
+  relaySettings?: LcdRelaySetting[];
+  // Feature capabilities
+  rfidEnabled?: boolean;
+  fpEnabled?: boolean;
+  qFaceAuthEnabled?: boolean;
+  doorCount?: number;
+}
+
+export interface LcdRelaySettingRequest {
+  eventIndex: number;
+  relay1?: boolean;
+  relay2?: boolean;
+  alarm?: boolean;
+  delayTimeout?: number;
+}
+
+export interface CabinetSettingsRequest {
+  displayString?: string;
+  withdrawPolicy?: number;
+  accessMode?: number;
+  accessMode2?: number;
+  autoRelease?: boolean;
+  multiRelease?: boolean;
+  notifyTamper?: boolean;
+  checkTimeConstraint?: boolean;
+  checkValidity?: boolean;
+  keypadEcho?: boolean;
+  fixedSlot?: boolean;
+  authReturn?: boolean;
+  keyBunchReleaseTimeout?: number;
+  keyReleaseTimeout?: number;
+  keypadTimeout?: number;
+  doorCloseTimeout?: number;
+  serverRespTimeout?: number;
+  healthPacketInterval?: number;
+  transUploadCount?: number;
+  fpSecurity?: number;
+  volume?: number;
+  brightness?: number;
+  alarmMask?: number;
+  inputMask?: number;
+  relay1Mask?: number;
+  relay2Mask?: number;
+  doorMask?: number;
+  outputTimeout1?: number;
+  outputTimeout2?: number;
+  doorTimeout1?: number;
+  doorTimeout2?: number;
+  doorTimeout3?: number;
+  doorTimeout4?: number;
+  spareMask?: number;
+  // LCD-only
+  readerType?: number;
+  listenPort?: number;
+  serverPort?: number;
+  relayTimeout?: number;
+  openForValidUser?: boolean;
+  inputMaskDoor1?: number;
+  inputMaskDoor2?: number;
+  relaySettings?: LcdRelaySettingRequest[];
 }
 
 // ─── Asset ────────────────────────────────────────────────────────────────────

@@ -69,31 +69,39 @@ function PriorityBadge({ value }: { value: number }) {
 }
 
 // ─── Scope cell ───────────────────────────────────────────────────────────────
-// Two-line stacked: resource type (primary) above action badge(s) (muted)
 
 function ScopeCell({ resource, action }: { resource?: string; action?: string }) {
   const actions = action ? action.split(',').map(a => a.trim()).filter(Boolean) : [];
+  const MAX_BADGES = 3;
+  const shown = actions.slice(0, MAX_BADGES);
+  const extra = actions.length - MAX_BADGES;
   return (
-    <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: '0.2rem' }}>
+    <div style={{ lineHeight: 1.3, display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%', gap: '0.25rem' }}>
       <span style={{
-        fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.03em',
+        fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.02em',
         color: resource ? 'var(--color-primary)' : 'var(--sb-text-muted)',
         fontStyle: resource ? 'normal' : 'italic',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }}>
         {resource ?? 'Any resource'}
       </span>
       {actions.length === 0 ? (
-        <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--sb-text-muted)', fontStyle: 'italic' }}>
-          any action
-        </span>
+        <span style={{ fontSize: '0.67rem', color: 'var(--sb-text-muted)', fontStyle: 'italic' }}>any action</span>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.18rem' }}>
-          {actions.map(a => (
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: '0.2rem', overflow: 'hidden' }}>
+          {shown.map(a => (
             <span key={a} className="badge badge-ghost badge-xs"
-              style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0 0.3rem', cursor: 'default' }}>
+              style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0 0.28rem', cursor: 'default', flexShrink: 0 }}>
               {a}
             </span>
           ))}
+          {extra > 0 && (
+            <span style={{
+              fontSize: '0.6rem', fontWeight: 700, flexShrink: 0,
+              background: 'var(--color-base-300)', borderRadius: '0.25rem',
+              padding: '0 0.28rem', lineHeight: '1.4rem', cursor: 'default',
+            }}>+{extra}</span>
+          )}
         </div>
       )}
     </div>
@@ -996,7 +1004,6 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
   const validate = () => {
     const e: Partial<Record<keyof PolicyRequest, string>> = {};
     if (!form.name.trim())          e.name = 'Name is required';
-    if (!form.conditionExpr.trim()) e.conditionExpr = 'Condition expression is required';
     if (form.priority < 1 || form.priority > 9999) e.priority = 'Priority must be 1–9999';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -1006,10 +1013,11 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
     if (!validate()) return;
     const body: PolicyRequest = {
       ...form,
-      resourceType: form.resourceType?.trim()              || undefined,
-      action:       selectedActions.length > 0 ? selectedActions.join(',') : undefined,
-      description:  form.description?.trim()               || undefined,
-      changeReason: form.changeReason?.trim()              || undefined,
+      resourceType:   form.resourceType?.trim()              || undefined,
+      action:         selectedActions.length > 0 ? selectedActions.join(',') : undefined,
+      description:    form.description?.trim()               || undefined,
+      conditionExpr:  form.conditionExpr?.trim()             || undefined,
+      changeReason:   form.changeReason?.trim()              || undefined,
     };
     try {
       if (isEdit) {
@@ -1177,13 +1185,16 @@ function PolicyFormModal({ policy, onClose }: { policy: PolicyResponse | null; o
 
         {/* Condition expression */}
         <div>
-          <FL text="Condition Expression" required />
+          <FL text="Condition Expression" />
           <ConditionBuilder
             value={form.conditionExpr}
             onChange={v => set('conditionExpr', v)}
             startRaw={isEdit}
           />
-          {errors.conditionExpr && <p style={err}>{errors.conditionExpr}</p>}
+          {errors.conditionExpr
+            ? <p style={err}>{errors.conditionExpr}</p>
+            : <p style={hint}>Optional. Leave empty to match all subjects unconditionally.</p>
+          }
         </div>
 
         {/* Change reason (edit only) */}
@@ -1570,7 +1581,7 @@ export default function PolicyManagementPage() {
         d ? <EffectBadge effect={d.effect} /> : null,
     },
     {
-      headerName: 'Scope', width: 170,
+      headerName: 'Scope', minWidth: 190, flex: 1,
       cellRenderer: ({ data: d }: { data: PolicyResponse }) =>
         d ? <ScopeCell resource={d.resourceType ?? undefined} action={d.action ?? undefined} /> : null,
     },

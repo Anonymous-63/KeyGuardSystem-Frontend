@@ -1,15 +1,23 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '@/config/baseQuery';
-import type { ApiResponse, PagedResponse, CabinetResponse, CabinetRequest, CabinetMatrixResponse } from '@/shared/types/api';
+import type {
+  ApiResponse, PagedResponse,
+  CabinetResponse, CabinetRequest, CabinetMatrixResponse,
+  CabinetSettingsResponse, CabinetSettingsRequest,
+} from '@/shared/types/api';
 
 export const cabinetApi = createApi({
   reducerPath: 'cabinetApi',
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Cabinet'],
   endpoints: (b) => ({
-    listCabinets: b.query<PagedResponse<CabinetResponse>, { page?: number; size?: number; includeDisabled?: boolean }>({
-      query: ({ page = 0, size = 20, includeDisabled = false } = {}) =>
-        `/cabinets?page=${page}&size=${size}&includeDisabled=${includeDisabled}`,
+    listCabinets: b.query<PagedResponse<CabinetResponse>, { page?: number; size?: number; deleted?: boolean; locationId?: number }>({
+      query: ({ page = 0, size = 20, deleted, locationId } = {}) => {
+        let url = `/cabinets?page=${page}&size=${size}`;
+        if (deleted !== undefined) url += `&deleted=${deleted}`;
+        if (locationId !== undefined) url += `&locationId=${locationId}`;
+        return url;
+      },
       transformResponse: (r: ApiResponse<PagedResponse<CabinetResponse>>) => r.data,
       providesTags: ['Cabinet'],
     }),
@@ -47,11 +55,22 @@ export const cabinetApi = createApi({
       transformResponse: (r: ApiResponse<CabinetMatrixResponse[]>) => r.data,
       providesTags: (_r, _e, id) => [{ type: 'Cabinet', id }],
     }),
+    getCabinetSettings: b.query<CabinetSettingsResponse, number>({
+      query: (id) => `/cabinets/${id}/settings`,
+      transformResponse: (r: ApiResponse<CabinetSettingsResponse>) => r.data,
+      providesTags: (_r, _e, id) => [{ type: 'Cabinet', id }],
+    }),
+    updateCabinetSettings: b.mutation<CabinetSettingsResponse, { id: number; body: CabinetSettingsRequest }>({
+      query: ({ id, body }) => ({ url: `/cabinets/${id}/settings`, method: 'PUT', body }),
+      transformResponse: (r: ApiResponse<CabinetSettingsResponse>) => r.data,
+      invalidatesTags: (_r, _e, { id }) => [{ type: 'Cabinet', id }],
+    }),
   }),
 });
 
 export const {
   useListCabinetsQuery,
+  useLazyListCabinetsQuery,
   useListCabinetsByLocationQuery,
   useGetCabinetQuery,
   useGetCabinetMatrixQuery,
@@ -59,4 +78,6 @@ export const {
   useUpdateCabinetMutation,
   useDisableCabinetMutation,
   useRestoreCabinetMutation,
+  useGetCabinetSettingsQuery,
+  useUpdateCabinetSettingsMutation,
 } = cabinetApi;

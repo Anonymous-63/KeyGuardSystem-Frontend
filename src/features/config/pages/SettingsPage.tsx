@@ -297,9 +297,15 @@ export default function SettingsPage() {
   const handleLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const effectiveOrgName = orgName.trim() || config?.organization?.orgName?.trim() || '';
+    if (!effectiveOrgName) {
+      addToast({ type: 'error', message: 'Set an organisation name before uploading a logo' });
+      e.target.value = '';
+      return;
+    }
     setUploadingLogo(true);
     try {
-      await updateOrg({ orgName: orgName || (config?.organization?.orgName ?? ''), orgLogo: file }).unwrap();
+      await updateOrg({ orgName: effectiveOrgName, orgLogo: file }).unwrap();
       addToast({ type: 'success', message: 'Logo uploaded' });
     } catch {
       addToast({ type: 'error', message: 'Logo upload failed' });
